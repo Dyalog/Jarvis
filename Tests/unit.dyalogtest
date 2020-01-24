@@ -1,0 +1,6 @@
+﻿DyalogTest : 0.1
+ID         : JSONServer_Basic_Unit
+Description: Basic unit tests for JSONServer.dyalog
+
+Setup   : setup
+Teardown: teardown

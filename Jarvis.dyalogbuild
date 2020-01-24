@@ -1,0 +1,9 @@
+﻿DyalogBuild: 0.1
+ID         : Jarvis, Version=1.0
+Description: Jarvis Web Service Framework
+Defaults   : ⎕IO←⎕ML←1
+TARGET     : Distribution/Jarvis.dws
+
+APL   : Source/*.dyalog, Target=#
+LIB   : HttpCommand, Target=#
+LX    : ⍎(⎕IO+0∊⍴2⎕NQ'.' 'GetEnvironment' 'AttachDebugger')⊃'⎕←''Autostart not run because AttachDebugger was set''' 'Server←AutoStart'

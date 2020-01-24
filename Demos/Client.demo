@@ -1,0 +1,15 @@
+﻿⍝ Calling Jarvis
+)clear
+
+]load HttpCommand
+cmd←⎕NEW HttpCommand
+cmd.(Command URL)←'POST' 'localhost:8080/GetSign'
+cmd.Headers⍪←'content-type' 'application/json'
+cmd.Params←⎕JSON 10 31 ⍝ '[10,31]'
+q←cmd.Run
+q.(rc Data)
+
+cmd.Params←'["October",31]'
+q←cmd.Run
+q.(rc HttpStatus HttpMessage)
+q.Data

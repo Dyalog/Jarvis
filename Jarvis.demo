@@ -1,0 +1,26 @@
+﻿)clear
+]load /git/Jarvis/Source/Jarvis
+srv←⎕NEW Jarvis
+srv.CodeLocation←'/git/Jarvis/Samples/JSON/'
+srv.Port←8080
+srv.Start
+
+⍝ Now make a call to it:
+]load HTTPCommand
+cmd←⎕NEW HttpCommand
+cmd.(Command URL)←'POST' 'localhost:8080/GetSign'
+cmd.Headers⍪←'content-type' 'application/json'
+cmd.Params←'[10,31]'
+q←cmd.Run
+q.rc
+q.Data
+
+cmd.Params←'[2,23]'
+q←cmd.Run
+q.rc
+q.HttpStatus
+q.HttpMessage
+
+q←HttpCommand.GetJSON 'post' 'localhost:8080/GetSign' (10 31)
+q.rc
+q.Data

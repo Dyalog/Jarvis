@@ -1,0 +1,136 @@
+﻿⍝ Demo/Test script          
+&'   
+]load HttpCommand
+]load /git/JSONServer/Source/JSONServer
+)copy dfns disp
+
+ 
+&'
+⍝ --- define a couple utilities ---
+showJSON←{0∊⍴⍵:⍵ ⋄ 1(⎕JSON⍠'Compact' 0)0⎕JSON ⍵}
+showReq←{req←disp 'URL' 'Params',⍪⍺.(URL Params) ⋄ resp←disp 'HTTP Status' 'Data',⍪(⍕⍵.(HttpStatus HttpMessage))(showJSON ⍵.Data) ⋄ ⍪,'Request' 'Response',⍪req resp}                             
+
+&'   
+⍝ --- Create the Server ---
+&'   
+srv←⎕NEW JSONServer   ⍝ create the server
+srv.ClassInterface←1  ⍝ turn class interface on
+srv.CodeLocation←'/git/JSONServer/Tests/mixed/'  ⍝ where to load the code from
+srv.Port←8080         ⍝ port to listen on
+srv.ExcludeFns←'_*' '[A-Z].*' ⍝ exclude any functions beginning with _ or uppercase
+srv.Start             ⍝ start the server                        
+
+&'                            
+⍝ --- Create the client ---
+&' 
+cmd←⎕NEW HttpCommand  ⍝ create a client
+baseURL←'http://localhost:8080/'  ⍝ base URL
+cmd.Command←'post'                ⍝ all JSONServer requests are "post"
+'content-type' cmd.AddHeader 'application/json'  ⍝ set the content-type
+
+&'                          
+⍝ --- Simple function call ---                          
+&'
+#.CodeLocation.⎕VR 'reverse'
+⎕←cmd.URL←baseURL,'reverse'         ⍝ function to call
+cmd.Params←'"Dyalog JSONServer"'  ⍝ data to pass (simple string in this case)  
+resp←cmd.Run                      ⍝ submit the request
+&'
+⍝ --- HttpCommand.Run returns a namespace ---  
+resp.⎕NL ¯2 ¯9 
+resp.(HttpStatus HttpMessage)     ⍝ check the status
+resp.Data                         ⍝ show the response's data
+cmd showReq resp
+&'
+⍝ --- functions in namespaces can be referenced directly in the URL ---
+⎕←cmd.URL←baseURL,'loans/payment' ⍝ loan payment calulator
+cmd.Params←'[100000,5.5,30]'      ⍝ principal, interest rate, years
+cmd showReq cmd.Run
+&'
+⍝ --- ExcludedFns is used to exclude or hide functions from JSONServer ---
+&'
+cmd.URL←baseURL,'Excluded'         ⍝ should not be allowed because of ExcludeFns
+cmd showReq cmd.Run                ⍝ submit the request
+srv.ExcludeFns
+&'
+srv.ExcludeFns←'_*'                ⍝ remove the [A-Z].* exclusion 
+&'
+cmd showReq cmd.Run             
+&'
+⍝ --- Class Interface ---
+⍝ uses "built-in" functions _New _Get _Set _Run _Classes _Instances _Serialize
+&'
+cmd.URL←baseURL,'_Classes'      ⍝ what classes are available?
+cmd.Params←''                   ⍝ no arguments
+cmd showReq cmd.Run                 
+&'
+⍝ Note: Every class interface function returns "rc" and "message" 
+&'
+⍝ --- Create an instance ---
+&'
+cmd.URL←baseURL,'_New'      
+cmd.Params←'{"className":"loansclass"}'
+resp←cmd.Run                      ⍝ submit the request
+cmd showReq resp
+&'
+instance←(⎕JSON resp.Data).instanceName ⍝ grab the instance name for later use
+&'
+⍝ --- Let's try creating an instance of a class that doesn't exist ---
+&'
+cmd.Params←'{"className":"BadClassName"}'
+cmd showReq cmd.Run
+&'
+⍝ --- Setting a public field or property with _Set ---
+&'
+cmd.URL←baseURL,'_Set'            ⍝ set a field or property
+cmd.Params←'{"instanceName":"',instance,'","what":"rates","value":[5,6,7]}'
+cmd showReq cmd.Run
+&'
+⍝ --- Retrieving a public field or property with _Get ---
+&'
+cmd.URL←baseURL,'_Get'      
+cmd.Params←'{"instanceName":"',instance,'","what":"terms"}'
+cmd showReq cmd.Run                                           
+&'
+⍝ --- Retrieving all public fields or properties with _Serialize ---
+&'
+cmd.URL←baseURL,'_Serialize'      
+cmd.Params←'{"instanceName":"',instance,'"}'
+cmd showReq cmd.Run                      
+&'
+⍝ --- Running a public method ---
+&'    
+CodeLocation⍎instance,'.payments'   ⍝ note - result is rank 3 which cannot be represented in JSON
+cmd.URL←baseURL,'_Run'      
+cmd.Params←'{"instanceName":"',instance,'","methodName":"payments"}'
+cmd showReq cmd.Run
+&'
+srv.FlattenOutput←2       ⍝ flatten output and issue a warning message
+cmd showReq cmd.Run
+&'
+srv.FlattenOutput←1       ⍝ flatten output without warning message
+cmd showReq cmd.Run
+&'
+⍝ --- _Run can be used to call any function, not just those in a class
+&'
+cmd.URL←baseURL,'_Run' 
+cmd.Params←'{"methodName":"reverse","rarg":[2,4,6,8,10]}'
+cmd showReq cmd.Run                    
+&'
+⍝ --- Passing arguments as data ---
+&'
+cmd.URL←baseURL,'loans/afford'    ⍝ how much can I afford to borrow?
+cmd.Params←'[[5,6,7],[10,15],1000]' ⍝ interest rates, # years, desired maximum payment 
+cmd showReq cmd.Run                    
+&'
+⍝ --- Passing arguments as a namespace
+&'
+cmd.URL←baseURL,'loans/afford_ns' 
+cmd.Params←'{"rates":[3,4,5],"terms":[10,20],"payments":[1000,1500]}'
+cmd showReq cmd.Run                    
+
+
+
+
+
+

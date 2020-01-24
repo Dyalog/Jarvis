@@ -1,0 +1,28 @@
+﻿⍝ NB requires v16.0 or later
+ ⍝ NB to run this demo:
+ ⍝   Replace [Jarvis] in the lines below with the folder where you have downloaded or cloned the Jarvis repository
+)clear
+⎕pw←1000
+)ns Zodiac
+]load [Jarvis]/Samples/JSON/* -target=Zodiac
+⎕VR 'Zodiac.GetSign'
+Zodiac.GetSign 10 31
+
+(halloween←⎕NS '').(month day)←10 31
+hweensign←Zodiac.GetSignObject halloween
+hweensign.(month day sign)
+⎕JSON hweensign
+
+]load [Jarvis]/Source/Jarvis
+srv←⎕NEW Jarvis
+srv.CodeLocation←#.Zodiac
+srv.Port←8080
+srv.Start
+⍝ Now run the client demo
+srv.Stop
+
+)clear
+]load [Jarvis]/Source/Jarvis
+⎕←(srv rc)←Jarvis.Run (8080 '/devt/Jarvis/Samples/JSON')
+
+⍝ dyalog [Jarvis]/Distribution/Jarvis.dws -Port=8080 -CodeLocation="[Jarvis]/Sample"
