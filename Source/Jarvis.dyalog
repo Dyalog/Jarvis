@@ -4,38 +4,40 @@
 
     (⎕ML ⎕IO)←1 1
 
-    :Field Public AcceptFrom←⍬    ⍝ IP addresses to accept requests from - empty means accept from any IP address
-    :Field Public DenyFrom←⍬      ⍝ IP addresses to refuse requests from - empty means deny none
-    :Field Public Port←8080       ⍝ Default port to listen on
-    :Field Public BlockSize←10000 ⍝ Conga block size
-    :Field Public CodeLocation←#  ⍝ application code location
-    :Field Public ConfigFile←''   ⍝ configuration file path (if any)
+    :Field Public AcceptFrom←⍬           ⍝ IP addresses to accept requests from - empty means accept from any IP address
     :Field Public AppInitFn←'Initialize' ⍝ name of the application "bootstrap" function
-    :Field Public ValidateRequestFn←'ValidateRequest' ⍝ name of the request validation function
+    :Field Public AuthenticateFn←''      ⍝ function name to perform authentication,if empty, no authentication is necessary
+    :Field Public BlockSize←10000        ⍝ Conga block size
+    :Field Public CodeLocation←''        ⍝ application code location
+    :Field Public ConfigFile←''          ⍝ configuration file path (if any)
+    :Field Public Debug←0                ⍝ 0 = a ll errors are trapped, 1 = stop on an error, 2 = stop on intentional error before processing request
+    :Field Public DefaultContentType←'application/json; charset=utf-8'
+    :Field Public DenyFrom←⍬             ⍝ IP addresses to refuse requests from - empty means deny none
+    :Field Public ExcludeFns←''          ⍝ vector of vectors for function names to be excluded (can use regex or ? and * as wildcards)
+    :Field Public FlattenOutput←0        ⍝ 0=no, 1=yes, 2=yes with notification
+    :Field Public HtmlInterface←1        ⍝ allow the HTML interface
+    :Field Public Host←''                ⍝ external-facing host name
+    :Field Public HTTPAuthentication←'basic' ⍝ valid settings are currently 'basic' or ''
+    :Field Public IncludeFns←''     ⍝ vector of vectors for function names to be included (can use regex or ? and * as wildcards)
     :Field Public LoadableFiles←'*.apl*,*.dyalog'  ⍝ file patterns that can be loaded if loading from folder
     :Field Public Logging←1       ⍝ turn logging on/off
-    :Field Public HtmlInterface←1 ⍝ allow the HTML interface
-    :Field Public Debug←0         ⍝ 0 = all errors are trapped, 1 = stop on an error, 2 = stop on intentional error before processing request
-    :Field Public FlattenOutput←0 ⍝ 0=no, 1=yes, 2=yes with notification
-    :Field Public ParsePayload←1  ⍝ 1=parse payload based on content-type header
     :Field Public Paradigm←'JSON' ⍝ either 'JSON' or 'REST'
-    :Field Public SessionTimeout←0         ⍝ 0 = do not use sessions, ¯1 = no timeout , 0< session timeout time (in minutes)
-    :Field Public SessionPollingTime←1     ⍝ how frequently (in minutes) we should poll for timed out sessions
-    :Field Public SessionCleanupTime←60    ⍝ how frequently (in minutes) do we clean up timed out session info from _sessionsInfo
-    :Field Public SessionStartCommand←'Login'
-    :Field Public SessionStopCommand←'Logout'
-    :Field Public SessionIdHeader←'Jarvis-SessionID'
-    :Field Public SessionInitFn←''
-    :Field Public AuthenticateFn←''        ⍝ function name to perform authentication,if empty, no authentication is necessary
-    :Field Public IncludeFns←''    ⍝ vector of vectors for function names to be included (can use regex or ? and * as wildcards)
-    :Field Public ExcludeFns←''    ⍝ vector of vectors for function names to be excluded (can use regex or ? and * as wildcards)
-    :Field Public Secure←0          ⍝ 0 = use HTTP, 1 = use HTTPS
+    :Field Public ParsePayload←1  ⍝ 1=parse payload based on content-type header
+    :Field Public Port←8080       ⍝ Default port to listen on
     :Field Public RootCertDir←''    ⍝ Root CA certificate folder
-    :Field Public SSLValidation←64  ⍝ request, but do not require a client certificate
+    :Field Public RESTMethods←'Get,Post,Put,Delete,Patch,Options'
+    :Field Public Secure←0          ⍝ 0 = use HTTP, 1 = use HTTPS
     :Field Public ServerCertFile←'' ⍝ public certificate file
     :Field Public ServerKeyFile←''  ⍝ private key file
-    :Field Public RESTMethods←'Get,Post,Put,Delete,Patch,Options'
-    :Field Public DefaultContentType←'application/json; charset=utf-8'
+    :Field Public SessionCleanupTime←60    ⍝ how frequently (in minutes) do we clean up timed out session info from _sessionsInfo
+    :Field Public SessionIdHeader←'Jarvis-SessionID'
+    :Field Public SessionInitFn←''
+    :Field Public SessionPollingTime←1     ⍝ how frequently (in minutes) we should poll for timed out sessions
+    :Field Public SessionStartEndpoint←'Login'
+    :Field Public SessionStopEndpoint←'Logout'
+    :Field Public SessionTimeout←0         ⍝ 0 = do not use sessions, ¯1 = no timeout , 0< session timeout time (in minutes)
+    :Field Public SSLValidation←64  ⍝ request, but do not require a client certificate
+    :Field Public ValidateRequestFn←'ValidateRequest' ⍝ name of the request validation function
 
     :Field Folder←''             ⍝ folder that user supplied in CodeLocation from which to load code
     :Field _configLoaded←0
@@ -50,7 +52,6 @@
     :Field _includeRegex←''     ⍝ private field compiled regex from IncludeFns
     :Field _excludeRegex←''     ⍝ private compiled regex from ExcludeFns
 
-
     ∇ r←Version
       :Access public shared
       r←'Jarvis' '1.0' '2020-01-16'
@@ -60,6 +61,12 @@
     ⍝ returns current configuration
       :Access public
       r←↑{⍵(⍎⍵)}¨⎕THIS⍎'⎕NL ¯2.2'
+    ∇
+
+    ∇ r←trap DebugLevel level
+    ⍝ sets trap based on debugging level
+    ⍝  the intention is to allow traps to be set for different forms of debugging (e.g. framework, request, application, etc
+      r←trap/⍨Debug{∨/{⍵[;1]∨.∧1↓[2]⍵}2⊥⍣¯1⊢⍺,⍵}level
     ∇
 
     ∇ {r}←Log msg;ts
@@ -98,8 +105,13 @@
               Log'Error loading configuration: ',msg
           :EndIf
       :Else
-          (Port CodeLocation Paradigm)←2↑args,(≢,args)↓Port CodeLocation Paradigm
+          (Port CodeLocation Paradigm ConfigFile)←args default Port CodeLocation Paradigm ConfigFile
       :EndIf
+    ∇
+
+    ∇ r←args default defaults
+      args←,⊆args
+      r←(≢defaults)↑args,(≢args)↓defaults
     ∇
 
     ∇ Close
@@ -143,15 +155,19 @@
       CheckRC(rc msg)←CheckPort
       CheckRC(rc msg)←LoadConga
       CheckRC(rc msg)←CheckCodeLocation
-      :If HtmlInterface>Paradigm match'json'
-          Log'HTML interface is currently only available using JSON paradigm'
-          HtmlInterface←0
-      :EndIf
+      Setup
+     
       CheckRC(rc msg)←StartServer
-      Log'DServer started on port ',⍕Port
+     
+      Log'Jarvis started in "',Paradigm,'" mode on port ',⍕Port
       Log'Serving code in ',(⍕CodeLocation),(Folder≢'')/' (populated with code from "',Folder,'")'
       :If HtmlInterface
-          Log'Click http',(~Secure)↓'s://localhost:',(⍕Port),' to access web interface'
+          :If Paradigm match'json'
+              Log'Click http',(~Secure)↓'s://localhost:',(⍕Port),' to access web interface'
+          :Else
+              Log'HTML interface is currently only available using JSON paradigm'
+              HtmlInterface←0
+          :EndIf
       :EndIf
     ∇
 
@@ -190,6 +206,7 @@
     ∇
 
     ∇ (rc msg)←CheckPort;p
+    ⍝ check for valid port number
       (rc msg)←3('Invalid port: ',∊⍕Port)
       ExitIf 0=p←⊃⊃(//)⎕VFI⍕Port
       ExitIf{(⍵>32767)∨(⍵<1)∨⍵≠⌊⍵}p
@@ -201,7 +218,7 @@
       :If 0=⎕NC'force' ⋄ force←0 ⋄ :EndIf
       (rc msg)←0 ''
       →(_configLoaded>force)⍴0 ⍝ did we already load from AutoStart?
-      :Trap Debug↓0
+      :Trap 0 DebugLevel 1
           :If isChar value
               file←ConfigFile
               :If ~0∊⍴value
@@ -233,11 +250,11 @@
       ⍝    in which case we look in the same folder at the executable
       :If 0=#.⎕NC'Conga'
           dyalog←1⊃1 ⎕NPARTS⊃2 ⎕NQ'.' 'GetCommandLineArgs'
-          :Trap 0
+          :Trap 0 DebugLevel 4
               'Conga'#.⎕CY dyalog,'ws/conga'
           :Else
               :If 11 19∧.=⎕DMX.(EN ENX) ⍝ DOMAIN ERROR/WS not found
-                  :Trap 0
+                  :Trap 0 DebugLevel 4
                       dyalog←⊃1 ⎕NPARTS⊃2 ⎕NQ'.' 'GetCommandLineArgs'
                       'Conga'#.⎕CY dyalog,'ws/conga'
                   :Else
@@ -251,7 +268,7 @@
           :EndTrap
       :EndIf
      
-      :Trap 999 ⍝ Conga.Init signals 999 on error
+      :Trap 999 DebugLevel 4 ⍝ Conga.Init signals 999 on error
           #.DRC←#.Conga.Init'Jarvis'
       :Else
           (rc msg)←2 'Unable to initialize Conga'
@@ -262,7 +279,11 @@
     ∇ (rc msg)←CheckCodeLocation;root;folder;m;res;tmp
       (rc msg)←0 ''
       :If 0∊⍴CodeLocation
-          CheckRC(rc msg)←4 'CodeLocation is empty!'
+          :If 0∊⍴ConfigFile ⍝ if there's a configuration file, use its folder for CodeLocation
+              CheckRC(rc msg)←4 'CodeLocation is empty!'
+          :Else
+              CodeLocation←⊃1 ⎕NPARTS ConfigFile
+          :EndIf
       :EndIf
       :Select ⊃{⎕NC'⍵'}CodeLocation ⍝ need dfn because CodeLocation is a field and will always be nameclass 2
       :Case 9 ⍝ reference, just use it
@@ -280,7 +301,7 @@
                   root←''
               :EndIf
               folder←∊1 ⎕NPARTS root,CodeLocation
-              :Trap 0
+              :Trap 0 DebugLevel 1
                   :If 1≠1 ⎕NINFO folder
                       CheckRC(rc msg)←5('CodeLocation "',(∊⍕CodeLocation),'" is not a folder.')
                   :EndIf
@@ -320,6 +341,13 @@
       :EndIf
     ∇
 
+    ∇ Setup
+    ⍝ perform final setup before starting server
+      :If Paradigm match'rest'
+          RESTMethods←↑2⍴¨'/'(≠⊆⊢)¨','(≠⊆⊢)RESTMethods
+      :EndIf
+    ∇
+
     Exists←{0:: ¯1 (⍺,' "',⍵,'" is not a valid folder name.') ⋄ ⎕NEXISTS ⍵:0 '' ⋄ ¯1 (⍺,' "',⍵,'" was not found.')}
 
     ∇ (rc msg)←StartServer;r;cert;secureParams;accept;deny
@@ -346,6 +374,9 @@
           {}#.DRC.SetProp'.' 'EventMode' 1 ⍝ report Close/Timeout as events
           {}#.DRC.SetProp ServerName'FIFOMode' 0
           {}#.DRC.SetProp ServerName'DecodeBuffers' 15 ⍝ 15 ⍝ decode all buffers
+          :If 0∊⍴Host ⍝ if Host hasn't been set, set it to the default
+              Host←'http',(~Secure)↓'s://',(2 ⎕NQ'.' 'TCPGetHostID'),((~Port∊80 443)/':',⍕Port),'/'
+          :EndIf
           Connections←#.⎕NS''
           InitSessions
           RunServer
@@ -361,54 +392,61 @@
 
     ∇ Server arg;wres;rc;obj;evt;data;ref;ip;congaError
      
-      :If 0≠#.DRC.⎕NC⊂'Error' ⋄ congaError←#.DRC.Error ⍝ Conga 3.2 moved Error into the library instance
-      :Else ⋄ congaError←#.Conga.Error                 ⍝ Prior to 3.2 Error was in the namespace
-      :EndIf
+      :Trap 0 DebugLevel 1
      
-      :While ~_stop
-          wres←#.DRC.Wait ServerName 2500 ⍝ Wait for WaitTimeout before timing out
+          :If 0≠#.DRC.⎕NC⊂'Error' ⋄ congaError←#.DRC.Error ⍝ Conga 3.2 moved Error into the library instance
+          :Else ⋄ congaError←#.Conga.Error                 ⍝ Prior to 3.2 Error was in the namespace
+          :EndIf
+     
+          :While ~_stop
+              wres←#.DRC.Wait ServerName 2500 ⍝ Wait for WaitTimeout before timing out
           ⍝ wres: (return code) (object name) (command) (data)
-          (rc obj evt data)←4↑wres
-          :Select rc
-          :Case 0
-              :Select evt
-              :Case 'Error'
-                  _stop←ServerName≡obj
-                  :If 0≠4⊃wres
-                      Log'RunServer: DRC.Wait reported error ',(⍕congaError 4⊃wres),' on ',(2⊃wres),GetIP obj
-                  :EndIf
-                  Connections.⎕EX obj
+              (rc obj evt data)←4↑wres
+              :Select rc
+              :Case 0
+                  :Select evt
+                  :Case 'Error'
+                      _stop←ServerName≡obj
+                      :If 0≠4⊃wres
+                          Log'RunServer: DRC.Wait reported error ',(⍕congaError 4⊃wres),' on ',(2⊃wres),GetIP obj
+                      :EndIf
+                      Connections.⎕EX obj
      
-              :Case 'Connect'
-                  obj Connections.⎕NS''
-                  (Connections⍎obj).IP←2⊃2⊃#.DRC.GetProp obj'PeerAddr'
+                  :Case 'Connect'
+                      obj Connections.⎕NS''
+                      (Connections⍎obj).IP←2⊃2⊃#.DRC.GetProp obj'PeerAddr'
      
-              :CaseList 'HTTPHeader' 'HTTPTrailer' 'HTTPChunk' 'HTTPBody'
-                  _taskThreads←⎕TNUMS∩_taskThreads,(Connections⍎obj){t←⍺ HandleRequest ⍵ ⋄ ⎕EX t/⍕⍺}&wres
+                  :CaseList 'HTTPHeader' 'HTTPTrailer' 'HTTPChunk' 'HTTPBody'
+                      _taskThreads←⎕TNUMS∩_taskThreads,(Connections⍎obj){t←⍺ HandleRequest ⍵ ⋄ ⎕EX t/⍕⍺}&wres
      
-              :CaseList 'Closed' 'Timeout'
+                  :CaseList 'Closed' 'Timeout'
      
-              :Else ⍝ unhandled event
-                  Log'Unhandled Conga event:'
-                  Log⍕wres
-              :EndSelect ⍝ evt
+                  :Else ⍝ unhandled event
+                      Log'Unhandled Conga event:'
+                      Log⍕wres
+                  :EndSelect ⍝ evt
      
-          :Case 1010 ⍝ Object Not found
-             ⍝ Log'Object ''',ServerName,''' has been closed - Web Server shutting down'
-              →0
-     
-          :Else
-              Log'Conga wait failed:'
-              Log wres
-          :EndSelect ⍝ rc
-      :EndWhile
+              :Case 1010 ⍝ Object Not found
+                  Log'Object ''',ServerName,''' has been closed - Jarvis shutting down'
+                  _stop←1
+              :Else
+                  Log'Conga wait failed:'
+                  Log wres
+              :EndSelect ⍝ rc
+          :EndWhile
+      :Else
+          :Trap 0 DebugLevel 1
+              Log'*** Server error ',(⎕JSON⍠'Compact' 0)⎕DMX
+          :EndTrap
+      :EndTrap
       {}#.DRC.Close ServerName
-      ⎕TKILL _sessionThread~0
+      ⎕TKILL _sessionThread
       _stopped←1
     ∇
 
     :Section RequestHandling
-    ∇ r←ns HandleRequest req;data;evt;obj;rc;cert
+
+    ∇ r←ns HandleRequest req;data;evt;obj;rc;cert;fn;sessId
       (rc obj evt data)←req
       r←0
       :Hold obj
@@ -417,6 +455,7 @@
               ns.Req←⎕NEW Request data
               ns.Req.PeerCert←''
               ns.Req.PeerAddr←2⊃2⊃#.DRC.GetProp obj'PeerAddr'
+              ns.Req.Server←⎕THIS
               :If ~0∊⍴DefaultContentType
                   'content-type'ns.Req.SetHeader DefaultContentType
               :EndIf
@@ -439,47 +478,62 @@
           :EndSelect
      
           :If ns.Req.Complete
+              (stop1/⍨⊃1 DebugLevel 4)⎕STOP⊃⎕SI ⍝ request debugging?
+     stop1:
               :If ns.Req.Response.Status=200
-                  :If Debug=2  ⍝ framework debug
-                      ∘∘∘
-                  :EndIf
-     
-                  :Select lc Paradigm
-                  :Case 'json'
-                      :If HtmlInterface∧~(⊂ns.Req.Page)∊(,'/')'/favicon.ico'
-                          →0⍴⍨'(Request method should be POST)'ns.Req.Fail 405×'post'≢ns.Req.Method
-                          →0⍴⍨'(Bad URI)'ns.Req.Fail 400×'/'≠⊃ns.Req.Page
-                          →0⍴⍨'(Content-Type should be application/json)'ns.Req.Fail 400×(0∊⍴ns.Req.Body)⍱'application/json'begins lc ns.Req.GetHeader'content-type'
+                  :If 0≠Validate ns.Req  ⍝ perform any application-specified validation
+                      :If 200=ns.Req.Respose.Status
+                          ns.Req.Fail 400
                       :EndIf
-                      rc←HandleJSONRequest ns
-                  :Case 'rest'
-                      rc←HandleRESTRequest ns
-                  :EndSelect
-                  :If 0≠rc
-                      {}#.DRC.Close obj
-                      Connections.⎕EX obj
-                      →0
+                  :Else
+                      fn←1↓'.'@('/'∘=)ns.Req.Endpoint ⍝ endpoint/function name
+                      :If 0≠SessionTimeout ⍝ are we sessioned?
+                      :AndIf fn≡SessionStopEndpoint ⍝ and the request is to end the session
+                          :If ~0∊⍴sessId←ns.Req.GetHeader SessionIdHeader ⍝ and there's a session ID
+                              KillSession sessId ⍝ kill session/logout
+                          :Else
+                              ns.Req.Fail 400 ⍝ 400 bad request
+                          :EndIf
+                      :Else
+                          :Select lc Paradigm
+                          :Case 'json'
+                              :If HtmlInterface>(⊂ns.Req.Endpoint)∊(,'/')'/favicon.ico'
+                                  →0⍴⍨'(Request method should be POST)'ns.Req.Fail 405×'post'≢ns.Req.Method
+                                  →0⍴⍨'(Bad URI)'ns.Req.Fail 400×'/'≠⊃ns.Req.Endpoint
+                                  →0⍴⍨'(Content-Type should be application/json)'ns.Req.Fail 400×(0∊⍴ns.Req.Body)⍱'application/json'begins lc ns.Req.GetHeader'content-type'
+                              :EndIf
+                              rc←fn HandleJSONRequest ns
+                          :Case 'rest'
+                              rc←fn HandleRESTRequest ns
+                          :EndSelect
+                          :If 0≠rc
+                              {}#.DRC.Close obj
+                              Connections.⎕EX obj
+                              →0
+                          :EndIf
+                      :EndIf
                   :EndIf
               :EndIf
-              r←obj Respond ns.Req
+              obj Respond ns.Req
+              r←1
           :EndIf
       :EndHold
     ∇
 
-    ∇ r←HandleJSONRequest ns;payload;fn;resp;valence;nc
+    ∇ r←fn HandleJSONRequest ns;payload;resp;valence;nc;debug
       r←0
-      ExitIf HtmlInterface∧ns.Req.Page≡'/favicon.ico'
+      ExitIf HtmlInterface∧ns.Req.Endpoint≡'/favicon.ico'
      
-      :If 0∊⍴fn←1↓'.'@('/'∘=)ns.Req.Page
+      :If 0∊⍴fn
           ExitIf('No function specified')ns.Req.Fail 400×~HtmlInterface∧'get'≡ns.Req.Method
-          ns.Req.Response.Headers←1 2⍴'Content-Type' 'text/html'
-          ns.Req.Response.JSON←HtmlPage
+          ns.Req.Response.Headers←1 2⍴'Content-Type' 'text/html; charset=utf-8'
+          ns.Req.Response.Payload←HtmlPage
           →0
       :EndIf
      
       ExitIf'(Cannot accept query parameters)'ns.Req.Fail 400×~0∊⍴ns.Req.QueryParams
      
-      :Trap Debug↓0
+      :Trap 0 DebugLevel 1
           ns.Req.(Payload←{0∊⍴⍵:⍵ ⋄ 0 ⎕JSON ⍵}Body)
       :Else
           ExitIf'Could not parse payload as JSON'ns.Req.Fail 400
@@ -492,22 +546,69 @@
       valence←|⊃CodeLocation.⎕AT fn
       ExitIf('"',fn,'" is not a monadic result-returning function')ns.Req.Fail 400×1 1 0≢×valence
      
-      :Trap Debug↓0
+      ((⊃1 DebugLevel 2)/stop1,stop2)⎕STOP⊃⎕SI ⍝ application level debugging?
+     
+      :Trap 0 DebugLevel 1
           :If 2=valence[2] ⍝ dyadic
-              resp←ns.Req(CodeLocation⍎fn)ns.Req.Payload
+     stop1:   resp←ns.Req(CodeLocation⍎fn)ns.Req.Payload ⍝ intentional stop for application-level debugging
           :Else
-              resp←(CodeLocation⍎fn)ns.Req.Payload
+     stop2:   resp←(CodeLocation⍎fn)ns.Req.Payload ⍝ intentional stop for application-level debugging
           :EndIf
+          ⍬ ⎕STOP⊃⎕SI
       :Else
+          ⍬ ⎕STOP⊃⎕SI
           ExitIf(⍕⎕DMX.(EM Message))ns.Req.Fail 500
       :EndTrap
+      ns.Req.Response ToJSON resp
+    ∇
+
+    ∇ r←fn HandleRESTRequest ns;ind;exec;valence;ct;resp
+      r←0
+      ExitIf~fn CheckAuthentication ns.Req
+      :If 0∊⍴fn
+          ExitIf'No resource specified'ns.Req.Fail 400
+      :EndIf
      
-      :Trap Debug↓0
-          ns.Req.Response.JSON←⎕UCS'UTF-8'⎕UCS 1 ⎕JSON resp
+      :If ParsePayload
+          :Trap 0 DebugLevel 1
+              :Select ct←⊃';'(≠⊆⊢)lc ns.Req.GetHeader'content-type'
+              :Case 'application/json'
+                  ns.Req.(Payload←0 ⎕JSON Body)
+              :Case 'application/xml'
+                  ns.Req.(Payload←⎕XML Body)
+              :EndSelect
+          :Else
+              ExitIf('Unable to parse request body as ',ct)ns.Req.Fail 400
+          :EndTrap
+      :EndIf
+     
+      ind←RESTMethods[;1](⍳nocase)⊂ns.Req.Method
+      ExitIf'Method not allowed'ns.Req.Fail 405×(≢RESTMethods)<ind
+      exec←⊃RESTMethods[ind;2]
+      ExitIf'Not implemented'ns.Req.Fail 501×0∊⍴exec
+     
+      ((⊃1 DebugLevel 2)/stop1)⎕STOP⊃⎕SI
+     
+      :Trap 0 DebugLevel 1
+     stop1:resp←(CodeLocation⍎exec)ns.Req  ⍝ intentional stop for application-level debugging
+          ⍬ ⎕STOP⊃⎕SI
+      :Else
+          ⍬ ⎕STOP⊃⎕SI
+          ExitIf(⍕⎕DMX.(EM Message))ns.Req.Fail 500
+      :EndTrap
+      :If 'application/json'match⊃';'(≠⊆⊢)ns.Req.(Response.Headers GetHeader'content-type')
+          ns.Req.Response ToJSON resp
+      :EndIf
+    ∇
+
+    ∇ response ToJSON data
+    ⍝ convert APL response payload to JSON
+      :Trap 0 DebugLevel 1
+          ns.Req.Response.Payload←⎕UCS'UTF-8'⎕UCS 1 ⎕JSON resp
       :Else
           :If FlattenOutput>0
-              :Trap 0
-                  ns.Req.Response.JSON←⎕UCS'UTF-8'⎕UCS JSON resp
+              :Trap 0 DebugLevel 1
+                  ns.Req.Response.Payload←⎕UCS'UTF-8'⎕UCS JSON resp
                   :If FlattenOutput=2
                       Log'"',fn,'" returned data of rank > 1'
                   :EndIf
@@ -520,52 +621,24 @@
       :EndTrap
     ∇
 
-    ∇ r←HandleRESTRequest ns;fn;method;ind;exec;valence;ct
-      r←0
-     
-      :If 0∊⍴fn←1↓'.'@('/'∘=)ns.Req.Page
-          ExitIf'No resource specified'ns.Req.Fail 400
-      :EndIf
-     
-      :If ParsePayload
-          :Trap Debug↓0
-              :Select ct←lc ns.Req.GetHeader'content-type'
-              :Case 'application/json'
-                  ns.Req.(Payload←0 ⎕JSON Body)
-              :Case 'application/xml'
-                  ns.Req.(Payload←⎕XML Body)
-              :EndSelect
-          :Else
-              ExitIf('Unable to parse request body as ',ct)ns.Req.Fail 400
-          :EndTrap
-      :EndIf
-     
-      ExitIf~fn CheckAuthentication ns.Req
-     
-      method←lc ns.Req.Method
-     
-      ind←RESTMethods[;1]⍳⊆method
-      ExitIf'Method not allowed'ns.Req.Fail 405×(≢RESTMethods)<ind
-      exec←⊃RESTMethods[ind;2]
-      ExitIf'Not implemented'ns.Req.Fail 501×0∊⍴exec
-     
-      :Trap Debug↓0
-          (CodeLocation⍎exec)ns
-      :Else
-          ExitIf(⍕⎕DMX.(EM Message))ns.Req.Fail 500
-      :EndTrap
-    ∇
-
     ∇ r←fn CheckAuthentication req;id
     ⍝ Check request authentication
     ⍝ r is 1 if request processing can continue (0 is returned if new session is created)
+      r←0
       :If 0=SessionTimeout ⍝ not using sessions
-          r←Authenticate req
+          r←Authenticate req ⍝ might still want to do some authentication
       :Else
           :If 0∊⍴id←req.GetHeader SessionIdHeader ⍝ no session ID?
-              :If SessionStartCommand≡fn ⍝ is this a session start request?
-              :AndIf r←Authenticate req ⍝ do we require authentication?
-                  CreateSession req
+              :If SessionStartEndpoint≡fn ⍝ is this a session start request?
+                  :If 0=Authenticate req ⍝ do we require authentication?
+                      CreateSession req
+                      r←0 ⍝ new session created
+                  :EndIf
+              :Else ⍝ no session ID and this is not the SessionStartEndpoint
+                  'Unauthorized'req.Fail 401
+                  :If HTTPAuthentication match'basic'
+                      'WWW-Authenticate'req.SetHeader'Basic realm="Jarvis", charset="UTF-8"'
+                  :EndIf
               :EndIf
           :Else ⍝ check session id
               r←req CheckSession id
@@ -573,16 +646,25 @@
       :EndIf
     ∇
 
-    ∇ r←Authenticate req
-      :If ~r←0∊⍴AuthenticateFn ⍝ do we have an authentication function?
+    ∇ rc←Authenticate req;debug;old
+    ⍝ rc is 0 if either no authentication is required or authentication succeeds
+      rc←0
+      :If ~0∊⍴AuthenticateFn ⍝ do we have an authentication function?
           :If 3=CodeLocation.⎕NC AuthenticateFn ⍝ and it exists
-              :Trap r←0
-                  :If r←~(CodeLocation⍎AuthenticateFn)req
+              :Trap 0 DebugLevel 1
+                  (stop1/⍨⊃1 DebugLevel 3)⎕STOP⊃⎕SI
+     stop1:       rc←(CodeLocation⍎AuthenticateFn)req ⍝ intentional stop for application-level debugging
+                  ⍬ ⎕STOP⊃⎕SI
+                  :If rc≠0
                       'Unauthorized'req.Fail 401
-                      'WWW-Authenticate'req.SetHeader'Basic realm="Jarvis", charset="UTF-8"'
+                      :If HTTPAuthentication match'basic'
+                          'WWW-Authenticate'req.SetHeader'Basic realm="Jarvis", charset="UTF-8"'
+                      :EndIf
                   :EndIf
               :Else ⍝ Authenticate errored
+                  ⍬ ⎕STOP⊃⎕SI
                   (⎕DMX.EM,' occured during authentication')req.Fail 500
+                  r←0
               :EndTrap
           :Else
               'Authentication function not found'req.Fail 500
@@ -591,20 +673,16 @@
     ∇
 
 
-    ∇ r←obj Respond req;status;z;res
+    ∇ obj Respond req;status;z;res
       res←req.Response
       status←(⊂'HTTP/1.1'),res.((⍕Status)StatusText)
-      :If 2≠⌊0.01×res.Status ⍝ if failed response, replace headers
-          res.Headers←1 2⍴'content-type' 'text/html'
-      :EndIf
       res.Headers⍪←'server'(⊃Version)
       res.Headers⍪←'date'(2⊃#.DRC.GetProp'.' 'HttpDate')
-      :If 0≠1⊃z←#.DRC.Send obj(status,res.Headers res.JSON)1
+      :If 0≠1⊃z←#.DRC.Send obj(status,res.Headers res.Payload)1
           Log'Conga error when sending response',GetIP obj
           Log⍕z
       :EndIf
       Connections.⎕EX obj
-      r←1
     ∇
 
     :EndSection ⍝ Request Handling
@@ -636,27 +714,31 @@
         :Field Public Instance Host←''           ⍝ host header field
         :Field Public Instance Headers←0 2⍴⊂''   ⍝ HTTPRequest header fields (plus any supplied from HTTPTrailer event)
         :Field Public Instance Method←''         ⍝ HTTP method (GET, POST, PUT, etc)
-        :Field Public Instance Page←''           ⍝ Requested URI
+        :Field Public Instance Endpoint←''           ⍝ Requested URI
         :Field Public Instance Body←''           ⍝ body of the request
         :Field Public Instance Payload←''        ⍝ parsed (if JSON or XML) payload
         :Field Public Instance PeerAddr←'unknown'⍝ client IP address
         :Field Public Instance PeerCert←0 0⍴⊂''  ⍝ client certificate
         :Field Public Instance HTTPVersion←''
         :Field Public Instance Response
+        :Field Public Instance Server
         :Field Public Instance Session←⍬
         :Field Public Instance QueryParams←0 2⍴0
         :Field Public Instance UserID←''
         :Field Public Instance Password←''
+        :Field Public Shared HttpStatus←↑(200 'OK')(201 'Created')(204 'No Content')(301 'Moved Permanently')(302 'Found')(303 'See Other')(304 'Not Modified')(305 'Use Proxy')(307 'Temporary Redirect')(400 'Bad Request')(401 'Unauthorized')(403 'Forbidden')(404 'Not Found')(405 'Method Not Allowed')(406 'Not Acceptable')(408 'Request Timeout')(409 'Conflict')(410 'Gone')(411 'Length Required')(412 'Precondition Failed')(413 'Request Entity Too Large')(414 'Request-URI Too Long')(415 'Unsupported Media Type')(500 'Internal Server Error')(501 'Not Implemented')(503 'Service Unavailable')
 
         GetFromTable←{(⍵[;1]⍳⊂,⍺)⊃⍵[;2],⊂''}
         split←{p←(⍺⍷⍵)⍳1 ⋄ ((p-1)↑⍵)(p↓⍵)} ⍝ Split ⍵ on first occurrence of ⍺
         lc←0∘(819⌶)
 
-        ∇ {r}←{a}Fail w
+        ∇ {r}←{message}Fail status
+        ⍝ Set HTTP response status code and message if status≠0
           :Access public
-          r←a{⍺←''
-              0≠⍵:1⊣('Bad Request',(3×0∊⍴⍺)↓' - ',⍺)SetStatus ⍵
-              ⍵}w
+          :If r←0≠1↑status
+              :If 0=⎕NC'message' ⋄ message←'' ⋄ :EndIf
+              message SetStatus status
+          :EndIf
         ∇
 
         ∇ make args;query;origin;length
@@ -667,11 +749,11 @@
           Method←lc Method
          
           Response←⎕NS''
-          Response.(Status StatusText)←200 'OK'
+          Response.(Status StatusText Payload)←200 'OK' ''
           Response.Headers←0 2⍴'' ''
          
           Host←GetHeader'host'
-          (Page query)←URLDecode¨'?'split Input
+          (Endpoint query)←URLDecode¨'?'split Input
           QueryParams←2↑[2]↑'='(≠⊆⊢)¨'&'(≠⊆⊢)query
           Complete←('get'≡Method)∨(length←GetHeader'content-length')≡,'0' ⍝ we're a GET or 0 content-length
           Complete∨←(0∊⍴length)>∨/'chunked'⍷GetHeader'transfer-encoding' ⍝ or no length supplied and we're not chunked
@@ -766,10 +848,13 @@
           Response.Headers⍪←name value
         ∇
 
-        ∇ {statusText}SetStatus status
+        ∇ {status}←{statusText}SetStatus status
           :Access public instance
           :If status≠0
-              :If 0=⎕NC'statusText' ⋄ statusText←'' ⋄ :EndIf
+              :If 0=⎕NC'statusText'
+              :OrIf 0∊⍴statusText
+                  statusText←(HttpStatus[;1]⍳status)⊃HttpStatus[;2],⊂''
+              :EndIf
               Response.(Status StatusText)←status statusText
           :EndIf
         ∇
@@ -816,7 +901,7 @@
       r←(2 ⎕NQ'.' 'DateToIDN'(3↑ts))+(0 60 60 1000⊥¯4↑7↑ts)÷86400000
     ∇
 
-    ∇ CreateSession req;ref;now;id;ts
+    ∇ CreateSession req;ref;now;id;ts;rc
     ⍝ called in response to SessionStartCommand request, e.g. http://mysite.com/CreateSession
       id←MakeSessionId''
       now←Now
@@ -824,15 +909,26 @@
           _sessions,←ref←⎕NS''
           _sessionsInfo⍪←id req.PeerAddr now now ref
       :EndHold
-      SessionIdHeader req.SetHeader id
       :If ~0∊⍴SessionInitFn
           :If 3=CodeLocation.⎕NC SessionInitFn
-              'Session initialization failed'req.SetStatus 500×{0::1 ⋄ 0⊣CodeLocation⍎SessionInitFn,' ⍵'}ref
+              :Trap 0 DebugLevel 1
+                  (stop1/⍨⊃1 DebugLevel 2)⎕STOP⊃⎕SI
+     stop1:       rc←req(CodeLocation⍎SessionInitFn)ref
+                  ⍬ ⎕STOP⊃⎕SI
+                  :If 0≠rc
+                      (_sessions _sessionsInfo)←¯1↓¨_sessions _sessionsInfo
+                      ExitIf('Session intialization returned ',⍕rc)req.Fail 500
+                  :EndIf
+              :Else
+                  ⍬ ⎕STOP⊃⎕SI
+                  ExitIf(⎕DMX.EM,' occurred during session initialization failed')req.Fail 500
+              :EndTrap
           :Else
-              ('Session initialization function "',SessionInitFn,'" not found')req.SetStatus 500
+              ExitIf('Session initialization function "',SessionInitFn,'" not found')req.Fail 500
           :EndIf
       :EndIf
-      'No Content'req.SetStatus 204
+      SessionIdHeader req.SetHeader id
+      req.SetStatus 204
     ∇
 
     ∇ r←KillSession id;ind
@@ -851,7 +947,7 @@
     ⍝ removes session from _sessions and marks it as time out in _sessionsInfo
       _sessions~←_sessionsInfo[ind;5]
       _sessionsInfo⌿←ind≠⍳≢_sessionsInfo
-      'Session Timed Out'req.Fail 408
+      'Session timed out'req.Fail 408
     ∇
 
     ∇ r←req CheckSession id;ind;session;timedOut
@@ -893,6 +989,18 @@
     ⍝ JSON cannot represent arrays of rank>1, so we "flatten" them into vectors of vectors (of vectors...)
       :Access public shared
       r←{(↓⍣(¯1+≢⍴⍵))⍵}w
+    ∇
+
+    ∇ r←{names}TableToNS table
+    ⍝ transform a table into a vector of namespaces, one per row
+    ⍝ names are the column names, if not supplied, the first rowof the table is assumed to be the column names
+      :Access public shared
+      :If 0∊⍴table ⋄ →0⊣r←'{}' ⋄ :EndIf
+      :If 0=⎕NC'names' ⋄ names←1↑table ⋄ table←1↓table ⋄ :EndIf
+      :If 0∊⍴table ⋄ →0⊣r←'{}' ⋄ :EndIf
+      names←0∘(7162⌶)¨names
+      r←⎕NS¨(≢table)⍴⊂''
+      r(names{⍺.⍎'(',(⍕⍺⍺),')←⍵'})¨↓table
     ∇
 
     ∇ r←fmtTS ts

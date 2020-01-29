@@ -30,8 +30,11 @@
      :EndIf
 
      :If NoSession∨'R'=3⊃#.⎕WG'APLVersion' ⍝ no session or runtime?
-         :While ref.Running
-             {}⎕DL 10
-         :EndWhile
+         :Trap 0
+             :While ref.Running
+                 {}⎕DL 10
+             :EndWhile
+         :EndTrap
+         ⎕OFF
      :EndIf
  :EndIf

@@ -1,0 +1,10 @@
+{
+"RESTMethods":"Get,Put,Post,Delete",
+"AuthenticateFn":"Authenticate",
+"SessionInitFn":"InitSession",
+"AppInitFn":"Initialize",
+"SessionTimeout":5,
+"SessionCleanupTime":10,
+"Paradigm":"REST",
+"Debug":2
+}

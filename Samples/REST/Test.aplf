@@ -1,0 +1,7 @@
+ Test
+ ⎕SE.SALT.Load'HttpCommand'
+ c1←⎕NEW HttpCommand('get' 'admin:admin@localhost:8080/Login')
+ (c2←⎕NEW HttpCommand('get' 'localhost:8080/Customers')).WaitTime←600
+ r←c1.Run
+ c2.Headers⍪←r.Headers[,2;]
+ r←c2.Run
