@@ -5,18 +5,19 @@
     (⎕ML ⎕IO)←1 1
 
     :Field Public AcceptFrom←⍬           ⍝ IP addresses to accept requests from - empty means accept from any IP address
-    :Field Public AppInitFn←'Initialize' ⍝ name of the application "bootstrap" function
+    :Field Public AppInitFn←''           ⍝ name of the application "bootstrap" function
     :Field Public AuthenticateFn←''      ⍝ function name to perform authentication,if empty, no authentication is necessary
     :Field Public BlockSize←10000        ⍝ Conga block size
     :Field Public CodeLocation←''        ⍝ application code location
     :Field Public ConfigFile←''          ⍝ configuration file path (if any)
-    :Field Public Debug←0                ⍝ 0 = a ll errors are trapped, 1 = stop on an error, 2 = stop on intentional error before processing request
+    :Field Public Debug←0                ⍝ 0 = all errors are trapped, 1 = stop on an error, 2 = stop on intentional error before processing request
     :Field Public DefaultContentType←'application/json; charset=utf-8'
     :Field Public DenyFrom←⍬             ⍝ IP addresses to refuse requests from - empty means deny none
+    :Field Public ErrorInfoLevel←1       ⍝ level of information to provide if an APL error occurs, 0=none, 1=⎕EM, 2=⎕SI
     :Field Public ExcludeFns←''          ⍝ vector of vectors for function names to be excluded (can use regex or ? and * as wildcards)
     :Field Public FlattenOutput←0        ⍝ 0=no, 1=yes, 2=yes with notification
     :Field Public HtmlInterface←1        ⍝ allow the HTML interface
-    :Field Public Host←''                ⍝ external-facing host name
+    :Field Public Hostname←''            ⍝ external-facing host name
     :Field Public HTTPAuthentication←'basic' ⍝ valid settings are currently 'basic' or ''
     :Field Public IncludeFns←''     ⍝ vector of vectors for function names to be included (can use regex or ? and * as wildcards)
     :Field Public LoadableFiles←'*.apl*,*.dyalog'  ⍝ file patterns that can be loaded if loading from folder
@@ -37,7 +38,7 @@
     :Field Public SessionStopEndpoint←'Logout'
     :Field Public SessionTimeout←0         ⍝ 0 = do not use sessions, ¯1 = no timeout , 0< session timeout time (in minutes)
     :Field Public SSLValidation←64  ⍝ request, but do not require a client certificate
-    :Field Public ValidateRequestFn←'ValidateRequest' ⍝ name of the request validation function
+    :Field Public ValidateRequestFn←''     ⍝ name of the request validation function
 
     :Field Folder←''             ⍝ folder that user supplied in CodeLocation from which to load code
     :Field _configLoaded←0
@@ -66,7 +67,9 @@
     ∇ r←trap DebugLevel level
     ⍝ sets trap based on debugging level
     ⍝  the intention is to allow traps to be set for different forms of debugging (e.g. framework, request, application, etc
-      r←trap/⍨Debug{∨/{⍵[;1]∨.∧1↓[2]⍵}2⊥⍣¯1⊢⍺,⍵}level
+    ⍝  Example: :Trap 0 DebugLevel 1 ⍝ will disable traps if Debug contains 1
+      :Access public
+      r←trap/⍨Debug{~∨/{⍵[;1]∨.∧1↓[2]⍵}2⊥⍣¯1⊢⍺,⍵}level
     ∇
 
     ∇ {r}←Log msg;ts
@@ -88,7 +91,7 @@
       :Implements constructor
     ∇
 
-    ∇ make1 args;rc;msg;char
+    ∇ make1 args;rc;msg;char;t
       :Access public
       :Implements constructor
     ⍝ args is one of
@@ -98,9 +101,19 @@
     ⍝   [1] integer port to listen on
     ⍝   [2] charvec function folder or ref to code location
     ⍝   [3] paradigm to use ('JSON' or 'REST')
-      :If char←isChar args ⍝ character argument?  it's a config filename
-      :OrIf 9.1={⎕NC⊂,'⍵'}args ⍝ namespace?
-          ConfigFile←char/args
+      :If char←isChar args ⍝ character argument?  it's either config filename or CodeLocation folder
+          :If ~⎕NEXISTS args
+              →0⊣Log'Unable to find "',args,'"'
+          :ElseIf 0=t←1 ⎕NINFO args ⍝ normal file means it's a configuration file
+              :If 0≠⊃(rc msg)←LoadConfiguration ConfigFile←args
+                  Log'Error loading configuration: ',msg
+              :EndIf
+          :ElseIf 1=t ⍝ folder means it's CodeLocation
+              CodeLocation←args
+          :Else ⍝ not a file or folder
+              Log'Invalid constructor argument "',args,'"'
+          :EndIf
+      :ElseIf 9.1={⎕NC⊂,'⍵'}args ⍝ namespace?
           :If 0≠⊃(rc msg)←LoadConfiguration args
               Log'Error loading configuration: ',msg
           :EndIf
@@ -116,7 +129,7 @@
 
     ∇ Close
       :Implements destructor
-      {0:: ⋄ #.DRC.Close ServerName}⍬
+      {0:: ⋄ {}#.DRC.Close ServerName}⍬
     ∇
 
     ∇ UpdateRegex arg;t
@@ -187,7 +200,6 @@
               CheckRC(rc msg)←¯1 'Server seems stuck'
           :EndIf
       :EndWhile
-      _started←_stop←0
       (rc msg)←0 'Server stopped'
     ∇
 
@@ -276,7 +288,7 @@
       :EndTrap
     ∇
 
-    ∇ (rc msg)←CheckCodeLocation;root;folder;m;res;tmp
+    ∇ (rc msg)←CheckCodeLocation;root;folder;m;res;tmp;fn
       (rc msg)←0 ''
       :If 0∊⍴CodeLocation
           :If 0∊⍴ConfigFile ⍝ if there's a configuration file, use its folder for CodeLocation
@@ -311,35 +323,52 @@
                   CheckRC(rc msg)←7((⎕DMX.(EM,' (',Message,') ')),'occured when validating CodeLocation "',(∊⍕CodeLocation),'"')
               :EndTrap
               CodeLocation←⍎'CodeLocation'#.⎕NS''
-              (rc msg)←CodeLocation LoadFromFolder Folder←folder
+              CheckRC(rc msg)←CodeLocation LoadFromFolder Folder←folder
           :EndIf
       :Else
           CheckRC(rc msg)←5 'CodeLocation is not valid, it should be either a namespace/class reference or a file path'
       :EndSelect
      
+      :For fn :In AppInitFn ValidateRequestFn AuthenticateFn SessionInitFn~⊂''
+          :If 3≠CodeLocation.⎕NC fn
+              msg,←(0∊⍴msg)↓',"CodeLocation.',fn,'" was not found '
+          :EndIf
+      :EndFor
+      CheckRC rc←8×~0∊⍴msg
+     
       :If ~0∊⍴AppInitFn  ⍝ initialization function specified?
-          :If 3=CodeLocation.⎕NC AppInitFn ⍝ does it exist?
-              :If 1 0 0≡⊃CodeLocation.⎕AT AppInitFn ⍝ result-returning niladic?
-                  res←,⊆CodeLocation⍎AppInitFn        ⍝ run it
-                  CheckRC(rc msg)←2↑res,(⍴res)↓¯1('"',(⍕CodeLocation),'.',AppInitFn,'" did not return a 0 return code')
-              :Else
-                  CheckRC(rc msg)←8('"',(⍕CodeLocation),'.',AppInitFn,'" is not a niladic result-returning function')
+          :If 1 0 0≡⊃CodeLocation.⎕AT AppInitFn ⍝ result-returning niladic?
+              (stop1/⍨~⊃1 DebugLevel 2)⎕STOP⊃⎕SI
+     stop1:   res←CodeLocation⍎AppInitFn        ⍝ run it
+              ⍬ ⎕STOP⊃⎕SI
+              :If 0≠⊃res
+                  CheckRC(rc msg)←2↑res,(≢res)↓¯1('"',(⍕CodeLocation),'.',AppInitFn,'" did not return a 0 return code')
               :EndIf
+          :Else
+              CheckRC(rc msg)←8('"',(⍕CodeLocation),'.',AppInitFn,'" is not a niladic result-returning function')
           :EndIf
       :EndIf
      
       Validate←{0} ⍝ dummy validation function
-     
       :If ~0∊⍴ValidateRequestFn  ⍝ Request validation function specified?
-          :If 3=CodeLocation.⎕NC ValidateRequestFn ⍝ does it exist?
-              :If 1 1 0≡⊃CodeLocation.⎕AT ValidateRequestFn ⍝ result-returning monadic?
-                  Validate←CodeLocation⍎ValidateRequestFn
-              :Else
-                  CheckRC(rc msg)←8('"',(⍕CodeLocation),'.',ValidateRequestFn,'" is not a monadic result-returning function')
-              :EndIf
+          :If 1 1 0≡⊃CodeLocation.⎕AT ValidateRequestFn ⍝ result-returning monadic?
+              Validate←CodeLocation⍎ValidateRequestFn
+          :Else
+              CheckRC(rc msg)←8('"',(⍕CodeLocation),'.',ValidateRequestFn,'" is not a monadic result-returning function')
+          :EndIf
+      :EndIf
+     
+      Authenticate←{0} ⍝ dummy authentication function
+      :If ~0∊⍴AuthenticateFn  ⍝ authentication function specified?
+          :If 1 1 0≡⊃CodeLocation.⎕AT AuthenticateFn ⍝ result-returning monadic?
+              Authenticate←CodeLocation⍎AuthenticateFn
+          :Else
+              CheckRC(rc msg)←8('"',(⍕CodeLocation),'.',Authenticate,'" is not a monadic result-returning function')
           :EndIf
       :EndIf
     ∇
+
+
 
     ∇ Setup
     ⍝ perform final setup before starting server
@@ -369,13 +398,12 @@
       :If 98 10048∊⍨rc←1⊃r←#.DRC.Srv'' ''Port'http'BlockSize,secureParams,accept,deny ⍝ 98=Linux, 10048=Windows
           CheckRC(rc msg)←10('Server could not start - port ',(⍕Port),' is already in use')
       :ElseIf 0=rc
-          (_started _stopped)←1 0
           ServerName←2⊃r
           {}#.DRC.SetProp'.' 'EventMode' 1 ⍝ report Close/Timeout as events
           {}#.DRC.SetProp ServerName'FIFOMode' 0
           {}#.DRC.SetProp ServerName'DecodeBuffers' 15 ⍝ 15 ⍝ decode all buffers
-          :If 0∊⍴Host ⍝ if Host hasn't been set, set it to the default
-              Host←'http',(~Secure)↓'s://',(2 ⎕NQ'.' 'TCPGetHostID'),((~Port∊80 443)/':',⍕Port),'/'
+          :If 0∊⍴Hostname ⍝ if Host hasn't been set, set it to the default
+              Hostname←'http',(~Secure)↓'s://',(2 ⎕NQ'.' 'TCPGetHostID'),((~Port∊80 443)/':',⍕Port),'/'
           :EndIf
           Connections←#.⎕NS''
           InitSessions
@@ -390,15 +418,13 @@
       _serverThread←Server&⍬
     ∇
 
-    ∇ Server arg;wres;rc;obj;evt;data;ref;ip;congaError
-     
-      :Trap 0 DebugLevel 1
-     
-          :If 0≠#.DRC.⎕NC⊂'Error' ⋄ congaError←#.DRC.Error ⍝ Conga 3.2 moved Error into the library instance
-          :Else ⋄ congaError←#.Conga.Error                 ⍝ Prior to 3.2 Error was in the namespace
-          :EndIf
-     
-          :While ~_stop
+    ∇ Server arg;wres;rc;obj;evt;data;ref;ip;congaError     
+      :If 0≠#.DRC.⎕NC⊂'Error' ⋄ congaError←#.DRC.Error ⍝ Conga 3.2 moved Error into the library instance
+      :Else ⋄ congaError←#.Conga.Error                 ⍝ Prior to 3.2 Error was in the namespace
+      :EndIf
+      (_started _stopped)←1 0
+      :While ~_stop
+          :Trap 0 DebugLevel 1
               wres←#.DRC.Wait ServerName 2500 ⍝ Wait for WaitTimeout before timing out
           ⍝ wres: (return code) (object name) (command) (data)
               (rc obj evt data)←4↑wres
@@ -427,21 +453,21 @@
                   :EndSelect ⍝ evt
      
               :Case 1010 ⍝ Object Not found
-                  Log'Object ''',ServerName,''' has been closed - Jarvis shutting down'
-                  _stop←1
+                  :If ~⎕←_stop
+                      Log'Object ''',ServerName,''' has been closed - Jarvis shutting down'
+                      _stop←1
+                  :EndIf
               :Else
                   Log'Conga wait failed:'
                   Log wres
               :EndSelect ⍝ rc
-          :EndWhile
-      :Else
-          :Trap 0 DebugLevel 1
+          :Else
               Log'*** Server error ',(⎕JSON⍠'Compact' 0)⎕DMX
           :EndTrap
-      :EndTrap
+      :EndWhile
       {}#.DRC.Close ServerName
       ⎕TKILL _sessionThread
-      _stopped←1
+      (_stop _started _stopped)←0 0 1
     ∇
 
     :Section RequestHandling
@@ -478,13 +504,15 @@
           :EndSelect
      
           :If ns.Req.Complete
-              (stop1/⍨⊃1 DebugLevel 4)⎕STOP⊃⎕SI ⍝ request debugging?
-     stop1:
+     
+              (stop1/⍨~⊃1 DebugLevel 4+2×~0∊⍴ValidateRequestFn)⎕STOP⊃⎕SI
+     stop1: ⍝ intentional stop for request-level debugging
+              ⍬ ⎕STOP⊃⎕SI
+     
               :If ns.Req.Response.Status=200
                   :If 0≠Validate ns.Req  ⍝ perform any application-specified validation
-                      :If 200=ns.Req.Respose.Status
-                          ns.Req.Fail 400
-                      :EndIf
+                  :AndIf 200=ns.Req.Response.Status  ⍝ if validation failed and the user did not set the status, we set it
+                      ns.Req.Fail 400
                   :Else
                       fn←1↓'.'@('/'∘=)ns.Req.Endpoint ⍝ endpoint/function name
                       :If 0≠SessionTimeout ⍝ are we sessioned?
@@ -546,19 +574,23 @@
       valence←|⊃CodeLocation.⎕AT fn
       ExitIf('"',fn,'" is not a monadic result-returning function')ns.Req.Fail 400×1 1 0≢×valence
      
-      ((⊃1 DebugLevel 2)/stop1,stop2)⎕STOP⊃⎕SI ⍝ application level debugging?
+      ((~⊃1 DebugLevel 2)/stop1,stop2)⎕STOP⊃⎕SI ⍝ application level debugging?
      
+      resp←''
       :Trap 0 DebugLevel 1
-          :If 2=valence[2] ⍝ dyadic
-     stop1:   resp←ns.Req(CodeLocation⍎fn)ns.Req.Payload ⍝ intentional stop for application-level debugging
-          :Else
-     stop2:   resp←(CodeLocation⍎fn)ns.Req.Payload ⍝ intentional stop for application-level debugging
-          :EndIf
+          :Trap 85
+              :If 2=valence[2] ⍝ dyadic
+     stop1:       resp←ns.Req{1 CodeLocation.(85⌶)'⍺ ',fn,' ⍵'}ns.Req.Payload ⍝ intentional stop for application-level debugging
+              :Else
+     stop2:       resp←{1 CodeLocation.(85⌶)fn,' ⍵'}ns.Req.Payload ⍝ intentional stop for application-level debugging
+              :EndIf
+          :EndTrap
           ⍬ ⎕STOP⊃⎕SI
       :Else
           ⍬ ⎕STOP⊃⎕SI
-          ExitIf(⍕⎕DMX.(EM Message))ns.Req.Fail 500
+          ExitIf ns.Req.Fail 500
       :EndTrap
+      ExitIf 2≠⌊.01×ns.Req.Response.Status
       ns.Req.Response ToJSON resp
     ∇
 
@@ -587,15 +619,19 @@
       exec←⊃RESTMethods[ind;2]
       ExitIf'Not implemented'ns.Req.Fail 501×0∊⍴exec
      
-      ((⊃1 DebugLevel 2)/stop1)⎕STOP⊃⎕SI
+      (stop1/⍨~⊃1 DebugLevel 2)⎕STOP⊃⎕SI
      
+      resp←''
       :Trap 0 DebugLevel 1
-     stop1:resp←(CodeLocation⍎exec)ns.Req  ⍝ intentional stop for application-level debugging
+          :Trap 85
+     stop1:   resp←{1 CodeLocation.(85⌶)exec,' ⍵'}ns.Req  ⍝ intentional stop for application-level debugging
+          :EndTrap
           ⍬ ⎕STOP⊃⎕SI
       :Else
           ⍬ ⎕STOP⊃⎕SI
-          ExitIf(⍕⎕DMX.(EM Message))ns.Req.Fail 500
+          ExitIf ns.Req.Fail 500
       :EndTrap
+      ExitIf 2≠⌊0.01×ns.Req.Response.Status
       :If 'application/json'match⊃';'(≠⊆⊢)ns.Req.(Response.Headers GetHeader'content-type')
           ns.Req.Response ToJSON resp
       :EndIf
@@ -621,16 +657,16 @@
       :EndTrap
     ∇
 
-    ∇ r←fn CheckAuthentication req;id
+    ∇ r←fn CheckAuthentication req
     ⍝ Check request authentication
     ⍝ r is 1 if request processing can continue (0 is returned if new session is created)
       r←0
       :If 0=SessionTimeout ⍝ not using sessions
-          r←Authenticate req ⍝ might still want to do some authentication
+          r←0=DoAuthentication req ⍝ might still want to do some authentication
       :Else
-          :If 0∊⍴id←req.GetHeader SessionIdHeader ⍝ no session ID?
+          :If 0∊⍴req.GetHeader SessionIdHeader ⍝ no session ID?
               :If SessionStartEndpoint≡fn ⍝ is this a session start request?
-                  :If 0=Authenticate req ⍝ do we require authentication?
+                  :If 0=DoAuthentication req ⍝ do we require authentication?
                       CreateSession req
                       r←0 ⍝ new session created
                   :EndIf
@@ -641,37 +677,30 @@
                   :EndIf
               :EndIf
           :Else ⍝ check session id
-              r←req CheckSession id
+              r←CheckSession req
           :EndIf
       :EndIf
     ∇
 
-    ∇ rc←Authenticate req;debug;old
+    ∇ rc←DoAuthentication req;debug;old
     ⍝ rc is 0 if either no authentication is required or authentication succeeds
       rc←0
-      :If ~0∊⍴AuthenticateFn ⍝ do we have an authentication function?
-          :If 3=CodeLocation.⎕NC AuthenticateFn ⍝ and it exists
-              :Trap 0 DebugLevel 1
-                  (stop1/⍨⊃1 DebugLevel 3)⎕STOP⊃⎕SI
-     stop1:       rc←(CodeLocation⍎AuthenticateFn)req ⍝ intentional stop for application-level debugging
-                  ⍬ ⎕STOP⊃⎕SI
-                  :If rc≠0
-                      'Unauthorized'req.Fail 401
-                      :If HTTPAuthentication match'basic'
-                          'WWW-Authenticate'req.SetHeader'Basic realm="Jarvis", charset="UTF-8"'
-                      :EndIf
-                  :EndIf
-              :Else ⍝ Authenticate errored
-                  ⍬ ⎕STOP⊃⎕SI
-                  (⎕DMX.EM,' occured during authentication')req.Fail 500
-                  r←0
-              :EndTrap
-          :Else
-              'Authentication function not found'req.Fail 500
+      :Trap 0 DebugLevel 1
+          (stop1/⍨~⊃1 DebugLevel 2×~0∊⍴AuthenticateFn)⎕STOP⊃⎕SI
+     stop1:rc←Authenticate req ⍝ intentional stop for application-level debugging
+          ⍬ ⎕STOP⊃⎕SI
+          :If rc≠0
+              'Unauthorized'req.Fail 401
+              :If HTTPAuthentication match'basic'
+                  'WWW-Authenticate'req.SetHeader'Basic realm="Jarvis", charset="UTF-8"'
+              :EndIf
           :EndIf
-      :EndIf
+      :Else ⍝ Authenticate errored
+          ⍬ ⎕STOP⊃⎕SI
+          (⎕DMX.EM,' occured during authentication')req.Fail 500
+          r←0
+      :EndTrap
     ∇
-
 
     ∇ obj Respond req;status;z;res
       res←req.Response
@@ -699,7 +728,7 @@
       :Access public
       r←0
       fn←,⊆fn
-      ExitIf r←403×fn∊AppInitFn ValidateRequestFn AuthenticateFn SessionStartCommand SessionStopCommand SessionInitFn
+      ExitIf r←403×fn∊AppInitFn ValidateRequestFn AuthenticateFn SessionStartEndpoint SessionStopEndpoint SessionInitFn
       :If ~0∊⍴_includeRegex
           ExitIf r←404×0∊⍴(_includeRegex ⎕S'%')fn
       :EndIf
@@ -711,10 +740,9 @@
     :class Request
         :Field Public Instance Complete←0        ⍝ do we have a complete request?
         :Field Public Instance Input←''
-        :Field Public Instance Host←''           ⍝ host header field
         :Field Public Instance Headers←0 2⍴⊂''   ⍝ HTTPRequest header fields (plus any supplied from HTTPTrailer event)
         :Field Public Instance Method←''         ⍝ HTTP method (GET, POST, PUT, etc)
-        :Field Public Instance Endpoint←''           ⍝ Requested URI
+        :Field Public Instance Endpoint←''       ⍝ Requested URI
         :Field Public Instance Body←''           ⍝ body of the request
         :Field Public Instance Payload←''        ⍝ parsed (if JSON or XML) payload
         :Field Public Instance PeerAddr←'unknown'⍝ client IP address
@@ -736,7 +764,12 @@
         ⍝ Set HTTP response status code and message if status≠0
           :Access public
           :If r←0≠1↑status
-              :If 0=⎕NC'message' ⋄ message←'' ⋄ :EndIf
+              :If 0=⎕NC'message'
+                  :If 500=status
+                      message←ErrorInfo
+                  :Else
+                      message←'' ⋄ :EndIf
+              :EndIf
               message SetStatus status
           :EndIf
         ∇
@@ -752,7 +785,6 @@
           Response.(Status StatusText Payload)←200 'OK' ''
           Response.Headers←0 2⍴'' ''
          
-          Host←GetHeader'host'
           (Endpoint query)←URLDecode¨'?'split Input
           QueryParams←2↑[2]↑'='(≠⊆⊢)¨'&'(≠⊆⊢)query
           Complete←('get'≡Method)∨(length←GetHeader'content-length')≡,'0' ⍝ we're a GET or 0 content-length
@@ -783,6 +815,14 @@
           Complete←1
         ∇
 
+        ∇ r←Hostname;h
+          :Access public
+          :If ~0∊⍴h←GetHeader'host'
+              r←'http',(~Server.Secure)↓'s://',h
+          :Else
+              r←Server.Hostname
+          :EndIf
+        ∇
         ∇ r←URLDecode r;rgx;rgxu;i;j;z;t;m;⎕IO;lens;fill
           :Access public shared
         ⍝ Decode a Percent Encoded string https://en.wikipedia.org/wiki/Percent-encoding
@@ -843,6 +883,20 @@
           r←(lc name)GetFromTable table
         ∇
 
+        ∇ r←{endpoint}MakeURI resource
+          :Access public instance
+        ⍝ make a URI for a RESTful resource relative to the request endpoint
+          :If 0≠⎕NC'endpoint'
+              r←Hostname,endpoint,∊'/',¨⍕¨⊆resource
+          :Else
+              r←Hostname,Endpoint,∊'/',¨⍕¨⊆resource
+          :EndIf
+        ∇
+
+        ∇ r←ErrorInfo
+          r←⍕ErrorInfoLevel↑⎕DMX.(EM({⍵↑⍨⍵⍳']'}2⊃DM))
+        ∇
+
         ∇ name SetHeader value
           :Access Public Instance
           Response.Headers⍪←name value
@@ -867,7 +921,7 @@
     ⍝ initialize session handling
       :If 0≠SessionTimeout ⍝ are we using sessions?
           _sessions←⍬
-          _sessionsInfo←0 5⍴0 ⍝ [;1] id, [;2] IP address, [;3] creation [;4] last active, [;5] ref to session
+          _sessionsInfo←0 5⍴0 ⍝ [;1] id, [;2] IP address, [;3] creation time, [;4] last active time, [;5] ref to session
           ⎕RL←⍬
           :If 0<SessionTimeout ⍝ is there a timeout set?  0> means no timeout and sessions are managed by the application
               _sessionThread←SessionMonitor&SessionTimeout
@@ -881,7 +935,7 @@
               :Hold 'Sessions'
                   :If ∨/expired←SessionTimeout IsExpired _sessionsInfo[;4] ⍝ any expired?
                       _sessions~←expired/_sessionsInfo[;5] ⍝ remove from sessions list
-                      (expired/_sessionsInfo[;5])←⊂⍬      ⍝ remove reference from _sessionsInfo
+                      (expired/_sessionsInfo[;5])←⊂⍬       ⍝ remove reference from _sessionsInfo
                   :EndIf
                   :If ∨/dead←SessionCleanupTime IsExpired _sessionsInfo[;4] ⍝ any expired sessions need their info removed?
                       _sessionsInfo⌿⍨←~dead ⍝ remove from _sessionsInfo
@@ -902,18 +956,22 @@
     ∇
 
     ∇ CreateSession req;ref;now;id;ts;rc
-    ⍝ called in response to SessionStartCommand request, e.g. http://mysite.com/CreateSession
+    ⍝ called in response to SessionStartEndpoint request, e.g. http://mysite.com/CreateSession
       id←MakeSessionId''
       now←Now
       :Hold 'Sessions'
           _sessions,←ref←⎕NS''
           _sessionsInfo⍪←id req.PeerAddr now now ref
+          req.Session←ref
       :EndHold
       :If ~0∊⍴SessionInitFn
           :If 3=CodeLocation.⎕NC SessionInitFn
               :Trap 0 DebugLevel 1
-                  (stop1/⍨⊃1 DebugLevel 2)⎕STOP⊃⎕SI
-     stop1:       rc←req(CodeLocation⍎SessionInitFn)ref
+                  (stop1/⍨~⊃1 DebugLevel 2)⎕STOP⊃⎕SI
+                  :Trap 85
+     stop1:           rc←SessionInitFn CodeLocation.{1(85⌶)⍺,' ⍵'}req
+                  :Else ⋄ rc←0
+                  :EndTrap
                   ⍬ ⎕STOP⊃⎕SI
                   :If 0≠rc
                       (_sessions _sessionsInfo)←¯1↓¨_sessions _sessionsInfo
@@ -950,15 +1008,16 @@
       'Session timed out'req.Fail 408
     ∇
 
-    ∇ r←req CheckSession id;ind;session;timedOut
+    ∇ r←CheckSession req;ind;session;timedOut;id
+    ⍝ check for valid session
       r←0
       :Hold 'Sessions'
-          ind←_sessionsInfo[;1]⍳⊂id
+          ind←_sessionsInfo[;1]⍳⊂id←req.GetHeader SessionIdHeader
           ExitIf'Invalid Session ID'req.Fail 403×ind>≢_sessionsInfo
           :If SessionTimeout>0
-              :If timedOut←0∊⍴session←⊃_sessionsInfo[ind;5] ⍝ already timed out?
-              :ElseIf timedOut←(Now-_sessionsInfo[ind;4])>(SessionTimeout×60000)÷86400000
-                  _sessions~←_sessionsInfo[ind;5]
+              :If timedOut←0∊⍴session←⊃_sessionsInfo[ind;5] ⍝ already timed out (session was already removed from _sessions)
+              :ElseIf timedOut←SessionTimeout IsExpired _sessionsInfo[ind;4] ⍝ newly expired
+                  _sessions~←_sessionsInfo[ind;5] ⍝ remove from _sessions
               :EndIf
               :If timedOut
                   _sessionsInfo←_sessionsInfo[ind~⍨⍳≢_sessionsInfo;]
@@ -979,6 +1038,7 @@
     ExitIf←→⍴∘0
     CheckRC←ExitIf(0∘≠⊃)
 
+
     ∇ r←Now
       :Access public shared
       r←DateToIDNX ⎕TS
@@ -993,11 +1053,11 @@
 
     ∇ r←{names}TableToNS table
     ⍝ transform a table into a vector of namespaces, one per row
-    ⍝ names are the column names, if not supplied, the first rowof the table is assumed to be the column names
+    ⍝ names are the column names, if not supplied, the first row of the table is assumed to be the column names
       :Access public shared
-      :If 0∊⍴table ⋄ →0⊣r←'{}' ⋄ :EndIf
-      :If 0=⎕NC'names' ⋄ names←1↑table ⋄ table←1↓table ⋄ :EndIf
-      :If 0∊⍴table ⋄ →0⊣r←'{}' ⋄ :EndIf
+      :If 0∊⍴table ⋄ →0⊣r←0⍴⎕NS'' ⋄ :EndIf
+      :If 0=⎕NC'names' ⋄ names←table[1;] ⋄ table←1↓table ⋄ :EndIf
+      :If 0∊⍴table ⋄ →0⊣r←0⍴⎕NS'' ⋄ :EndIf
       names←0∘(7162⌶)¨names
       r←⎕NS¨(≢table)⍴⊂''
       r(names{⍺.⍎'(',(⍕⍺⍺),')←⍵'})¨↓table
@@ -1079,7 +1139,11 @@
       :EndFor
       folders←⊃{(⍵=1)/⍺}/0 1(⎕NINFO⍠1)∊1 ⎕NPARTS path,'/*'
       :For file :In files
-          2 root.⎕FIX'file://',file
+          :Trap 11
+              2 root.⎕FIX'file://',file
+          :Else
+              msg,←'Unable to ⎕FIX ',file,⎕UCS 13
+          :EndTrap
       :EndFor
       :For folder :In folders
           nsName←2⊃1 ⎕NPARTS folder
@@ -1099,6 +1163,7 @@
           :EndIf
       :EndFor
       msg←¯1↓msg
+      rc←4××≢msg
     ∇
     :EndSection
 
@@ -1154,7 +1219,7 @@
     :Section HTML
     ∇ r←ScriptFollows
       :Access public shared
-      r←{⍵/⍨'⍝'≠⊃¨⍵}{1↓¨⍵/⍨∧\'⍝'=⊃¨⍵}{⍵{((∨\⍵)∧⌽∨\⌽⍵)/⍺}' '≠⍵}¨(1+n⊃⎕LC)↓↓(180⌶)2⊃⎕XSI
+      r←{⍵/⍨'⍝'≠⊃¨⍵}{1↓¨⍵/⍨∧\'⍝'=⊃¨⍵}{⍵{((∨\⍵)∧⌽∨\⌽⍵)/⍺}' '≠⍵}¨(1+2⊃⎕LC)↓↓(180⌶)2⊃⎕XSI
       r←2↓∊(⎕UCS 13 10)∘,¨r
     ∇
 
