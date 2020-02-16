@@ -482,10 +482,7 @@
               ns.Req.PeerCert←''
               ns.Req.PeerAddr←2⊃2⊃#.DRC.GetProp obj'PeerAddr'
               ns.Req.Server←⎕THIS
-              :If ~0∊⍴DefaultContentType
-                  'content-type'ns.Req.SetHeader DefaultContentType
-              :EndIf
-     
+
               :If Secure
                   (rc cert)←2↑#.DRC.GetProp obj'PeerCert'
                   :If rc=0
@@ -585,6 +582,7 @@
           ExitIf ns.Req.Fail 500
       :EndTrap
       ExitIf 2≠⌊.01×ns.Req.Response.Status
+      'content-type'ns.Req.SetHeader 'application/json; charset=utf-8'
       ns.Req.Response ToJSON resp
     ∇
 
@@ -626,6 +624,9 @@
           ExitIf ns.Req.Fail 500
       :EndTrap
       ExitIf 2≠⌊0.01×ns.Req.Response.Status
+      :If (ns.Req.(Response.Headers GetHeader'content-type')≡'')∧~0∊⍴DefaultContentType
+          'content-type'ns.Req.SetHeader DefaultContentType
+      :EndIf
       :If 'application/json'match⊃';'(≠⊆⊢)ns.Req.(Response.Headers GetHeader'content-type')
           ns.Req.Response ToJSON resp
       :EndIf
