@@ -509,7 +509,8 @@
               →resp⌿⍨ns.Req.Response.Status≠200
 
             ⍝ Application-specified validation; default status 400 if not application set
-              →resp⌿⍨r⊣ns.Req.Fail 400×(ns.Req.Response.Status=200)∧r←0≠Validate ns.Req
+              ns.Req.Fail 400×(ns.Req.Response.Status=200)∧0<rc←Validate ns.Req
+              →resp⌿⍨rc≠0
 
               fn←1↓'.'@('/'∘=)ns.Req.Endpoint
 
