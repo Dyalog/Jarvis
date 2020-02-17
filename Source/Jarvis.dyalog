@@ -544,7 +544,7 @@
      
             ⍝ Are we sessioned and requesting logout
               →handle↓⍨(0≠SessionTimeout)∧fn≡SessionStopEndpoint
-              →resp⊣KillSession⍣(~ns.Req.Fail 400×0∊⍴r)⊢r←ns.Req.GetHeader SessionIdHeader
+              →resp⊣KillSession⍣(~ns.Req.Fail 400×0∊⍴r)⊢ns.Req.GetHeader SessionIdHeader
      
      handle:  fn RequestHandler ns ⍝ RequestHandler is either HandleJSONRequest or HandleRESTRequest
      
