@@ -171,20 +171,20 @@
       :Access public
      
       :If _started
-          CheckRC(rc msg)←¯1 'Server thinks it''s already started'
+          →0 If(rc msg)←¯1 'Server thinks it''s already started'
       :EndIf
      
       :If _stop
-          CheckRC(rc msg)←¯1 'Server is in the process of stopping'
+          →0 If(rc msg)←¯1 'Server is in the process of stopping'
       :EndIf
      
-      CheckRC(rc msg)←LoadConfiguration''
-      CheckRC(rc msg)←CheckPort
-      CheckRC(rc msg)←LoadConga
-      CheckRC(rc msg)←CheckCodeLocation
-      Setup
+      →0 If(rc msg)←LoadConfiguration''
+      →0 If(rc msg)←CheckPort
+      →0 If(rc msg)←LoadConga
+      →0 If(rc msg)←CheckCodeLocation
+      →0 If(rc msg)←Setup
      
-      CheckRC(rc msg)←StartServer
+      →0 If(rc msg)←StartServer
      
       Log'Jarvis started in "',Paradigm,'" mode on port ',⍕Port
       Log'Serving code in ',(⍕CodeLocation),(Folder≢'')/' (populated with code from "',Folder,'")'
@@ -201,17 +201,17 @@
     ∇ (rc msg)←Stop;ts
       :Access public
       :If _stop
-          CheckRC(rc msg)←¯1 'Server is already stopping'
+          →0⊣(rc msg)←¯1 'Server is already stopping'
       :EndIf
       :If ~_started
-          CheckRC(rc msg)←¯1 'Server is not running'
+          →0⊣(rc msg)←¯1 'Server is not running'
       :EndIf
       ts←⎕AI[3]
       _stop←1
       Log'Stopping server...'
       :While ~_stopped
           :If 10000<⎕AI[3]-ts
-              CheckRC(rc msg)←¯1 'Server seems stuck'
+              →0⊣(rc msg)←¯1 'Server seems stuck'
           :EndIf
       :EndWhile
       (rc msg)←0 'Server stopped'
@@ -234,8 +234,8 @@
     ∇ (rc msg)←CheckPort;p
     ⍝ check for valid port number
       (rc msg)←3('Invalid port: ',∊⍕Port)
-      ExitIf 0=p←⊃⊃(//)⎕VFI⍕Port
-      ExitIf{(⍵>32767)∨(⍵<1)∨⍵≠⌊⍵}p
+      →0 If 0=p←⊃⊃(//)⎕VFI⍕Port
+      →0 If{(⍵>32767)∨(⍵<1)∨⍵≠⌊⍵}p
       (rc msg)←0 ''
     ∇
 
@@ -250,9 +250,9 @@
               :If ~0∊⍴value
                   file←value
               :EndIf
-              ExitIf 0∊⍴file
+              →0 If 0∊⍴file
               :If ⎕NEXISTS file
-                  config←⎕JSON⊃⎕NGET file
+                  config←∆JSON⊃⎕NGET file
               :Else
                   →0⊣(rc msg)←6('Configuation file "',file,'" not found')
               :EndIf
@@ -306,7 +306,7 @@
       (rc msg)←0 ''
       :If 0∊⍴CodeLocation
           :If 0∊⍴ConfigFile ⍝ if there's a configuration file, use its folder for CodeLocation
-              CheckRC(rc msg)←4 'CodeLocation is empty!'
+              →0⊣(rc msg)←4 'CodeLocation is empty!'
           :Else
               CodeLocation←⊃1 ⎕NPARTS ConfigFile
           :EndIf
@@ -328,20 +328,20 @@
               :Trap 0 DebugLevel 1
                   :If 1=t←1 ⎕NINFO path ⍝ folder?
                       CodeLocation←⍎'CodeLocation'#.⎕NS''
-                      CheckRC(rc msg)←CodeLocation LoadFromFolder Folder←path
+                      →0 If(rc msg)←CodeLocation LoadFromFolder Folder←path
                   :ElseIf 2=t ⍝ file?
                       CodeLocation←#.⎕FIX'file://',path
                   :Else
-                      CheckRC(rc msg)←5('CodeLocation "',(∊⍕CodeLocation),'" is not a folder or script file.')
+                      →0⊣(rc msg)←5('CodeLocation "',(∊⍕CodeLocation),'" is not a folder or script file.')
                   :EndIf
               :Case 22 ⍝ file name error
-                  CheckRC(rc msg)←6('CodeLocation "',(∊⍕CodeLocation),'" was not found.')
+                  →0⊣(rc msg)←6('CodeLocation "',(∊⍕CodeLocation),'" was not found.')
               :Else    ⍝ anything else
-                  CheckRC(rc msg)←7((⎕DMX.(EM,' (',Message,') ')),'occured when validating CodeLocation "',(∊⍕CodeLocation),'"')
+                  →0⊣(rc msg)←7((⎕DMX.(EM,' (',Message,') ')),'occured when validating CodeLocation "',(∊⍕CodeLocation),'"')
               :EndTrap
           :EndIf
       :Else
-          CheckRC(rc msg)←5 'CodeLocation is not valid, it should be either a namespace/class reference or a file path'
+          →0⊣(rc msg)←5 'CodeLocation is not valid, it should be either a namespace/class reference or a file path'
       :EndSelect
      
       :For fn :In AppInitFn ValidateRequestFn AuthenticateFn SessionInitFn~⊂''
@@ -349,7 +349,7 @@
               msg,←(0∊⍴msg)↓',"CodeLocation.',fn,'" was not found '
           :EndIf
       :EndFor
-      CheckRC rc←8×~0∊⍴msg
+      →0 If rc←8×~0∊⍴msg
      
       :If ~0∊⍴AppInitFn  ⍝ initialization function specified?
           :If 1 0 0≡⊃CodeLocation.⎕AT AppInitFn ⍝ result-returning niladic?
@@ -357,10 +357,10 @@
      stop1:   res←CodeLocation⍎AppInitFn        ⍝ run it
               ⍬ ⎕STOP⊃⎕SI
               :If 0≠⊃res
-                  CheckRC(rc msg)←2↑res,(≢res)↓¯1('"',(⍕CodeLocation),'.',AppInitFn,'" did not return a 0 return code')
+                  →0⊣(rc msg)←2↑res,(≢res)↓¯1('"',(⍕CodeLocation),'.',AppInitFn,'" did not return a 0 return code')
               :EndIf
           :Else
-              CheckRC(rc msg)←8('"',(⍕CodeLocation),'.',AppInitFn,'" is not a niladic result-returning function')
+              →0⊣(rc msg)←8('"',(⍕CodeLocation),'.',AppInitFn,'" is not a niladic result-returning function')
           :EndIf
       :EndIf
      
@@ -369,7 +369,7 @@
           :If 1 1 0≡⊃CodeLocation.⎕AT ValidateRequestFn ⍝ result-returning monadic?
               Validate←CodeLocation⍎ValidateRequestFn
           :Else
-              CheckRC(rc msg)←8('"',(⍕CodeLocation),'.',ValidateRequestFn,'" is not a monadic result-returning function')
+              →0⊣(rc msg)←8('"',(⍕CodeLocation),'.',ValidateRequestFn,'" is not a monadic result-returning function')
           :EndIf
       :EndIf
      
@@ -378,18 +378,21 @@
           :If 1 1 0≡⊃CodeLocation.⎕AT AuthenticateFn ⍝ result-returning monadic?
               Authenticate←CodeLocation⍎AuthenticateFn
           :Else
-              CheckRC(rc msg)←8('"',(⍕CodeLocation),'.',Authenticate,'" is not a monadic result-returning function')
+              →0⊣(rc msg)←8('"',(⍕CodeLocation),'.',Authenticate,'" is not a monadic result-returning function')
           :EndIf
       :EndIf
     ∇
 
 
 
-    ∇ Setup
+    ∇ (rc msg)←Setup
     ⍝ perform final setup before starting server
-      :If Paradigm match'rest'
-          RESTMethods←↑2⍴¨'/'(≠⊆⊢)¨','(≠⊆⊢)RESTMethods
-      :EndIf
+      (rc msg)←0 ''
+      →(Paradigm∘match¨'json' 'rest')/json rest
+      →0⊣(rc msg)←¯1 'Invalid paradigm'
+     json:RequestHandler←HandleJSONRequest ⋄ →0
+     rest:RequestHandler←HandleRESTRequest
+      RESTMethods←↑2⍴¨'/'(≠⊆⊢)¨','(≠⊆⊢)RESTMethods
     ∇
 
     Exists←{0:: ¯1 (⍺,' "',⍵,'" is not a valid folder name.') ⋄ ⎕NEXISTS ⍵:0 '' ⋄ ¯1 (⍺,' "',⍵,'" was not found.')}
@@ -401,18 +404,16 @@
       secureParams←⍬
       :If Secure
           :If ~0∊⍴RootCertDir ⍝ on Windows not specifying RootCertDir will use MS certificate store
-              CheckRC(rc msg)←'RootCertDir'Exists RootCertDir
-              CheckRC(rc msg)←{(⊃⍵)'Error setting RootCertDir'}#.DRC.SetProp'.' 'RootCertDir'RootCertDir
+              →0 If(rc msg)←'RootCertDir'Exists RootCertDir
+              →0 If(rc msg)←{(⊃⍵)'Error setting RootCertDir'}#.DRC.SetProp'.' 'RootCertDir'RootCertDir
           :EndIf
-          CheckRC(rc msg)←'ServerCertFile'Exists ServerCertFile
-          CheckRC(rc msg)←'ServerKeyFile'Exists ServerKeyFile
+          →0 If(rc msg)←'ServerCertFile'Exists ServerCertFile
+          →0 If(rc msg)←'ServerKeyFile'Exists ServerKeyFile
           cert←⊃#.DRC.X509Cert.ReadCertFromFile ServerCertFile
           cert.KeyOrigin←'DER'ServerKeyFile
           secureParams←('X509'cert)('SSLValidation'SSLValidation)
       :EndIf
-      :If 98 10048∊⍨rc←1⊃r←#.DRC.Srv'' ''Port'http'BlockSize,secureParams,accept,deny ⍝ 98=Linux, 10048=Windows
-          CheckRC(rc msg)←10('Server could not start - port ',(⍕Port),' is already in use')
-      :ElseIf 0=rc
+      :If 0=rc←1⊃r←#.DRC.Srv'' ''Port'http'BlockSize,secureParams,accept,deny
           ServerName←2⊃r
           {}#.DRC.SetProp'.' 'EventMode' 1 ⍝ report Close/Timeout as events
           {}#.DRC.SetProp ServerName'FIFOMode' 0
@@ -425,7 +426,7 @@
           RunServer
           msg←''
       :Else
-          CheckRC rc'Error creating server'
+          →0⊣msg←'Error creating server',(rc∊98 10048)/': port ',(⍕Port),' is already in use' ⍝ 98=Linux, 10048=Windows
       :EndIf
     ∇
 
@@ -477,7 +478,7 @@
                   Log wres
               :EndSelect ⍝ rc
           :Else
-              Log'*** Server error ',(⎕JSON⍠'Compact' 0)⎕DMX
+              Log'*** Server error ',(∆JSON⍠'Compact' 0)⎕DMX
           :EndTrap
       :EndWhile
       {}#.DRC.Close ServerName
@@ -499,8 +500,8 @@
     ∇
 
 
-    ∇ r←ns HandleRequest req;data;evt;obj;rc;cert;fn;sessId
-      (rc obj evt data)←req
+    ∇ r←ns HandleRequest req;data;evt;obj;rc;cert;fn
+      (rc obj evt data)←req ⍝ from Conga.Wait
       r←0
       :Hold obj
           :Select evt
@@ -509,7 +510,7 @@
               ns.Req.PeerCert←''
               ns.Req.PeerAddr←2⊃2⊃#.DRC.GetProp obj'PeerAddr'
               ns.Req.Server←⎕THIS
-
+     
               :If Secure
                   (rc cert)←2↑#.DRC.GetProp obj'PeerCert'
                   :If rc=0
@@ -532,66 +533,55 @@
               (stop1/⍨~⊃1 DebugLevel 4+2×~0∊⍴ValidateRequestFn)⎕STOP⊃⎕SI
      stop1: ⍝ intentional stop for request-level debugging
               ⍬ ⎕STOP⊃⎕SI
-
+     
               →resp⌿⍨ns.Req.Response.Status≠200
-
-            ⍝ Application-specified validation; default status 400 if not application set
-              ns.Req.Fail 400×(ns.Req.Response.Status=200)∧0<rc←Validate ns.Req
+     
+            ⍝ Application-specified validation
+              rc←Validate ns.Req
+              ns.Req.Fail 400×(ns.Req.Response.Status=200)∧0<rc ⍝ default status 400 if not set by application
               →resp⌿⍨rc≠0
-
+     
               fn←1↓'.'@('/'∘=)ns.Req.Endpoint
-
-            ⍝ Are we sessioned and requesting assassination?
-              →kill⌿⍨(0≠SessionTimeout)∧fn≡SessionStopEndpoint
-
-            ⍝ We support REST and JSON paradigms
-              →jsoon rest⌿⍨'json' 'rest'∊⊂lc Paradigm ⋄ 'Unknown Paradigm'⎕SIGNAL 11
-
-     jsoon:   →json⌿⍨HtmlInterface∧(⊂ns.Req.Endpoint)∊(,'/')'/favicon.ico' 
-              →resp⌿⍨'(Request method should be POST)'ns.Req.Fail 405×'post'≢ns.Req.Method
-              →resp⌿⍨'(Bad URI)'ns.Req.Fail 400×'/'≠⊃ns.Req.Endpoint
-              →resp⌿⍨'(Content-Type should be application/json)'ns.Req.Fail 400×(0∊⍴ns.Req.Body)⍱'application/json'begins lc ns.Req.GetHeader'content-type'
-     json:    rc←fn HandleJSONRequest ns ⋄ →chkrc
-     rest:    rc←fn HandleRESTRequest ns ⋄ →chkrc
-
-            ⍝ Something went wrong when handling the request body? Nuke from orbit.
-     chkrc:   →resp⌿⍨0=rc ⋄ {}#.DRC.Close obj ⋄ Connections.⎕EX obj ⋄ →0
-
-            ⍝ Murder they ask, murder they receive, if we know who; otherwise, Fail Level: 400
-     kill:    KillSession⍣(~ns.Req.Fail 400×0∊⍴sessId)⊢sessId←ns.Req.GetHeader SessionIdHeader
-
-            ⍝ All paths should lead to Rome...er, a response.
+     
+            ⍝ Are we sessioned and requesting logout
+              →handle↓⍨(0≠SessionTimeout)∧fn≡SessionStopEndpoint
+              →resp⊣KillSession⍣~ns.Req.Fail 400×0∊⍴ns.Req.GetHeader SessionIdHeader
+     
+     handle:  fn RequestHandler ns ⍝ RequestHandler is either HandleJSONRequest or HandleRESTRequest
+     
      resp:    obj Respond ns.Req ⋄ r←1
-                  
+     
           :EndIf
       :EndHold
     ∇
 
-    ∇ r←fn HandleJSONRequest ns;payload;resp;valence;nc;debug
-      r←0
-      ExitIf HtmlInterface∧ns.Req.Endpoint≡'/favicon.ico'
+    ∇ fn HandleJSONRequest ns;payload;resp;valence;nc;debug;ind
      
-      :If 0∊⍴fn
-          ExitIf('No function specified')ns.Req.Fail 400×~HtmlInterface∧'get'≡ns.Req.Method
-          ns.Req.Response.Headers←1 2⍴'Content-Type' 'text/html; charset=utf-8'
-          ns.Req.Response.Payload←HtmlPage
-          →0
-      :EndIf
+      →handle If'get'≢ns.Req.Method
+      →0 If('Request method should be POST')ns.Req.Fail 405×~HtmlInterface
+      ind←'' 'favicon.ico'⍳⊂fn
+      →0 If(ind=2)∨'(Bad URI)'ns.Req.Fail 400×ind=3 ⍝ either fail with a bad URI or exit if favicon.ico (no-op)
+      ns.Req.Response.Headers←1 2⍴'Content-Type' 'text/html; charset=utf-8'
+      ns.Req.Response.Payload←HtmlPage
+      →0
      
-      ExitIf'(Cannot accept query parameters)'ns.Req.Fail 400×~0∊⍴ns.Req.QueryParams
+     handle:
+      →0 If('No function specified')ns.Req.Fail 400×0∊⍴fn
+      →0 If'(Content-Type should be application/json)'ns.Req.Fail 400×(0∊⍴ns.Req.Body)⍱'application/json'begins lc ns.Req.GetHeader'content-type'
+      →0 If'(Cannot accept query parameters)'ns.Req.Fail 400×~0∊⍴ns.Req.QueryParams
      
       :Trap 0 DebugLevel 1
-          ns.Req.(Payload←{0∊⍴⍵:⍵ ⋄ 0 ⎕JSON ⍵}Body)
+          ns.Req.Payload←{0∊⍴⍵:⍵ ⋄ 0 ∆JSON ⍵}ns.Req.Body
       :Else
-          ExitIf'Could not parse payload as JSON'ns.Req.Fail 400
+          →0⊣'Could not parse payload as JSON'ns.Req.Fail 400
       :EndTrap
      
-      ExitIf~fn CheckAuthentication ns.Req
+      →0 If~fn CheckAuthentication ns.Req
      
-      ExitIf('Invalid function "',fn,'"')ns.Req.Fail CheckFunctionName fn
-      ExitIf('Invalid function "',fn,'"')ns.Req.Fail 404×3≠⌊|{0::0 ⋄ CodeLocation.⎕NC⊂⍵}fn  ⍝ is it a function?
+      →0 If('Invalid function "',fn,'"')ns.Req.Fail CheckFunctionName fn
+      →0 If('Invalid function "',fn,'"')ns.Req.Fail 404×3≠⌊|{0::0 ⋄ CodeLocation.⎕NC⊂⍵}fn  ⍝ is it a function?
       valence←|⊃CodeLocation.⎕AT fn
-      ExitIf('"',fn,'" is not a monadic result-returning function')ns.Req.Fail 400×1 1 0≢×valence
+      →0 If('"',fn,'" is not a monadic result-returning function')ns.Req.Fail 400×1 1 0≢×valence
      
       ((~⊃1 DebugLevel 2)/stop1,stop2)⎕STOP⊃⎕SI ⍝ application level debugging?
      
@@ -607,37 +597,36 @@
           ⍬ ⎕STOP⊃⎕SI
       :Else
           ⍬ ⎕STOP⊃⎕SI
-          ExitIf ns.Req.Fail 500
+          →0⊣ns.Req.Fail 500
       :EndTrap
-      ExitIf 2≠⌊.01×ns.Req.Response.Status
-      'content-type'ns.Req.SetHeader 'application/json; charset=utf-8'
+      →0 If 2≠⌊0.01×ns.Req.Response.Status
+      'content-type'ns.Req.SetHeader'application/json; charset=utf-8'
       ns.Req.Response ToJSON resp
     ∇
 
-    ∇ r←fn HandleRESTRequest ns;ind;exec;valence;ct;resp
-      r←0
-      ExitIf~fn CheckAuthentication ns.Req
+    ∇ fn HandleRESTRequest ns;ind;exec;valence;ct;resp
+      →0 If~fn CheckAuthentication ns.Req
       :If 0∊⍴fn
-          ExitIf'No resource specified'ns.Req.Fail 400
+          →0⊣'No resource specified'ns.Req.Fail 400
       :EndIf
      
       :If ParsePayload
           :Trap 0 DebugLevel 1
               :Select ct←⊃';'(≠⊆⊢)lc ns.Req.GetHeader'content-type'
               :Case 'application/json'
-                  ns.Req.(Payload←0 ⎕JSON Body)
+                  ns.Req.(Payload←0 ∆JSON Body)
               :Case 'application/xml'
                   ns.Req.(Payload←⎕XML Body)
               :EndSelect
           :Else
-              ExitIf('Unable to parse request body as ',ct)ns.Req.Fail 400
+              →0⊣('Unable to parse request body as ',ct)ns.Req.Fail 400
           :EndTrap
       :EndIf
      
       ind←RESTMethods[;1](⍳nocase)⊂ns.Req.Method
-      ExitIf'Method not allowed'ns.Req.Fail 405×(≢RESTMethods)<ind
+      →0 If'Method not allowed'ns.Req.Fail 405×(≢RESTMethods)<ind
       exec←⊃RESTMethods[ind;2]
-      ExitIf'Not implemented'ns.Req.Fail 501×0∊⍴exec
+      →0 If'Not implemented'ns.Req.Fail 501×0∊⍴exec
      
       (stop1/⍨~⊃1 DebugLevel 2)⎕STOP⊃⎕SI
      
@@ -649,9 +638,9 @@
           ⍬ ⎕STOP⊃⎕SI
       :Else
           ⍬ ⎕STOP⊃⎕SI
-          ExitIf ns.Req.Fail 500
+          →0⊣ns.Req.Fail 500
       :EndTrap
-      ExitIf 2≠⌊0.01×ns.Req.Response.Status
+      →0 If 2≠⌊0.01×ns.Req.Response.Status
       :If (ns.Req.(Response.Headers GetHeader'content-type')≡'')∧~0∊⍴DefaultContentType
           'content-type'ns.Req.SetHeader DefaultContentType
       :EndIf
@@ -663,7 +652,7 @@
     ∇ response ToJSON data
     ⍝ convert APL response payload to JSON
       :Trap 0 DebugLevel 1
-          ns.Req.Response.Payload←⎕UCS'UTF-8'⎕UCS 1 ⎕JSON resp
+          ns.Req.Response.Payload←⎕UCS'UTF-8'⎕UCS 1 ∆JSON resp
       :Else
           :If FlattenOutput>0
               :Trap 0 DebugLevel 1
@@ -672,10 +661,10 @@
                       Log'"',fn,'" returned data of rank > 1'
                   :EndIf
               :Else
-                  ExitIf'Could not format result payload as JSON'ns.Req.Fail 500
+                  →0⊣'Could not format result payload as JSON'ns.Req.Fail 500
               :EndTrap
           :Else
-              ExitIf'Could not format result payload as JSON'ns.Req.Fail 500
+              →0⊣'Could not format result payload as JSON'ns.Req.Fail 500
           :EndIf
       :EndTrap
     ∇
@@ -751,9 +740,9 @@
       :Access public
       r←0
       fn←,⊆fn
-      ExitIf r←403×fn∊AppInitFn ValidateRequestFn AuthenticateFn SessionStartEndpoint SessionStopEndpoint SessionInitFn
+      →0 If r←403×fn∊AppInitFn ValidateRequestFn AuthenticateFn SessionStartEndpoint SessionStopEndpoint SessionInitFn
       :If ~0∊⍴_includeRegex
-          ExitIf r←404×0∊⍴(_includeRegex ⎕S'%')fn
+          →0 If r←404×0∊⍴(_includeRegex ⎕S'%')fn
       :EndIf
       :If ~0∊⍴_excludeRegex
           r←403×~0∊⍴(_excludeRegex ⎕S'%')fn
@@ -1009,14 +998,14 @@
                   ⍬ ⎕STOP⊃⎕SI
                   :If 0≠rc
                       (_sessions _sessionsInfo)←¯1↓¨_sessions _sessionsInfo
-                      ExitIf('Session intialization returned ',⍕rc)req.Fail 500
+                      →0⊣('Session intialization returned ',⍕rc)req.Fail 500
                   :EndIf
               :Else
                   ⍬ ⎕STOP⊃⎕SI
-                  ExitIf(⎕DMX.EM,' occurred during session initialization failed')req.Fail 500
+                  →0⊣(⎕DMX.EM,' occurred during session initialization failed')req.Fail 500
               :EndTrap
           :Else
-              ExitIf('Session initialization function "',SessionInitFn,'" not found')req.Fail 500
+              →0⊣('Session initialization function "',SessionInitFn,'" not found')req.Fail 500
           :EndIf
       :EndIf
       SessionIdHeader req.SetHeader id
@@ -1047,7 +1036,7 @@
       r←0
       :Hold 'Sessions'
           ind←_sessionsInfo[;1]⍳⊂id←req.GetHeader SessionIdHeader
-          ExitIf'Invalid Session ID'req.Fail 403×ind>≢_sessionsInfo
+          →0 If'Invalid Session ID'req.Fail 403×ind>≢_sessionsInfo
           :If SessionTimeout>0
               :If timedOut←0∊⍴session←⊃_sessionsInfo[ind;5] ⍝ already timed out (session was already removed from _sessions)
               :ElseIf timedOut←SessionTimeout IsExpired _sessionsInfo[ind;4] ⍝ newly expired
@@ -1055,7 +1044,7 @@
               :EndIf
               :If timedOut
                   _sessionsInfo←_sessionsInfo[ind~⍨⍳≢_sessionsInfo;]
-                  ExitIf'Session Timed Out'req.Fail 408
+                  →0⊣'Session Timed Out'req.Fail 408
               :EndIf
           :EndIf
           SessionIdHeader req.SetHeader id
@@ -1069,8 +1058,7 @@
 
     :Section Utilities
 
-    ExitIf←→⍴∘0
-    CheckRC←ExitIf(0∘≠⊃)
+    If←((0∘≠⊃)⊢)⍴⊣
 
 
     ∇ r←Now
