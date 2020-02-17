@@ -567,6 +567,7 @@
      handle:
       →0 If HandleCORSRequest ns.Req
       →0 If('No function specified')ns.Req.Fail 400×0∊⍴fn
+      →0 If('Unsupported request method')ns.Req.Fail 405×ns.Req.Method≢'post'
       →0 If'(Content-Type should be application/json)'ns.Req.Fail 400×(0∊⍴ns.Req.Body)⍱'application/json'begins lc ns.Req.GetHeader'content-type'
       →0 If'(Cannot accept query parameters)'ns.Req.Fail 400×~0∊⍴ns.Req.QueryParams
      
