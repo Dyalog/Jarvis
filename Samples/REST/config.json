@@ -3,8 +3,8 @@
 "AuthenticateFn":"Authenticate",
 "SessionInitFn":"InitSession",
 "AppInitFn":"Initialize",
-"SessionTimeout":5,
+"SessionTimeout":0,
 "SessionCleanupTime":10,
 "Paradigm":"REST",
-"Debug":2
+"Debug":3
 }

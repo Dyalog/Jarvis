@@ -1,0 +1,46 @@
+ r←req GetCustomers parts;cind;oind;dind;pind;ExitIf
+⍝ /customers[/custid[/orders[/orderid[/items[/itemid]]]]]
+ ExitIf←→⍴∘0
+ r←''
+ :Select ≢parts
+
+ :Case 0 ⍝ GET customers - retrieve list of customers
+     ExitIf req.Fail 404×1=≢Database.Customers
+     r←req.Server.TableToNS Database.Customers
+     r.customerUri←req.MakeURI¨1↓Database.Customers[;1]
+
+ :Case 1 ⍝ GET customers/custid - retrieve information for a customer
+
+     ExitIf req.Fail 404×0=cind←Database.Customers[;1]lookup parts[1]
+     r←⊃req.Server.TableToNS Database.Customers[1,cind;]
+     r.ordersUri←req.MakeURI'Orders'
+
+ :Case 2 ⍝ GET customers/custid/orders
+
+     ExitIf req.Fail 404×0∊oind←Database.Orders[;2]lookup parts[1]
+     r←req.Server.TableToNS Database.Orders[1,oind;]
+     r.orderUri←req.MakeURI¨Database.Orders[oind;1]
+
+ :Case 3 ⍝ GET customers/custid/orders/orderid
+
+     ExitIf req.Fail 404×0∊oind←Database.Orders[;1 2]lookup parts[3 1]
+     r←⊃req.Server.TableToNS Database.Orders[1,oind;]
+     r.itemsUri←req.MakeURI'Items'
+
+ :Case 4 ⍝ GET customers/custid/orders/orderid/items
+
+     ExitIf req.Fail 404×0∊Database.Orders[;1 2]lookup parts[3 1]
+     ExitIf req.Fail 404×0∊dind←Database.Details[;1]lookup parts[3]
+     r←req.Server.TableToNS Database.Details[1,dind;]
+     r.itemUri←req.MakeURI¨Database.Details[dind;2]
+
+ :Case 5 ⍝ GET customers/custid/orders/orderid/items/itemid
+
+     ExitIf req.Fail 404×0∊Database.Orders[;1 2]lookup parts[3 1]
+     ExitIf req.Fail 404×0∊Database.Details[;1 2]lookup parts[3 5]
+     ExitIf req.Fail 404×0∊pind←Database.Products[;1]lookup parts[5]
+     r←req.Server.TableToNS Database.Products[1,pind;]
+
+ :Else
+     req.Fail 404
+ :EndSelect

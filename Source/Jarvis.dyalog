@@ -459,7 +459,7 @@
                       (Connections⍎obj).IP←2⊃2⊃#.DRC.GetProp obj'PeerAddr'
      
                   :CaseList 'HTTPHeader' 'HTTPTrailer' 'HTTPChunk' 'HTTPBody'
-                      _taskThreads←⎕TNUMS∩_taskThreads,(Connections⍎obj){t←⍺ HandleRequest ⍵ ⋄ ⎕EX t/⍕⍺}&wres
+                      _taskThreads←⎕TNUMS∩_taskThreads,(Connections⍎obj){⍺ HandleRequest ⍵}&wres
      
                   :CaseList 'Closed' 'Timeout'
      
@@ -500,9 +500,8 @@
     ∇
 
 
-    ∇ r←ns HandleRequest req;data;evt;obj;rc;cert;fn
+    ∇ ns HandleRequest req;data;evt;obj;rc;cert;fn
       (rc obj evt data)←req ⍝ from Conga.Wait
-      r←0
       :Hold obj
           :Select evt
           :Case 'HTTPHeader'
@@ -534,12 +533,12 @@
      stop1: ⍝ intentional stop for request-level debugging
               ⍬ ⎕STOP⊃⎕SI
      
-              →resp⌿⍨ns.Req.Response.Status≠200
+              →resp If ns.Req.Response.Status≠200
      
             ⍝ Application-specified validation
               rc←Validate ns.Req
-              ns.Req.Fail 400×(ns.Req.Response.Status=200)∧0<rc ⍝ default status 400 if not set by application
-              →resp⌿⍨rc≠0
+              ns.Req.Fail 400×(ns.Req.Response.Status=200)∧0≠rc ⍝ default status 400 if not set by application
+              →resp If rc≠0
      
               fn←1↓'.'@('/'∘=)ns.Req.Endpoint
      
@@ -549,7 +548,7 @@
      
      handle:  fn RequestHandler ns ⍝ RequestHandler is either HandleJSONRequest or HandleRESTRequest
      
-     resp:    obj Respond ns.Req ⋄ r←1
+     resp:    obj Respond ns.Req
      
           :EndIf
       :EndHold
@@ -1036,15 +1035,11 @@
       r←0
       :Hold 'Sessions'
           ind←_sessionsInfo[;1]⍳⊂id←req.GetHeader SessionIdHeader
-          →0 If'Invalid Session ID'req.Fail 403×ind>≢_sessionsInfo
+          →0 If'Invalid session ID'req.Fail 403×ind>≢_sessionsInfo
           :If SessionTimeout>0
-              :If timedOut←0∊⍴session←⊃_sessionsInfo[ind;5] ⍝ already timed out (session was already removed from _sessions)
-              :ElseIf timedOut←SessionTimeout IsExpired _sessionsInfo[ind;4] ⍝ newly expired
-                  _sessions~←_sessionsInfo[ind;5] ⍝ remove from _sessions
-              :EndIf
-              :If timedOut
-                  _sessionsInfo←_sessionsInfo[ind~⍨⍳≢_sessionsInfo;]
-                  →0⊣'Session Timed Out'req.Fail 408
+              :If 0∊⍴session←⊃_sessionsInfo[ind;5] ⍝ already timed out (session was already removed from _sessions)
+              :OrIf SessionTimeout IsExpired _sessionsInfo[ind;4] ⍝ newly expired
+                  req TimeoutSession ind
               :EndIf
           :EndIf
           SessionIdHeader req.SetHeader id

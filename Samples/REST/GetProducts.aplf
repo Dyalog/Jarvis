@@ -1,0 +1,32 @@
+ r←req GetProducts parts;oind;dind;pind;ExitIf
+⍝ /Products[/productid[/orders]]
+ ExitIf←→⍴∘0
+ r←''
+ :Select ≢parts
+
+ :Case 0 ⍝ GET products - retrieve list of products
+
+     ExitIf req.Fail 404×1=≢Database.Products
+     r←req.Server.TableToNS Database.Products
+     r.itemUri←req.MakeURI¨1↓Database.Products[;1]
+
+ :Case 1 ⍝ GET products/productid - retrieve information for a product
+
+     ExitIf req.Fail 404×0=pind←Database.Products[;1]lookup parts[1]
+     r←⊃req.Server.TableToNS Database.Products[1,pind;]
+
+ :Case 2 ⍝ GET products/productid/orders - retrieve orders for a product
+
+     ExitIf req.Fail 404×0∊dind←Database.Details[;2]lookup parts[1]
+     r←req.Server.TableToNS Database.Details[1,dind;]
+     r.itemUri←req.MakeURI¨Database.Details[oind;2]
+
+ :Case 3 ⍝ GET orders/orderid/items/itemid
+
+     ExitIf req.Fail 404×0∊Database.Details[;1 2]lookup parts[1 3]
+     ExitIf req.Fail 404×0∊pind←Database.Products[;1]lookup parts[3]
+     r←req.Server.TableToNS Database.Products[1,pind;]
+
+ :Else
+     req.Fail 404
+ :EndSelect

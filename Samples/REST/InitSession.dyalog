@@ -1,3 +1,3 @@
- req InitSession session
+ InitSession req
  ⍝ Initialize the user's session
- session.Role←req.Role ⍝ set the role for the user
+ req.Session.Role←req.Role ⍝ set the role for the user

@@ -1,7 +1,0 @@
- r←req GetCustomer parts
- :If 0∊⍴parts ⍝ retrieve all customers
-     ∘∘∘
-     r←'CustID' 'CustName' 'Date' 'URI'req.{⍺ Server.TableToNS ⍵,(Host,Endpoint)∘,¨⍕¨⍵[;1]}Database.Customers
- :Else
-     ∘∘∘
- :EndIf
