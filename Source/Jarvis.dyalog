@@ -508,10 +508,8 @@
               ns.Req←MakeRequest data
               ns.Req.PeerCert←''
               ns.Req.PeerAddr←2⊃2⊃#.DRC.GetProp obj'PeerAddr'
-              :If ~0∊⍴DefaultContentType
-                  'content-type'ns.Req.SetHeader DefaultContentType
-              :EndIf
-     
+              ns.Req.Server←⎕THIS
+
               :If Secure
                   (rc cert)←2↑#.DRC.GetProp obj'PeerCert'
                   :If rc=0
@@ -534,42 +532,37 @@
               (stop1/⍨~⊃1 DebugLevel 4+2×~0∊⍴ValidateRequestFn)⎕STOP⊃⎕SI
      stop1: ⍝ intentional stop for request-level debugging
               ⍬ ⎕STOP⊃⎕SI
-     
-              :If ns.Req.Response.Status=200
-                  :If 0≠Validate ns.Req  ⍝ perform any application-specified validation
-                  :AndIf 200=ns.Req.Response.Status  ⍝ if validation failed and the user did not set the status, we set it
-                      ns.Req.Fail 400
-                  :Else
-                      fn←1↓'.'@('/'∘=)ns.Req.Endpoint ⍝ endpoint/function name
-                      :If 0≠SessionTimeout ⍝ are we sessioned?
-                      :AndIf fn≡SessionStopEndpoint ⍝ and the request is to end the session
-                          :If ~0∊⍴sessId←ns.Req.GetHeader SessionIdHeader ⍝ and there's a session ID
-                              KillSession sessId ⍝ kill session/logout
-                          :Else
-                              ns.Req.Fail 400 ⍝ 400 bad request
-                          :EndIf
-                      :Else
-                          :Select lc Paradigm
-                          :Case 'json'
-                              :If HtmlInterface>(⊂ns.Req.Endpoint)∊(,'/')'/favicon.ico'
-                                  →0⍴⍨'(Request method should be POST)'ns.Req.Fail 405×'post'≢ns.Req.Method
-                                  →0⍴⍨'(Bad URI)'ns.Req.Fail 400×'/'≠⊃ns.Req.Endpoint
-                                  →0⍴⍨'(Content-Type should be application/json)'ns.Req.Fail 400×(0∊⍴ns.Req.Body)⍱'application/json'begins lc ns.Req.GetHeader'content-type'
-                              :EndIf
-                              rc←fn HandleJSONRequest ns
-                          :Case 'rest'
-                              rc←fn HandleRESTRequest ns
-                          :EndSelect
-                          :If 0≠rc
-                              {}#.DRC.Close obj
-                              Connections.⎕EX obj
-                              →0
-                          :EndIf
-                      :EndIf
-                  :EndIf
-              :EndIf
-              obj Respond ns.Req
-              r←1
+
+              →resp⌿⍨ns.Req.Response.Status≠200
+
+            ⍝ Application-specified validation; default status 400 if not application set
+              ns.Req.Fail 400×(ns.Req.Response.Status=200)∧0<rc←Validate ns.Req
+              →resp⌿⍨rc≠0
+
+              fn←1↓'.'@('/'∘=)ns.Req.Endpoint
+
+            ⍝ Are we sessioned and requesting assassination?
+              →kill⌿⍨(0≠SessionTimeout)∧fn≡SessionStopEndpoint
+
+            ⍝ We support REST and JSON paradigms
+              →jsoon rest⌿⍨'json' 'rest'∊⊂lc Paradigm ⋄ 'Unknown Paradigm'⎕SIGNAL 11
+
+     jsoon:   →json⌿⍨HtmlInterface∧(⊂ns.Req.Endpoint)∊(,'/')'/favicon.ico' 
+              →resp⌿⍨'(Request method should be POST)'ns.Req.Fail 405×'post'≢ns.Req.Method
+              →resp⌿⍨'(Bad URI)'ns.Req.Fail 400×'/'≠⊃ns.Req.Endpoint
+              →resp⌿⍨'(Content-Type should be application/json)'ns.Req.Fail 400×(0∊⍴ns.Req.Body)⍱'application/json'begins lc ns.Req.GetHeader'content-type'
+     json:    rc←fn HandleJSONRequest ns ⋄ →chkrc
+     rest:    rc←fn HandleRESTRequest ns ⋄ →chkrc
+
+            ⍝ Something went wrong when handling the request body? Nuke from orbit.
+     chkrc:   →resp⌿⍨0=rc ⋄ {}#.DRC.Close obj ⋄ Connections.⎕EX obj ⋄ →0
+
+            ⍝ Murder they ask, murder they receive, if we know who; otherwise, Fail Level: 400
+     kill:    KillSession⍣(~ns.Req.Fail 400×0∊⍴sessId)⊢sessId←ns.Req.GetHeader SessionIdHeader
+
+            ⍝ All paths should lead to Rome...er, a response.
+     resp:    obj Respond ns.Req ⋄ r←1
+                  
           :EndIf
       :EndHold
     ∇
@@ -616,7 +609,8 @@
           ⍬ ⎕STOP⊃⎕SI
           ExitIf ns.Req.Fail 500
       :EndTrap
-      ExitIf 2≠⌊0.01×ns.Req.Response.Status
+      ExitIf 2≠⌊.01×ns.Req.Response.Status
+      'content-type'ns.Req.SetHeader 'application/json; charset=utf-8'
       ns.Req.Response ToJSON resp
     ∇
 
@@ -658,6 +652,9 @@
           ExitIf ns.Req.Fail 500
       :EndTrap
       ExitIf 2≠⌊0.01×ns.Req.Response.Status
+      :If (ns.Req.(Response.Headers GetHeader'content-type')≡'')∧~0∊⍴DefaultContentType
+          'content-type'ns.Req.SetHeader DefaultContentType
+      :EndIf
       :If 'application/json'match⊃';'(≠⊆⊢)ns.Req.(Response.Headers GetHeader'content-type')
           ns.Req.Response ToJSON resp
       :EndIf
