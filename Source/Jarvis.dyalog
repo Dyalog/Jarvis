@@ -89,6 +89,7 @@
     ∇ make
       :Access public
       :Implements constructor
+      MakeCommon
     ∇
 
     ∇ make1 args;rc;msg;char;t
@@ -101,12 +102,17 @@
     ⍝   [1] integer port to listen on
     ⍝   [2] charvec function folder or ref to code location
     ⍝   [3] paradigm to use ('JSON' or 'REST')
+      MakeCommon
       :If char←isChar args ⍝ character argument?  it's either config filename or CodeLocation folder
           :If ~⎕NEXISTS args
               →0⊣Log'Unable to find "',args,'"'
-          :ElseIf 0=t←1 ⎕NINFO args ⍝ normal file means it's a configuration file
-              :If 0≠⊃(rc msg)←LoadConfiguration ConfigFile←args
-                  Log'Error loading configuration: ',msg
+          :ElseIf 2=t←1 ⎕NINFO args ⍝ normal file
+              :If (lc⊢/⎕NPARTS args)∊'.json' '.json5' ⍝ json files are configuration
+                  :If 0≠⊃(rc msg)←LoadConfiguration ConfigFile←args
+                      Log'Error loading configuration: ',msg
+                  :EndIf
+              :Else
+                  CodeLocation←args ⍝ might be a namespace script or class
               :EndIf
           :ElseIf 1=t ⍝ folder means it's CodeLocation
               CodeLocation←args
@@ -120,6 +126,14 @@
       :Else
           (Port CodeLocation Paradigm ConfigFile)←args default Port CodeLocation Paradigm ConfigFile
       :EndIf
+    ∇
+
+    ∇ MakeCommon
+      :Trap 11
+          ∆JSON←⎕JSON⍠('Dialect' 'JSON5')('HighRank' 'Split') ⋄ {}∆JSON 1
+      :Else
+          ∆JSON←⎕JSON
+      :EndTrap
     ∇
 
     ∇ r←args default defaults
@@ -288,7 +302,7 @@
       :EndTrap
     ∇
 
-    ∇ (rc msg)←CheckCodeLocation;root;folder;m;res;tmp;fn
+    ∇ (rc msg)←CheckCodeLocation;root;m;res;tmp;fn;t;path
       (rc msg)←0 ''
       :If 0∊⍴CodeLocation
           :If 0∊⍴ConfigFile ⍝ if there's a configuration file, use its folder for CodeLocation
@@ -304,26 +318,27 @@
           :AndIf 9={⎕NC'⍵'}tmp ⋄ CodeLocation←tmp
           :Else
               :If isRelPath CodeLocation
-                  :If 'CLEAR WS'≡⎕WSID
-                      root←⊃1 ⎕NPARTS''
-                  :Else
-                      root←⊃1 ⎕NPARTS ⎕WSID
+                  :If 'CLEAR WS'≡⎕WSID ⋄ root←⊃1 ⎕NPARTS SourceFile
+                  :Else ⋄ root←⊃1 ⎕NPARTS ⎕WSID
                   :EndIf
-              :Else
-                  root←''
+              :Else ⋄ root←''
               :EndIf
-              folder←∊1 ⎕NPARTS root,CodeLocation
+     
+              path←∊1 ⎕NPARTS root,CodeLocation
               :Trap 0 DebugLevel 1
-                  :If 1≠1 ⎕NINFO folder
-                      CheckRC(rc msg)←5('CodeLocation "',(∊⍕CodeLocation),'" is not a folder.')
+                  :If 1=t←1 ⎕NINFO path ⍝ folder?
+                      CodeLocation←⍎'CodeLocation'#.⎕NS''
+                      CheckRC(rc msg)←CodeLocation LoadFromFolder Folder←path
+                  :ElseIf 2=t ⍝ file?
+                      CodeLocation←#.⎕FIX'file://',path
+                  :Else
+                      CheckRC(rc msg)←5('CodeLocation "',(∊⍕CodeLocation),'" is not a folder or script file.')
                   :EndIf
               :Case 22 ⍝ file name error
                   CheckRC(rc msg)←6('CodeLocation "',(∊⍕CodeLocation),'" was not found.')
               :Else    ⍝ anything else
                   CheckRC(rc msg)←7((⎕DMX.(EM,' (',Message,') ')),'occured when validating CodeLocation "',(∊⍕CodeLocation),'"')
               :EndTrap
-              CodeLocation←⍎'CodeLocation'#.⎕NS''
-              CheckRC(rc msg)←CodeLocation LoadFromFolder Folder←folder
           :EndIf
       :Else
           CheckRC(rc msg)←5 'CodeLocation is not valid, it should be either a namespace/class reference or a file path'
@@ -418,7 +433,7 @@
       _serverThread←Server&⍬
     ∇
 
-    ∇ Server arg;wres;rc;obj;evt;data;ref;ip;congaError     
+    ∇ Server arg;wres;rc;obj;evt;data;ref;ip;congaError
       :If 0≠#.DRC.⎕NC⊂'Error' ⋄ congaError←#.DRC.Error ⍝ Conga 3.2 moved Error into the library instance
       :Else ⋄ congaError←#.Conga.Error                 ⍝ Prior to 3.2 Error was in the namespace
       :EndIf
@@ -472,13 +487,25 @@
 
     :Section RequestHandling
 
+    ∇ req←MakeRequest args
+    ⍝ create a request, use MakeRequest '' for interactive debugging
+      :Access public
+      :If 0∊⍴args
+          req←⎕NEW Request
+      :Else
+          req←⎕NEW Request args
+      :EndIf
+      req.Server←⎕THIS
+    ∇
+
+
     ∇ r←ns HandleRequest req;data;evt;obj;rc;cert;fn;sessId
       (rc obj evt data)←req
       r←0
       :Hold obj
           :Select evt
           :Case 'HTTPHeader'
-              ns.Req←⎕NEW Request data
+              ns.Req←MakeRequest data
               ns.Req.PeerCert←''
               ns.Req.PeerAddr←2⊃2⊃#.DRC.GetProp obj'PeerAddr'
               ns.Req.Server←⎕THIS
@@ -770,9 +797,20 @@
           :EndIf
         ∇
 
-        ∇ make args;query;origin;length
+        ∇ make
+        ⍝ barebones constructor for interactive debugging (use Jarvis.MakeRequest '')
           :Access public
           :Implements constructor
+          Response←⎕NS''
+          Response.(Status StatusText Payload)←200 'OK' ''
+          Response.Headers←0 2⍴'' ''
+        ∇
+
+        ∇ make1 args;query;origin;length
+        ⍝ args is the result of Conga HTTPHeader event
+          :Access public
+          :Implements constructor
+         
           (Method Input HTTPVersion Headers)←args
           Headers[;1]←lc Headers[;1]  ⍝ header names are case insensitive
           Method←lc Method
