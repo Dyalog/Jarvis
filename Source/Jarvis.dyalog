@@ -565,6 +565,7 @@
       →0
      
      handle:
+      →0 If HandleCORSRequest ns.Req
       →0 If('No function specified')ns.Req.Fail 400×0∊⍴fn
       →0 If'(Content-Type should be application/json)'ns.Req.Fail 400×(0∊⍴ns.Req.Body)⍱'application/json'begins lc ns.Req.GetHeader'content-type'
       →0 If'(Cannot accept query parameters)'ns.Req.Fail 400×~0∊⍴ns.Req.QueryParams
@@ -646,6 +647,15 @@
       :If 'application/json'match⊃';'(≠⊆⊢)ns.Req.(Response.Headers GetHeader'content-type')
           ns.Req.Response ToJSON resp
       :EndIf
+    ∇
+
+    ∇ z←HandleCORSRequest req;defaults_to
+      defaults_to←{⍺ req.SetHeader⍣(~req.Response.Headers∊⍨⊂⍺)⊢⍵}
+      'Access-Control-Allow-Origin'defaults_to'*'
+      →0 If ~z←req.Method≡'options'
+      'Access-Control-Allow-Methods'defaults_to'POST,OPTIONS'
+      'Access-Control-Allow-Headers'defaults_to req.GetHeader'Access-Control-Request-Headers'
+      'Access-Control-Max-Age'defaults_to'86400'
     ∇
 
     ∇ response ToJSON data
