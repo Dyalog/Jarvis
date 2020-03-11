@@ -133,7 +133,7 @@
 ⍝          JSONin←⎕JSON⍠'Dialect' 'JSON5' ⋄ {}JSONin 1
 ⍝          JSONout←⎕JSON⍠'HighRank' 'Split' ⋄ {}JSONout 1
 ⍝      :Else
-          JSONout←JSONin←⎕JSON
+      JSONout←JSONin←⎕JSON
 ⍝      :EndTrap
     ∇
 
@@ -384,8 +384,6 @@
       :EndIf
     ∇
 
-
-
     ∇ (rc msg)←Setup
     ⍝ perform final setup before starting server
       (rc msg)←0 ''
@@ -393,7 +391,9 @@
       →0⊣(rc msg)←¯1 'Invalid paradigm'
      json:RequestHandler←HandleJSONRequest ⋄ →0
      rest:RequestHandler←HandleRESTRequest
-      RESTMethods←↑2⍴¨'/'(≠⊆⊢)¨','(≠⊆⊢)RESTMethods
+      :If 2>≢⍴RESTMethods
+          RESTMethods←↑2⍴¨'/'(≠⊆⊢)¨','(≠⊆⊢),RESTMethods
+      :EndIf
     ∇
 
     Exists←{0:: ¯1 (⍺,' "',⍵,'" is not a valid folder name.') ⋄ ⎕NEXISTS ⍵:0 '' ⋄ ¯1 (⍺,' "',⍵,'" was not found.')}
