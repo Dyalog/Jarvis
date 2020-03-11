@@ -6,5 +6,5 @@
 "SessionTimeout":0,
 "SessionCleanupTime":10,
 "Paradigm":"REST",
-"Debug":3
+"Debug":1
 }

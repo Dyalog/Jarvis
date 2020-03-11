@@ -129,11 +129,12 @@
     ∇
 
     ∇ MakeCommon
-      :Trap 11
-          ∆JSON←⎕JSON⍠('Dialect' 'JSON5')('HighRank' 'Split') ⋄ {}∆JSON 1
-      :Else
-          ∆JSON←⎕JSON
-      :EndTrap
+⍝      :Trap 11
+⍝          JSONin←⎕JSON⍠'Dialect' 'JSON5' ⋄ {}JSONin 1
+⍝          JSONout←⎕JSON⍠'HighRank' 'Split' ⋄ {}JSONout 1
+⍝      :Else
+          JSONout←JSONin←⎕JSON
+⍝      :EndTrap
     ∇
 
     ∇ r←args default defaults
@@ -252,7 +253,7 @@
               :EndIf
               →0 If 0∊⍴file
               :If ⎕NEXISTS file
-                  config←∆JSON⊃⎕NGET file
+                  config←JSONin⊃⎕NGET file
               :Else
                   →0⊣(rc msg)←6('Configuation file "',file,'" not found')
               :EndIf
@@ -478,7 +479,7 @@
                   Log wres
               :EndSelect ⍝ rc
           :Else
-              Log'*** Server error ',(∆JSON⍠'Compact' 0)⎕DMX
+              Log'*** Server error ',(JSONout⍠'Compact' 0)⎕DMX
           :EndTrap
       :EndWhile
       {}#.DRC.Close ServerName
@@ -496,7 +497,7 @@
       :Else
           req←⎕NEW Request args
       :EndIf
-      req.Server←⎕THIS
+      req.(Server ErrorInfoLevel)←⎕THIS ErrorInfoLevel
     ∇
 
 
@@ -572,7 +573,7 @@
       →0 If'(Cannot accept query parameters)'ns.Req.Fail 400×~0∊⍴ns.Req.QueryParams
      
       :Trap 0 DebugLevel 1
-          ns.Req.Payload←{0∊⍴⍵:⍵ ⋄ 0 ∆JSON ⍵}ns.Req.Body
+          ns.Req.Payload←{0∊⍴⍵:⍵ ⋄ 0 JSONin ⍵}ns.Req.Body
       :Else
           →0⊣'Could not parse payload as JSON'ns.Req.Fail 400
       :EndTrap
@@ -607,15 +608,12 @@
 
     ∇ fn HandleRESTRequest ns;ind;exec;valence;ct;resp
       →0 If~fn CheckAuthentication ns.Req
-      :If 0∊⍴fn
-          →0⊣'No resource specified'ns.Req.Fail 400
-      :EndIf
      
       :If ParsePayload
           :Trap 0 DebugLevel 1
               :Select ct←⊃';'(≠⊆⊢)lc ns.Req.GetHeader'content-type'
               :Case 'application/json'
-                  ns.Req.(Payload←0 ∆JSON Body)
+                  ns.Req.(Payload←0 JSONin Body)
               :Case 'application/xml'
                   ns.Req.(Payload←⎕XML Body)
               :EndSelect
@@ -650,19 +648,18 @@
       :EndIf
     ∇
 
-    ∇ z←HandleCORSRequest req;defaults_to
-      defaults_to←{⍺ req.SetHeader⍣(~req.Response.Headers∊⍨⊂⍺)⊢⍵}
-      'Access-Control-Allow-Origin'defaults_to'*'
-      →0 If ~z←req.Method≡'options'
-      'Access-Control-Allow-Methods'defaults_to'POST,OPTIONS'
-      'Access-Control-Allow-Headers'defaults_to req.GetHeader'Access-Control-Request-Headers'
-      'Access-Control-Max-Age'defaults_to'86400'
+    ∇ z←HandleCORSRequest req
+      'Access-Control-Allow-Origin'req.DefaultHeader'*'
+      →0 If~z←req.Method≡'options'
+      'Access-Control-Allow-Methods'req.DefaultHeader'POST,OPTIONS'
+      'Access-Control-Allow-Headers'req.DefaultHeader req.GetHeader'Access-Control-Request-Headers'
+      'Access-Control-Max-Age'req.DefaultHeader'86400'
     ∇
 
     ∇ response ToJSON data
     ⍝ convert APL response payload to JSON
       :Trap 0 DebugLevel 1
-          ns.Req.Response.Payload←⎕UCS'UTF-8'⎕UCS 1 ∆JSON resp
+          ns.Req.Response.Payload←⎕UCS'UTF-8'⎕UCS 1 JSONout resp
       :Else
           :If FlattenOutput>0
               :Trap 0 DebugLevel 1
@@ -770,6 +767,7 @@
         :Field Public Instance PeerAddr←'unknown'⍝ client IP address
         :Field Public Instance PeerCert←0 0⍴⊂''  ⍝ client certificate
         :Field Public Instance HTTPVersion←''
+        :Field Public Instance ErrorInfoLevel←2
         :Field Public Instance Response
         :Field Public Instance Server
         :Field Public Instance Session←⍬
@@ -914,6 +912,13 @@
           :Access Public Instance
           :If 0=⎕NC'table' ⋄ table←Headers ⋄ :EndIf
           r←(lc name)GetFromTable table
+        ∇
+
+        ∇ name DefaultHeader value
+          :Access public instance
+          :If 0∊⍴Response.Headers GetHeader name
+              name SetHeader value
+          :EndIf
         ∇
 
         ∇ r←{endpoint}MakeURI resource
@@ -1147,11 +1152,11 @@
     ⍝ convert a simple search using ? and * to regex
       :Access public shared
       r←{0∊⍴⍵:⍵
-          ¯1=⎕NC('A'@(∊∘'?*'))r←⍵:('/'=⊣/⍵)↓(¯1×'/'=⊢/⍵)↓⍵   ⍝ already regex? (remove leading/trailing '/'
-          r←∊(⊂'\.')@('.'=⊢)r  ⍝ escape any periods
-          r←'.'@('?'=⊢)r       ⍝ ? → .
-          r←∊(⊂'.*')@('*'=⊢)r  ⍝ * → .*
-          '^',r,'$'            ⍝ add start and end of string markers
+          {'^',(⍵~'^$'),'$'}{¯1=⎕NC('A'@(∊∘'?*'))r←⍵:('/'=⊣/⍵)↓(¯1×'/'=⊢/⍵)↓⍵   ⍝ already regex? (remove leading/trailing '/'
+              r←∊(⊂'\.')@('.'=⊢)r  ⍝ escape any periods
+              r←'.'@('?'=⊢)r       ⍝ ? → .
+              r←∊(⊂'.*')@('*'=⊢)r  ⍝ * → .*
+          }⍵            ⍝ add start and end of string markers
       }w
     ∇
 
