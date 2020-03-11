@@ -129,12 +129,12 @@
     ∇
 
     ∇ MakeCommon
-⍝      :Trap 11
-⍝          JSONin←⎕JSON⍠'Dialect' 'JSON5' ⋄ {}JSONin 1
-⍝          JSONout←⎕JSON⍠'HighRank' 'Split' ⋄ {}JSONout 1
-⍝      :Else
-      JSONout←JSONin←⎕JSON
-⍝      :EndTrap
+      :Trap 11
+          JSONin←⎕JSON⍠'Dialect' 'JSON5' ⋄ {}JSONin 1
+          JSONout←⎕JSON⍠'HighRank' 'Split' ⋄ {}JSONout 1
+      :Else
+          JSONout←JSONin←⎕JSON
+      :EndTrap
     ∇
 
     ∇ r←args default defaults
@@ -613,7 +613,7 @@
           :Trap 0 DebugLevel 1
               :Select ct←⊃';'(≠⊆⊢)lc ns.Req.GetHeader'content-type'
               :Case 'application/json'
-                  ns.Req.(Payload←0 JSONin Body)
+                  ns.Req.Payload←0 JSONin ns.Req.Body
               :Case 'application/xml'
                   ns.Req.(Payload←⎕XML Body)
               :EndSelect
