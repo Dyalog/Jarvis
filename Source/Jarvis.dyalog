@@ -1,4 +1,4 @@
-﻿:Class Jarvis
+:Class Jarvis
 ⍝ Dyalog Web Service Server
 ⍝ See https://github.com/dyalog/jarvis/wiki for documentation
 
@@ -92,7 +92,7 @@
       MakeCommon
     ∇
 
-    ∇ make1 args;rc;msg;char;t
+    ∇ make1 args;rc;msg;t
       :Access public
       :Implements constructor
     ⍝ args is one of
@@ -103,7 +103,7 @@
     ⍝   [2] charvec function folder or ref to code location
     ⍝   [3] paradigm to use ('JSON' or 'REST')
       MakeCommon
-      :If char←isChar args ⍝ character argument?  it's either config filename or CodeLocation folder
+      :If isChar args ⍝ character argument?  it's either config filename or CodeLocation folder
           :If ~⎕NEXISTS args
               →0⊣Log'Unable to find "',args,'"'
           :ElseIf 2=t←1 ⎕NINFO args ⍝ normal file
@@ -124,6 +124,10 @@
               Log'Error loading configuration: ',msg
           :EndIf
       :Else
+          :If 326=⎕DR args
+          :AndIf 0∧.=≡¨2↑args   ⍝ if 2↑args is (port ref) (both scalar)
+              args[1]←⊂,args[1] ⍝ nest port so ∇default works properly
+          :EndIf
           (Port CodeLocation Paradigm ConfigFile)←args default Port CodeLocation Paradigm ConfigFile
       :EndIf
     ∇
