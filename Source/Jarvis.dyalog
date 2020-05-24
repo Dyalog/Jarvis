@@ -1,4 +1,4 @@
-:Class Jarvis
+﻿:Class Jarvis
 ⍝ Dyalog Web Service Server
 ⍝ See https://github.com/dyalog/jarvis/wiki for documentation
 
@@ -265,8 +265,9 @@
               config←value
           :EndIf
           public←⎕THIS⍎'⎕NL ¯2.2' ⍝ find all the public fields in this class
-          set←public{⍵/⍨⍵∊⍺}config.⎕NL ¯2
-          config{⍎⍵,'←⍺⍎⍵'}¨set
+          :If ~0∊⍴set←public{⍵/⍨⍵∊⍺}config.⎕NL ¯2
+              config{⍎⍵,'←⍺⍎⍵'}¨set
+          :EndIf
           _configLoaded←1
       :Else
           →0⊣(rc msg)←⎕DMX.EN ⎕DMX.('Error loading configuration: ',EM,(~0∊⍴Message)/' (',Message,')')
