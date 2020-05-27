@@ -55,7 +55,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.0' '2020-01-16'
+      r←'Jarvis' '1.1' '2020-05-27'
     ∇
 
     ∇ r←Config
@@ -183,7 +183,7 @@
           →0 If(rc msg)←¯1 'Server is in the process of stopping'
       :EndIf
      
-      →0 If(rc msg)←LoadConfiguration''
+      →0 If(rc msg)←LoadConfiguration ConfigFile
       →0 If(rc msg)←CheckPort
       →0 If(rc msg)←LoadConga
       →0 If(rc msg)←CheckCodeLocation
@@ -251,6 +251,11 @@
       →(_configLoaded>force)⍴0 ⍝ did we already load from AutoStart?
       :Trap 0 DebugLevel 1
           :If isChar value
+              :If '#.'≡2↑value ⍝ check if a namespace reference
+              :AndIf 9.1=⎕NC⊂value
+                  config←⍎value
+                  →Load
+              :EndIf
               file←ConfigFile
               :If ~0∊⍴value
                   file←value
@@ -264,8 +269,9 @@
           :ElseIf 9.1={⎕NC⊂,'⍵'}value ⍝ namespace?
               config←value
           :EndIf
+     Load:
           public←⎕THIS⍎'⎕NL ¯2.2' ⍝ find all the public fields in this class
-          :If ~0∊⍴set←public{⍵/⍨⍵∊⍺}config.⎕NL ¯2
+          :If ~0∊⍴set←public{⍵/⍨⍵∊⍺}config.⎕NL ¯2 ¯9
               config{⍎⍵,'←⍺⍎⍵'}¨set
           :EndIf
           _configLoaded←1
