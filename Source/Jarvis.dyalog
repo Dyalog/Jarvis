@@ -1,6 +1,6 @@
 ﻿:Class Jarvis
 ⍝ Dyalog Web Service Server
-⍝ See https://github.com/dyalog/jarvis/wiki for documentation
+⍝ See https://github.com/dyalog/jarvis/wiki for documentation    
 
     (⎕ML ⎕IO)←1 1
 
@@ -25,9 +25,11 @@
     :Field Public Paradigm←'JSON' ⍝ either 'JSON' or 'REST'
     :Field Public ParsePayload←1  ⍝ 1=parse payload based on content-type header
     :Field Public Port←8080       ⍝ Default port to listen on
-    :Field Public RootCertDir←''    ⍝ Root CA certificate folder
+    :Field Public RootCertDir←''    ⍝ Root CA certificate folder 
+    :field Public Priority←'NORMAL:!CTYPE-OPENPGP'  ⍝ Priorities for GnuTLS when negotiation connection
     :Field Public RESTMethods←'Get,Post,Put,Delete,Patch,Options'
     :Field Public Secure←0          ⍝ 0 = use HTTP, 1 = use HTTPS
+    :field Public ServerCertSKI←''      ⍝ Server cert's Subject Key Identifier from store 
     :Field Public ServerCertFile←'' ⍝ public certificate file
     :Field Public ServerKeyFile←''  ⍝ private key file
     :Field Public SessionCleanupTime←60    ⍝ how frequently (in minutes) do we clean up timed out session info from _sessionsInfo
@@ -45,6 +47,7 @@
     :Field _stop←0               ⍝ set to 1 to stop server
     :Field _started←0
     :Field _stopped←1
+    :field _paused←0
     :Field _sessionThread←¯1
     :Field _serverThread←¯1
     :Field _taskThreads←⍬
@@ -72,7 +75,7 @@
       r←trap/⍨Debug{~∨/{⍵[;1]∨.∧1↓[2]⍵}2⊥⍣¯1⊢⍺,⍵}level
     ∇
 
-    ∇ {r}←Log msg;ts
+    ∇ {r}←{level}Log msg;ts
       :Access public overridable
       :If Logging>0∊⍴msg
           ts←fmtTS ⎕TS
@@ -92,7 +95,7 @@
       MakeCommon
     ∇
 
-    ∇ make1 args;rc;msg;t
+    ∇ make1 args;rc;msg;char;t
       :Access public
       :Implements constructor
     ⍝ args is one of
@@ -103,7 +106,7 @@
     ⍝   [2] charvec function folder or ref to code location
     ⍝   [3] paradigm to use ('JSON' or 'REST')
       MakeCommon
-      :If isChar args ⍝ character argument?  it's either config filename or CodeLocation folder
+      :If char←isChar args ⍝ character argument?  it's either config filename or CodeLocation folder
           :If ~⎕NEXISTS args
               →0⊣Log'Unable to find "',args,'"'
           :ElseIf 2=t←1 ⎕NINFO args ⍝ normal file
@@ -123,11 +126,12 @@
           :If 0≠⊃(rc msg)←LoadConfiguration args
               Log'Error loading configuration: ',msg
           :EndIf
-      :Else
+      :Else 
           :If 326=⎕DR args
           :AndIf 0∧.=≡¨2↑args   ⍝ if 2↑args is (port ref) (both scalar)
               args[1]←⊂,args[1] ⍝ nest port so ∇default works properly
           :EndIf
+
           (Port CodeLocation Paradigm ConfigFile)←args default Port CodeLocation Paradigm ConfigFile
       :EndIf
     ∇
@@ -175,7 +179,13 @@
     ∇ (rc msg)←Start
       :Access public
      
-      :If _started
+      :If _started 
+          :if 0 (,2)≡#.DRC.GetProp ServerName 'Pause'
+              rc←1⊃#.DRC.SetProp ServerName 'Pause' 0
+              →0 If (rc  'Failed to unpause server')
+              (rc msg)←0 'Server resuming operations'
+              →0
+          :endif
           →0 If(rc msg)←¯1 'Server thinks it''s already started'
       :EndIf
      
@@ -221,6 +231,23 @@
       :EndWhile
       (rc msg)←0 'Server stopped'
     ∇
+
+    ∇ (rc msg)←Pause;ts
+      :Access public
+      :If 0 2 ≡2⊃#.DRC.GetProp ServerName 'Pause'
+          →0⊣(rc msg)←¯1 'Server is already paused'
+      :EndIf
+      :If ~_started
+          →0⊣(rc msg)←¯1 'Server is not running'
+      :EndIf
+      ts←⎕AI[3]
+      #.DRC.SetProp ServerName 'Pause' 2
+      Log'Pausing server...'
+      (rc msg)←0 'Server paused'
+    ∇
+
+
+
 
     ∇ (rc msg)←Reset
       :Access Public
@@ -409,7 +436,7 @@
 
     Exists←{0:: ¯1 (⍺,' "',⍵,'" is not a valid folder name.') ⋄ ⎕NEXISTS ⍵:0 '' ⋄ ¯1 (⍺,' "',⍵,'" was not found.')}
 
-    ∇ (rc msg)←StartServer;r;cert;secureParams;accept;deny
+    ∇ (rc msg)←StartServer;r;cert;secureParams;accept;deny;mask;certs
       msg←'Unable to start server'
       accept←'Accept'ipRanges AcceptFrom
       deny←'Deny'ipRanges DenyFrom
@@ -419,11 +446,27 @@
               →0 If(rc msg)←'RootCertDir'Exists RootCertDir
               →0 If(rc msg)←{(⊃⍵)'Error setting RootCertDir'}#.DRC.SetProp'.' 'RootCertDir'RootCertDir
           :EndIf
+          :if 0∊⍴ServerCertSKI
           →0 If(rc msg)←'ServerCertFile'Exists ServerCertFile
           →0 If(rc msg)←'ServerKeyFile'Exists ServerKeyFile
           cert←⊃#.DRC.X509Cert.ReadCertFromFile ServerCertFile
           cert.KeyOrigin←'DER'ServerKeyFile
-          secureParams←('X509'cert)('SSLValidation'SSLValidation)
+          :else
+              certs←#.DRC.X509Cert.ReadCertUrls
+              :if 0∊⍴certs
+                rc←8
+                msg←'No certs in Microsoft Certificate Store'
+                →0
+              :endif
+              mask← ServerCertSKI {∨/¨(⊂⍺)⍷¨2⊃¨⍵} certs.CertOrigin
+              :if 1≠+/mask
+                  rc←9
+                  msg← (1+0<+/mask)⊃( ServerCertSKI,' not found in Microsoft Certificate Store') ( 'More than one certificate with Subject Key Identifier ',ServerCertSKI )
+                  →0
+              :endif
+              cert←certs[⊃⍸mask]
+          :endif
+          secureParams←('X509'cert)('SSLValidation'SSLValidation) ('Priority' Priority )
       :EndIf
       :If 0=rc←1⊃r←#.DRC.Srv'' ''Port'http'BlockSize,secureParams,accept,deny
           ServerName←2⊃r

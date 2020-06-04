@@ -1,0 +1,13 @@
+﻿DyalogBuild: 0.1
+ID         : JarvisService, Version=1.0
+Description: Jarvis Web Service Framework as a service
+Defaults   : ⎕IO←⎕ML←1
+TARGET     : Distribution/JarvisService.dws
+
+APL   : Source/Jarvis.dyalog, Target=#
+APL   : Service/JarvisService.dyalog, Target=#
+APL   : Service/SysLog.dyalog, Target=#
+NS   : Samples/JSON/*.dyalog, Target=#.Code
+APL   : Service/Config.dyalog, Target=#
+LIB   : HttpCommand, Target=#
+LX    : JarvisService.StartService 
