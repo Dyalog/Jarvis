@@ -1,60 +1,60 @@
 ﻿:Class Jarvis
 ⍝ Dyalog Web Service Server
-⍝ See https://github.com/dyalog/jarvis/wiki for documentation    
+⍝ See https://github.com/dyalog/jarvis/wiki for documentation
 
     (⎕ML ⎕IO)←1 1
 
-    :Field Public AcceptFrom←⍬           ⍝ IP addresses to accept requests from - empty means accept from any IP address
-    :Field Public AppInitFn←''           ⍝ name of the application "bootstrap" function
-    :Field Public AuthenticateFn←''      ⍝ function name to perform authentication,if empty, no authentication is necessary
-    :Field Public BlockSize←10000        ⍝ Conga block size
-    :Field Public CodeLocation←''        ⍝ application code location
-    :Field Public ConfigFile←''          ⍝ configuration file path (if any)
-    :Field Public Debug←0                ⍝ 0 = all errors are trapped, 1 = stop on an error, 2 = stop on intentional error before processing request
+    :Field Public AcceptFrom←⍬                                 ⍝ IP addresses to accept requests from - empty means accept from any IP address
+    :Field Public AppInitFn←''                                 ⍝ name of the application "bootstrap" function
+    :Field Public AuthenticateFn←''                            ⍝ function name to perform authentication,if empty, no authentication is necessary
+    :Field Public BlockSize←10000                              ⍝ Conga block size
+    :Field Public CodeLocation←''                              ⍝ application code location
+    :Field Public ConfigFile←''                                ⍝ configuration file path (if any)
+    :Field Public Debug←0                                      ⍝ 0 = all errors are trapped, 1 = stop on an error, 2 = stop on intentional error before processing request
     :Field Public DefaultContentType←'application/json; charset=utf-8'
-    :Field Public DenyFrom←⍬             ⍝ IP addresses to refuse requests from - empty means deny none
-    :Field Public ErrorInfoLevel←1       ⍝ level of information to provide if an APL error occurs, 0=none, 1=⎕EM, 2=⎕SI
-    :Field Public ExcludeFns←''          ⍝ vector of vectors for function names to be excluded (can use regex or ? and * as wildcards)
-    :Field Public FlattenOutput←0        ⍝ 0=no, 1=yes, 2=yes with notification
-    :Field Public HtmlInterface←1        ⍝ allow the HTML interface
-    :Field Public Hostname←''            ⍝ external-facing host name
-    :Field Public HTTPAuthentication←'basic' ⍝ valid settings are currently 'basic' or ''
-    :Field Public IncludeFns←''     ⍝ vector of vectors for function names to be included (can use regex or ? and * as wildcards)
-    :Field Public LoadableFiles←'*.apl*,*.dyalog'  ⍝ file patterns that can be loaded if loading from folder
-    :Field Public Logging←1       ⍝ turn logging on/off
-    :Field Public Paradigm←'JSON' ⍝ either 'JSON' or 'REST'
-    :Field Public ParsePayload←1  ⍝ 1=parse payload based on content-type header
-    :Field Public Port←8080       ⍝ Default port to listen on
-    :Field Public RootCertDir←''    ⍝ Root CA certificate folder 
-    :field Public Priority←'NORMAL:!CTYPE-OPENPGP'  ⍝ Priorities for GnuTLS when negotiation connection
+    :Field Public DenyFrom←⍬                                   ⍝ IP addresses to refuse requests from - empty means deny none
+    :Field Public ErrorInfoLevel←1                             ⍝ level of information to provide if an APL error occurs, 0=none, 1=⎕EM, 2=⎕SI
+    :Field Public ExcludeFns←''                                ⍝ vector of vectors for function names to be excluded (can use regex or ? and * as wildcards)
+    :Field Public FlattenOutput←0                              ⍝ 0=no, 1=yes, 2=yes with notification
+    :Field Public HtmlInterface←1                              ⍝ (0/1) dis/allow the HTML interface, or Path to HTML
+    :Field Public Hostname←''                                  ⍝ external-facing host name
+    :Field Public HTTPAuthentication←'basic'                   ⍝ valid settings are currently 'basic' or ''
+    :Field Public IncludeFns←''                                ⍝ vector of vectors for function names to be included (can use regex or ? and * as wildcards)
+    :Field Public LoadableFiles←'*.apl*,*.dyalog'              ⍝ file patterns that can be loaded if loading from folder
+    :Field Public Logging←1                                    ⍝ turn logging on/off
+    :Field Public Paradigm←'JSON'                              ⍝ either 'JSON' or 'REST'
+    :Field Public ParsePayload←1                               ⍝ 1=parse payload based on content-type header
+    :Field Public Port←8080                                    ⍝ Default port to listen on
+    :Field Public RootCertDir←''                               ⍝ Root CA certificate folder
+    :field Public Priority←'NORMAL:!CTYPE-OPENPGP'             ⍝ Priorities for GnuTLS when negotiation connection
     :Field Public RESTMethods←'Get,Post,Put,Delete,Patch,Options'
-    :Field Public Secure←0          ⍝ 0 = use HTTP, 1 = use HTTPS
-    :field Public ServerCertSKI←''      ⍝ Server cert's Subject Key Identifier from store 
-    :Field Public ServerCertFile←'' ⍝ public certificate file
-    :Field Public ServerKeyFile←''  ⍝ private key file
-    :Field Public SessionCleanupTime←60    ⍝ how frequently (in minutes) do we clean up timed out session info from _sessionsInfo
+    :Field Public Secure←0                                     ⍝ 0 = use HTTP, 1 = use HTTPS
+    :field Public ServerCertSKI←''                             ⍝ Server cert's Subject Key Identifier from store
+    :Field Public ServerCertFile←''                            ⍝ public certificate file
+    :Field Public ServerKeyFile←''                             ⍝ private key file
+    :Field Public SessionCleanupTime←60                        ⍝ how frequently (in minutes) do we clean up timed out session info from _sessionsInfo
     :Field Public SessionIdHeader←'Jarvis-SessionID'
     :Field Public SessionInitFn←''
-    :Field Public SessionPollingTime←1     ⍝ how frequently (in minutes) we should poll for timed out sessions
+    :Field Public SessionPollingTime←1                         ⍝ how frequently (in minutes) we should poll for timed out sessions
     :Field Public SessionStartEndpoint←'Login'
     :Field Public SessionStopEndpoint←'Logout'
-    :Field Public SessionTimeout←0         ⍝ 0 = do not use sessions, ¯1 = no timeout , 0< session timeout time (in minutes)
-    :Field Public SSLValidation←64  ⍝ request, but do not require a client certificate
-    :Field Public ValidateRequestFn←''     ⍝ name of the request validation function
+    :Field Public SessionTimeout←0                             ⍝ 0 = do not use sessions, ¯1 = no timeout , 0< session timeout time (in minutes)
+    :Field Public SSLValidation←64                             ⍝ request, but do not require a client certificate
+    :Field Public ValidateRequestFn←''                         ⍝ name of the request validation function
 
-    :Field Folder←''             ⍝ folder that user supplied in CodeLocation from which to load code
+    :Field Folder←''                                           ⍝ folder that user supplied in CodeLocation from which to load code
     :Field _configLoaded←0
-    :Field _stop←0               ⍝ set to 1 to stop server
+    :Field _stop←0                                             ⍝ set to 1 to stop server
     :Field _started←0
     :Field _stopped←1
     :field _paused←0
     :Field _sessionThread←¯1
     :Field _serverThread←¯1
     :Field _taskThreads←⍬
-    :Field Public _sessions←⍬   ⍝ vector of session namespaces (remove public after testing!)
-    :Field Public _sessionsInfo←0 5⍴'' '' 0 0 0 ⍝ [;1] id [;2] ip addr [;3] creation time [;4] last active time [;5] ref to session
-    :Field _includeRegex←''     ⍝ private field compiled regex from IncludeFns
-    :Field _excludeRegex←''     ⍝ private compiled regex from ExcludeFns
+    :Field Public _sessions←⍬                                  ⍝ vector of session namespaces (remove public after testing!)
+    :Field Public _sessionsInfo←0 5⍴'' '' 0 0 0                ⍝ [;1] id [;2] ip addr [;3] creation time [;4] last active time [;5] ref to session
+    :Field _includeRegex←''                                    ⍝ private field compiled regex from IncludeFns
+    :Field _excludeRegex←''                                    ⍝ private compiled regex from ExcludeFns
 
     ∇ r←Version
       :Access public shared
@@ -126,12 +126,12 @@
           :If 0≠⊃(rc msg)←LoadConfiguration args
               Log'Error loading configuration: ',msg
           :EndIf
-      :Else 
+      :Else
           :If 326=⎕DR args
           :AndIf 0∧.=≡¨2↑args   ⍝ if 2↑args is (port ref) (both scalar)
               args[1]←⊂,args[1] ⍝ nest port so ∇default works properly
           :EndIf
-
+     
           (Port CodeLocation Paradigm ConfigFile)←args default Port CodeLocation Paradigm ConfigFile
       :EndIf
     ∇
@@ -179,13 +179,13 @@
     ∇ (rc msg)←Start
       :Access public
      
-      :If _started 
-          :if 0 (,2)≡#.DRC.GetProp ServerName 'Pause'
-              rc←1⊃#.DRC.SetProp ServerName 'Pause' 0
-              →0 If (rc  'Failed to unpause server')
+      :If _started
+          :If 0(,2)≡#.DRC.GetProp ServerName'Pause'
+              rc←1⊃#.DRC.SetProp ServerName'Pause' 0
+              →0 If(rc'Failed to unpause server')
               (rc msg)←0 'Server resuming operations'
               →0
-          :endif
+          :EndIf
           →0 If(rc msg)←¯1 'Server thinks it''s already started'
       :EndIf
      
@@ -203,11 +203,11 @@
      
       Log'Jarvis started in "',Paradigm,'" mode on port ',⍕Port
       Log'Serving code in ',(⍕CodeLocation),(Folder≢'')/' (populated with code from "',Folder,'")'
-      :If HtmlInterface
+      :If (,0)≢,HtmlInterface
           :If Paradigm match'json'
               Log'Click http',(~Secure)↓'s://localhost:',(⍕Port),' to access web interface'
           :Else
-              Log'HTML interface is currently only available using JSON paradigm'
+              Log'HTML interface is only available using JSON paradigm'
               HtmlInterface←0
           :EndIf
       :EndIf
@@ -234,14 +234,14 @@
 
     ∇ (rc msg)←Pause;ts
       :Access public
-      :If 0 2 ≡2⊃#.DRC.GetProp ServerName 'Pause'
+      :If 0 2≡2⊃#.DRC.GetProp ServerName'Pause'
           →0⊣(rc msg)←¯1 'Server is already paused'
       :EndIf
       :If ~_started
           →0⊣(rc msg)←¯1 'Server is not running'
       :EndIf
       ts←⎕AI[3]
-      #.DRC.SetProp ServerName 'Pause' 2
+      #.DRC.SetProp ServerName'Pause' 2
       Log'Pausing server...'
       (rc msg)←0 'Server paused'
     ∇
@@ -446,27 +446,27 @@
               →0 If(rc msg)←'RootCertDir'Exists RootCertDir
               →0 If(rc msg)←{(⊃⍵)'Error setting RootCertDir'}#.DRC.SetProp'.' 'RootCertDir'RootCertDir
           :EndIf
-          :if 0∊⍴ServerCertSKI
-          →0 If(rc msg)←'ServerCertFile'Exists ServerCertFile
-          →0 If(rc msg)←'ServerKeyFile'Exists ServerKeyFile
-          cert←⊃#.DRC.X509Cert.ReadCertFromFile ServerCertFile
-          cert.KeyOrigin←'DER'ServerKeyFile
-          :else
+          :If 0∊⍴ServerCertSKI
+              →0 If(rc msg)←'ServerCertFile'Exists ServerCertFile
+              →0 If(rc msg)←'ServerKeyFile'Exists ServerKeyFile
+              cert←⊃#.DRC.X509Cert.ReadCertFromFile ServerCertFile
+              cert.KeyOrigin←'DER'ServerKeyFile
+          :Else
               certs←#.DRC.X509Cert.ReadCertUrls
-              :if 0∊⍴certs
-                rc←8
-                msg←'No certs in Microsoft Certificate Store'
-                →0
-              :endif
-              mask← ServerCertSKI {∨/¨(⊂⍺)⍷¨2⊃¨⍵} certs.CertOrigin
-              :if 1≠+/mask
-                  rc←9
-                  msg← (1+0<+/mask)⊃( ServerCertSKI,' not found in Microsoft Certificate Store') ( 'More than one certificate with Subject Key Identifier ',ServerCertSKI )
+              :If 0∊⍴certs
+                  rc←8
+                  msg←'No certs in Microsoft Certificate Store'
                   →0
-              :endif
+              :EndIf
+              mask←ServerCertSKI{∨/¨(⊂⍺)⍷¨2⊃¨⍵}certs.CertOrigin
+              :If 1≠+/mask
+                  rc←9
+                  msg←(1+0<+/mask)⊃(ServerCertSKI,' not found in Microsoft Certificate Store')('More than one certificate with Subject Key Identifier ',ServerCertSKI)
+                  →0
+              :EndIf
               cert←certs[⊃⍸mask]
-          :endif
-          secureParams←('X509'cert)('SSLValidation'SSLValidation) ('Priority' Priority )
+          :EndIf
+          secureParams←('X509'cert)('SSLValidation'SSLValidation)('Priority'Priority)
       :EndIf
       :If 0=rc←1⊃r←#.DRC.Srv'' ''Port'http'BlockSize,secureParams,accept,deny
           ServerName←2⊃r
@@ -536,7 +536,7 @@
               Log'*** Server error ',(JSONout⍠'Compact' 0)⎕DMX
           :EndTrap
       :EndWhile
-      {}#.DRC.Close ServerName
+      Close
       ⎕TKILL _sessionThread
       (_stop _started _stopped)←0 0 1
     ∇
