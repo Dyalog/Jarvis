@@ -870,8 +870,9 @@
           Response.(Status StatusText Payload)←200 'OK' ''
           Response.Headers←0 2⍴'' ''
          
-          (Endpoint query)←URLDecode¨'?'split Input
-          QueryParams←2↑[2]↑'='(≠⊆⊢)¨'&'(≠⊆⊢)query
+          (Endpoint query)←'?'split Input
+          Endpoint←URLDecode Endpoint
+          QueryParams←URLDecode¨2↑[2]↑'='(≠⊆⊢)¨'&'(≠⊆⊢)query
           Complete←('get'≡Method)∨(length←GetHeader'content-length')≡,'0' ⍝ we're a GET or 0 content-length
           Complete∨←(0∊⍴length)>∨/'chunked'⍷GetHeader'transfer-encoding' ⍝ or no length supplied and we're not chunked
           :If 'basic '≡lc 6↑auth←GetHeader'authorization'
