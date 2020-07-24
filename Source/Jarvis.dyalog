@@ -16,7 +16,7 @@
     :Field Public ErrorInfoLevel←1                             ⍝ level of information to provide if an APL error occurs, 0=none, 1=⎕EM, 2=⎕SI
     :Field Public ExcludeFns←''                                ⍝ vector of vectors for function names to be excluded (can use regex or ? and * as wildcards)
     :Field Public FlattenOutput←0                              ⍝ 0=no, 1=yes, 2=yes with notification
-    :Field Public HtmlInterface←1                              ⍝ (0/1) dis/allow the HTML interface, or Path to HTML
+    :Field Public HtmlInterface←¯1                             ⍝ ¯1=unassigned, 0/1=dis/allow the HTML interface, or Path to HTML
     :Field Public Hostname←''                                  ⍝ external-facing host name
     :Field Public HTTPAuthentication←'basic'                   ⍝ valid settings are currently 'basic' or ''
     :Field Public IncludeFns←''                                ⍝ vector of vectors for function names to be included (can use regex or ? and * as wildcards)
@@ -43,7 +43,11 @@
     :Field Public ValidateRequestFn←''                         ⍝ name of the request validation function
 
     :Field Folder←''                                           ⍝ folder that user supplied in CodeLocation from which to load code
+    :Field _rootFolder←''                                      ⍝ root folder for relative file paths
     :Field _configLoaded←0
+    :Field _htmlFolder←''
+    :Field _htmlDefaultPage←'index.html'
+    :Field _htmlEnabled←0
     :Field _stop←0                                             ⍝ set to 1 to stop server
     :Field _started←0
     :Field _stopped←1
@@ -51,14 +55,14 @@
     :Field _sessionThread←¯1
     :Field _serverThread←¯1
     :Field _taskThreads←⍬
-    :Field Public _sessions←⍬                                  ⍝ vector of session namespaces (remove public after testing!)
-    :Field Public _sessionsInfo←0 5⍴'' '' 0 0 0                ⍝ [;1] id [;2] ip addr [;3] creation time [;4] last active time [;5] ref to session
+    :Field _sessions←⍬                                         ⍝ vector of session namespaces
+    :Field _sessionsInfo←0 5⍴'' '' 0 0 0                       ⍝ [;1] id [;2] ip addr [;3] creation time [;4] last active time [;5] ref to session
     :Field _includeRegex←''                                    ⍝ private field compiled regex from IncludeFns
     :Field _excludeRegex←''                                    ⍝ private compiled regex from ExcludeFns
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.1' '2020-05-27'
+      r←'Jarvis' '1.2' '2020-07-23'
     ∇
 
     ∇ r←Config
@@ -176,7 +180,7 @@
       r←(r(rc msg))
     ∇
 
-    ∇ (rc msg)←Start
+    ∇ (rc msg)←Start;html
       :Access public
      
       :If _started
@@ -193,6 +197,10 @@
           →0 If(rc msg)←¯1 'Server is in the process of stopping'
       :EndIf
      
+      :If 'CLEAR WS'≡⎕WSID ⋄ _rootFolder←⊃1 ⎕NPARTS SourceFile
+      :Else ⋄ _rootFolder←⊃1 ⎕NPARTS ⎕WSID
+      :EndIf
+     
       →0 If(rc msg)←LoadConfiguration ConfigFile
       →0 If(rc msg)←CheckPort
       →0 If(rc msg)←LoadConga
@@ -203,14 +211,30 @@
      
       Log'Jarvis started in "',Paradigm,'" mode on port ',⍕Port
       Log'Serving code in ',(⍕CodeLocation),(Folder≢'')/' (populated with code from "',Folder,'")'
-      :If (,0)≢,HtmlInterface
-          :If Paradigm match'json'
-              Log'Click http',(~Secure)↓'s://localhost:',(⍕Port),' to access web interface'
-          :Else
+     
+      :Select ⊃HtmlInterface
+      :Case 0 ⍝ explicitly no HTML interface, carry on
+      :Case 1 ⍝ explicitly turned on
+          :If Paradigm≢'JSON'
               Log'HTML interface is only available using JSON paradigm'
-              HtmlInterface←0
+          :Else
+              _htmlEnabled←1
           :EndIf
-      :EndIf
+      :Case ¯1
+          _htmlEnabled←Paradigm≡'JSON' ⍝ if not specified, HTML interface is enabled for JSON paradigm
+      :Else
+          html←1 ⎕NPARTS((isRelPath HtmlInterface)/_rootFolder),HtmlInterface
+          :If isDir∊html
+              _htmlFolder←{⍵,('/'=⊢/⍵)↓'/'}∊html
+          :Else
+              _htmlFolder←1⊃html
+              _htmlDefaultPage←∊1↓html
+          :EndIf
+          _htmlEnabled←⎕NEXISTS _htmlFolder,_htmlDefaultPage
+          Log(~_htmlEnabled)/'HTML home page file "',html,'" not found.'
+      :EndSelect
+     
+      Log _htmlEnabled/'Click http',(~Secure)↓'s://localhost:',(⍕Port),' to access web interface'
     ∇
 
     ∇ (rc msg)←Stop;ts
@@ -245,9 +269,6 @@
       Log'Pausing server...'
       (rc msg)←0 'Server paused'
     ∇
-
-
-
 
     ∇ (rc msg)←Reset
       :Access Public
@@ -356,13 +377,7 @@
           :If 326=⎕DR tmp←{0::⍵ ⋄ '#'≠⊃⍵:⍵ ⋄ ⍎⍵}CodeLocation
           :AndIf 9={⎕NC'⍵'}tmp ⋄ CodeLocation←tmp
           :Else
-              :If isRelPath CodeLocation
-                  :If 'CLEAR WS'≡⎕WSID ⋄ root←⊃1 ⎕NPARTS SourceFile
-                  :Else ⋄ root←⊃1 ⎕NPARTS ⎕WSID
-                  :EndIf
-              :Else ⋄ root←''
-              :EndIf
-     
+              root←(isRelPath CodeLocation)/_rootFolder
               path←∊1 ⎕NPARTS root,CodeLocation
               :Trap 0 DebugLevel 1
                   :If 1=t←1 ⎕NINFO path ⍝ folder?
@@ -609,14 +624,27 @@
       :EndHold
     ∇
 
-    ∇ fn HandleJSONRequest ns;payload;resp;valence;nc;debug;ind
+    ∇ fn HandleJSONRequest ns;payload;resp;valence;nc;debug;ind;file
      
       →handle If'get'≢ns.Req.Method
-      →0 If('Request method should be POST')ns.Req.Fail 405×~HtmlInterface
+      →0 If('Request method should be POST')ns.Req.Fail 405×~_htmlEnabled
+      →handleHtml If~0∊⍴_htmlFolder
       ind←'' 'favicon.ico'⍳⊂fn
       →0 If(ind=2)∨'(Bad URI)'ns.Req.Fail 400×ind=3 ⍝ either fail with a bad URI or exit if favicon.ico (no-op)
       ns.Req.Response.Headers←1 2⍴'Content-Type' 'text/html; charset=utf-8'
       ns.Req.Response.Payload←HtmlPage
+      →0
+     
+     handleHtml:
+      :If (,'/')≡ns.Req.Endpoint
+          file←_htmlFolder,_htmlDefaultPage
+      :Else
+          file←_htmlFolder,('/'=⊣/ns.Req.Endpoint)↓ns.Req.Endpoint
+      :EndIf
+      file←∊1 ⎕NPARTS file
+      →0 If ns.Req.Fail 400×~_htmlFolder begins file
+      →0 If ns.Req.Fail 404×~⎕NEXISTS file
+      ns.Req.Response.Payload←''file
       →0
      
      handle:
@@ -1188,6 +1216,11 @@
     ∇ r←isRelPath w
     ⍝ is path w a relative path?
       r←{{~'/\'∊⍨(⎕IO+2×('Win'≡3↑⊃#.⎕WG'APLVersion')∧':'∊⍵)⊃⍵}3↑⍵}w
+    ∇
+
+    ∇ r←isDir path
+    ⍝ is path a directory?
+      r←{22::0 ⋄ 1 ⎕NINFO ⍵}path
     ∇
 
     lc←0∘(819⌶) ⍝ lower case
