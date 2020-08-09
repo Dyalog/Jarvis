@@ -16,6 +16,7 @@
     :Field Public ErrorInfoLevel←1                             ⍝ level of information to provide if an APL error occurs, 0=none, 1=⎕EM, 2=⎕SI
     :Field Public ExcludeFns←''                                ⍝ vector of vectors for function names to be excluded (can use regex or ? and * as wildcards)
     :Field Public FlattenOutput←0                              ⍝ 0=no, 1=yes, 2=yes with notification
+    :Field Public Folder←''                                    ⍝ folder that user supplied in CodeLocation from which to load code
     :Field Public HtmlInterface←¯1                             ⍝ ¯1=unassigned, 0/1=dis/allow the HTML interface, or Path to HTML
     :Field Public Hostname←''                                  ⍝ external-facing host name
     :Field Public HTTPAuthentication←'basic'                   ⍝ valid settings are currently 'basic' or ''
@@ -42,7 +43,6 @@
     :Field Public SSLValidation←64                             ⍝ request, but do not require a client certificate
     :Field Public ValidateRequestFn←''                         ⍝ name of the request validation function
 
-    :Field Folder←''                                           ⍝ folder that user supplied in CodeLocation from which to load code
     :Field _rootFolder←''                                      ⍝ root folder for relative file paths
     :Field _configLoaded←0
     :Field _htmlFolder←''
@@ -62,7 +62,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.2' '2020-07-23'
+      r←'Jarvis' '1.3' '2020-08-29'
     ∇
 
     ∇ r←Config
@@ -539,7 +539,7 @@
                   :EndSelect ⍝ evt
      
               :Case 1010 ⍝ Object Not found
-                  :If ~⎕←_stop
+                  :If ~_stop
                       Log'Object ''',ServerName,''' has been closed - Jarvis shutting down'
                       _stop←1
                   :EndIf
