@@ -1,10 +1,21 @@
 ﻿:Class JarvisService :Jarvis
 ⍝∇:require =Jarvis
-⍝∇:require =SysLog 
+⍝∇:require =SysLog  
+⍝    JarvisService is based on the Jarvis class and require that:
+⍝       Config is in a namespace #.Config
+⍝       Code is in a namespace #.Code
+⍝  
+⍝     Workspace ID will be used as both name of the service to install and the event viewer source   
+⍝
+⍝     Running the configured JarvisService.StartService from an non service environment will suggest commandlines on how to initalize eventviewer and install the service 
+⍝
+⍝     TO start Service call JarvisService.StartService '#.MyService.MainFunctio&0'
+⍝
 ⍝    :field public Shared ServiceState
 ⍝    :field public Shared ServiceControl
     :field public log←⍬
     :field public ServiceName←''
+
 
 
     ∇ r←DefaultServiceName servicename
@@ -40,18 +51,18 @@
      
     ∇
 
-    ∇ {r}←{level} Log msg
-      :Access public override 
-      :if 0=⎕nc 'level'
-         level←'I'
-      :endif
+    ∇ {r}←{level}Log msg
+      :Access public override
+      :If 0=⎕NC'level'
+          level←'I'
+      :EndIf
       :If log≡⍬
           log←⎕NEW #.SysLog ServiceName
       :EndIf
       :If Logging>0∊⍴msg
-         level log.Write msg      ⍝ Add severity ??
-      :EndIf 
-      r← '(',('EWI'[1+3|¯1+(1 2 3 'EWIewi')⍳⊃level]),') ',msg
+          level log.Write msg      ⍝ Add severity ??
+      :EndIf
+      r←'(',('EWI'[1+3|¯1+(1 2 3 'EWIewi')⍳⊃level]),') ',msg
     ∇
 
 
@@ -109,42 +120,41 @@
       :CaseList SERVICE_CONTROL_STOP SERVICE_CONTROL_SHUTDOWN
           #.ServiceState←SERVICE_STOPPED
           state[4 5 6 7]←0
-          ⎕← 'ServiceHandler Stop :',⍕#.ServiceControl
+          ⎕←'ServiceHandler Stop :',⍕#.ServiceControl
       :Case SERVICE_CONTROL_PAUSE
           #.ServiceState←SERVICE_PAUSED
-          ⎕← 'ServiceHandler Pause :',⍕#.ServiceControl     
+          ⎕←'ServiceHandler Pause :',⍕#.ServiceControl
       :Case SERVICE_CONTROL_CONTINUE
-          #.ServiceState←SERVICE_RUNNING 
-         ⎕← 'ServiceHandler Continue :',⍕#.ServiceControl
-
-      :Else                            
-         ⎕← 'ServiceHandler:',⍕#.ServiceControl
+          #.ServiceState←SERVICE_RUNNING
+          ⎕←'ServiceHandler Continue :',⍕#.ServiceControl
+     
+      :Else
+          ⎕←'ServiceHandler:',⍕#.ServiceControl
           :If state[2]=SERVICE_START_PENDING
               #.ServiceState←SERVICE_RUNNING
           :EndIf
-      :EndSelect 
+      :EndSelect
       state[2]←#.ServiceState
       sink←2 ⎕NQ'.' 'SetServiceState'state
     ∇
 
     ∇ ServiceMain arg
       :Access public
-      'I' Log 'ServiceMain Starting' 
-      'I' Log 'ServiceMain: ',,⍕Start ⍝ Start Jarvis serice
-
+      'I'Log'ServiceMain Starting'
+      'I'Log'ServiceMain: ',,⍕Start ⍝ Start Jarvis serice
       :While #.ServiceState≠SERVICE_STOPPED
-          :If #.ServiceControl≠0 ⋄ 'I' Log 'ServiceControl=',⍕#.ServiceControl ⋄ :EndIf
+          :If #.ServiceControl≠0 ⋄ 'I'Log'ServiceControl=',⍕#.ServiceControl ⋄ :EndIf
      
           :Select #.ServiceControl
           :Case SERVICE_CONTROL_STOP
-             'I' Log 'ServiceMain: ',,⍕Stop
+              'I'Log'ServiceMain: ',,⍕Stop
           :Case SERVICE_CONTROL_PAUSE
-              'I' Log 'ServiceMain: ',,⍕Pause
+              'I'Log'ServiceMain: ',,⍕Pause
           :Case SERVICE_CONTROL_CONTINUE
-              'I' Log 'ServiceMain: ',,⍕Start
+              'I'Log'ServiceMain: ',,⍕Start
           :Case SERVICE_CONTROL_INTERROGATE
           :Case SERVICE_CONTROL_SHUTDOWN
-              'I' Log 'ServiceMain: ',,⍕Stop
+              'I'Log'ServiceMain: ',,⍕Stop
           :Case SERVICE_CONTROL_PARAMCHANGE
           :Case SERVICE_CONTROL_NETBINDADD
           :Case SERVICE_CONTROL_NETBINDREMOVE
@@ -155,13 +165,13 @@
           :Case SERVICE_CONTROL_POWEREVENT
           :Case SERVICE_CONTROL_SESSIONCHANGE
           :Case SERVICE_CONTROL_PRESHUTDOWN
-              'I' Log 'ServiceMain: ',,⍕Stop
+              'I'Log'ServiceMain: ',,⍕Stop
           :Case 0
      
           :EndSelect
      
           :Select #.ServiceState
-          :Case SERVICE_STOPPED 
+          :Case SERVICE_STOPPED
           :Case SERVICE_START_PENDING
           :Case SERVICE_STOP_PENDING
           :Case SERVICE_RUNNING
@@ -172,45 +182,45 @@
           #.ServiceControl←0 ⍝ Reset (we only want to log changes)
           ⎕DL 10 ⍝ Just to prevent busy loop
       :EndWhile
-
+     
       ⎕OFF 0
      
     ∇
-    
-   ∇r←ClassName
-    :access public shared
-    r←⍕⊃⊃⎕class ⎕this
-    ∇
 
-    ∇Describe;wsid;cmdlineargs;apl;service;a;s
-    :access public shared
-    ⎕←'This is intended to run as a service' 
-    wsid←⎕wsid
-    cmdlineargs←2 ⎕nq '.' 'GetCommandLineArgs'
-    apl←⊃cmdlineargs
-    service←2⊃⎕nparts wsid
-    :for a :in cmdlineargs
-      :if 0<≢s←'APL_ServiceEvtInit=' { ⍺≡(≢⍺)↑⍵:(≢⍺)↓⍵⋄''  } a
-         #.SysLog.CreateEventSource  s 'Dyalog APL'
-         ⎕← 'Event src created'
-         ⎕off 0
-      :endif
-    :endfor
-
-     ⎕←wsid
-     ⎕←cmdlineargs
-     ⎕←'To install/uninstall/initalize run as Administrator'
-     ⎕←'CommandLines:'
-     ⎕←apl,' ',wsid,' APL_ServiceInstall=',service,' ',2↓cmdlineargs
-     ⎕←apl,' ',wsid,' APL_ServiceUninstall=',service,' ',2↓cmdlineargs 
-     ⎕←apl,' ',wsid,' APL_ServiceEvtInit=',service  
-    ∇
-
-    ∇ StartService
-       ⍝ This is the ⎕lx entry point to run Jarvis as a service 
-
+    ∇ r←ClassName
       :Access public shared
-⍝     ∘∘∘ ⍝ Remove comment to make service start wait for Ride Connection
+      r←⍕⊃⊃⎕CLASS ⎕THIS
+    ∇
+
+    ∇ Describe;wsid;cmdlineargs;apl;service;a;s
+      :Access public shared
+      ⎕←'This is intended to run as a service'
+      wsid←⎕WSID
+      cmdlineargs←2 ⎕NQ'.' 'GetCommandLineArgs'
+      apl←⊃cmdlineargs
+      service←2⊃⎕NPARTS wsid
+      :For a :In cmdlineargs
+          :If 0<≢s←'APL_ServiceEvtInit='{⍺≡(≢⍺)↑⍵:(≢⍺)↓⍵ ⋄ ''}a
+              #.SysLog.CreateEventSource s'Dyalog APL'
+              ⎕←'Event src created'
+              ⎕OFF 0
+          :EndIf
+      :EndFor
+     
+      ⎕←wsid
+      ⎕←cmdlineargs
+      ⎕←'To install/uninstall/initalize run as Administrator'
+      ⎕←'CommandLines:'
+      ⎕←apl,' ',wsid,' APL_ServiceInstall=',service,' ',2↓cmdlineargs
+      ⎕←apl,' ',wsid,' APL_ServiceUninstall=',service,' ',2↓cmdlineargs
+      ⎕←apl,' ',wsid,' APL_ServiceEvtInit=',service
+    ∇
+
+    ∇ StartService  MyServiceFunction
+       ⍝ This is the ⎕lx entry point to run Jarvis as a service
+     
+      :Access public shared
+      ⍝ ∘∘∘ ⍝ Remove comment to make service start wait for Ride Connection
       :If 'W'≠3⊃#.⎕WG'APLVersion'
           ⎕←'This workspace only works using Dyalog APL for Windows version 14.0 or later'
           :Return
@@ -219,20 +229,22 @@
           Describe
           :Return
       :EndIf
-
+     
  ⍝ Define SCM constants
       HashDefine
  ⍝ Set up callback to handle SCM notifications
-      '.'⎕WS'Event' 'ServiceNotification' (ClassName,'.ServiceHandler')
+      '.'⎕WS'Event' 'ServiceNotification'(ClassName,'.ServiceHandler')
  ⍝ Global variable defines current state of the service
       #.ServiceState←SERVICE_RUNNING
  ⍝ Global variable defines last SCM notification to the service
       #.ServiceControl←0
- ⍝ Application code runs in a separate thread  
-      js←⎕new JarvisService
-      js.ConfigFile←#.Config
-      js.CodeLocation←#.Code 
-      js.ServiceMain&0
+ ⍝ Application code runs in a separate thread
+      #.js←⎕NEW JarvisService
+      #.js.ConfigFile←#.Config
+      #.js.CodeLocation←#.Code
+      #.js.ServiceMain&0 
+      ⎕dl 1
+      ⍎MyServiceFunction
       ⎕DQ'.'
       ⎕OFF
     ∇
