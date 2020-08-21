@@ -127,7 +127,8 @@
       :Case SERVICE_CONTROL_CONTINUE
           #.ServiceState←SERVICE_RUNNING
           ⎕←'ServiceHandler Continue :',⍕#.ServiceControl
-     
+      :Case SERVICE_CONTROL_INTERROGATE
+        ⍝ do nothing sometimes it interrogates every 10 secs
       :Else
           ⎕←'ServiceHandler:',⍕#.ServiceControl
           :If state[2]=SERVICE_START_PENDING
@@ -143,7 +144,7 @@
       'I'Log'ServiceMain Starting'
       'I'Log'ServiceMain: ',,⍕Start ⍝ Start Jarvis serice
       :While #.ServiceState≠SERVICE_STOPPED
-          :If #.ServiceControl≠0 ⋄ 'I'Log'ServiceControl=',⍕#.ServiceControl ⋄ :EndIf
+          :If ~#.ServiceControl∊0 SERVICE_CONTROL_INTERROGATE ⋄ 'I'Log'ServiceControl=',⍕#.ServiceControl ⋄ :EndIf
      
           :Select #.ServiceControl
           :Case SERVICE_CONTROL_STOP
@@ -216,7 +217,7 @@
       ⎕←apl,' ',wsid,' APL_ServiceEvtInit=',service
     ∇
 
-    ∇ StartService  MyServiceFunction
+    ∇ StartService MyServiceFunction
        ⍝ This is the ⎕lx entry point to run Jarvis as a service
      
       :Access public shared
@@ -242,8 +243,8 @@
       #.js←⎕NEW JarvisService
       #.js.ConfigFile←#.Config
       #.js.CodeLocation←#.Code
-      #.js.ServiceMain&0 
-      ⎕dl 1
+      #.js.ServiceMain&0
+      ⎕DL 1
       ⍎MyServiceFunction
       ⎕DQ'.'
       ⎕OFF
