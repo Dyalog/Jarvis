@@ -9,7 +9,6 @@
     :Field Public AuthenticateFn←''                            ⍝ function name to perform authentication,if empty, no authentication is necessary
     :Field Public BlockSize←10000                              ⍝ Conga block size
     :Field Public CodeLocation←''                              ⍝ application code location
-    :Field Public ConfigFile←''                                ⍝ configuration file path (if any)
     :Field Public Debug←0                                      ⍝ 0 = all errors are trapped, 1 = stop on an error, 2 = stop on intentional error before processing request
     :Field Public DefaultContentType←'application/json; charset=utf-8'
     :Field Public DenyFrom←⍬                                   ⍝ IP addresses to refuse requests from - empty means deny none
@@ -17,11 +16,13 @@
     :Field Public ExcludeFns←''                                ⍝ vector of vectors for function names to be excluded (can use regex or ? and * as wildcards)
     :Field Public FlattenOutput←0                              ⍝ 0=no, 1=yes, 2=yes with notification
     :Field Public Folder←''                                    ⍝ folder that user supplied in CodeLocation from which to load code
-    :Field Public HtmlInterface←¯1                             ⍝ ¯1=unassigned, 0/1=dis/allow the HTML interface, or Path to HTML
+    :Field Public HTMLInterface←¯1                             ⍝ ¯1=unassigned, 0/1=dis/allow the HTML interface, or Path to HTML
     :Field Public Hostname←''                                  ⍝ external-facing host name
     :Field Public HTTPAuthentication←'basic'                   ⍝ valid settings are currently 'basic' or ''
     :Field Public IncludeFns←''                                ⍝ vector of vectors for function names to be included (can use regex or ? and * as wildcards)
+    :Field Public JarvisConfig←''                              ⍝ configuration file path (if any). This parameter was formerly named ConfigFile
     :Field Public LoadableFiles←'*.apl*,*.dyalog'              ⍝ file patterns that can be loaded if loading from folder
+    :Field Public LogFn←''                                     ⍝ Log function name, leave empty to use built in logging
     :Field Public Logging←1                                    ⍝ turn logging on/off
     :Field Public Paradigm←'JSON'                              ⍝ either 'JSON' or 'REST'
     :Field Public ParsePayload←1                               ⍝ 1=parse payload based on content-type header
@@ -35,13 +36,15 @@
     :Field Public ServerKeyFile←''                             ⍝ private key file
     :Field Public SessionCleanupTime←60                        ⍝ how frequently (in minutes) do we clean up timed out session info from _sessionsInfo
     :Field Public SessionIdHeader←'Jarvis-SessionID'
-    :Field Public SessionInitFn←''
+    :Field Public SessionInitFn←''                             ⍝ 
     :Field Public SessionPollingTime←1                         ⍝ how frequently (in minutes) we should poll for timed out sessions
     :Field Public SessionStartEndpoint←'Login'
     :Field Public SessionStopEndpoint←'Logout'
     :Field Public SessionTimeout←0                             ⍝ 0 = do not use sessions, ¯1 = no timeout , 0< session timeout time (in minutes)
     :Field Public SSLValidation←64                             ⍝ request, but do not require a client certificate
     :Field Public ValidateRequestFn←''                         ⍝ name of the request validation function
+    :Field Public WebSocketSupport←0                           ⍝ set to 1 to include WebSocket
+    :Field Public WebSocket
 
     :Field _rootFolder←''                                      ⍝ root folder for relative file paths
     :Field _configLoaded←0
@@ -62,7 +65,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.3' '2020-08-29'
+      r←'Jarvis' '1.4' '2020-09-04'
     ∇
 
     ∇ r←Config
@@ -115,7 +118,7 @@
               →0⊣Log'Unable to find "',args,'"'
           :ElseIf 2=t←1 ⎕NINFO args ⍝ normal file
               :If (lc⊢/⎕NPARTS args)∊'.json' '.json5' ⍝ json files are configuration
-                  :If 0≠⊃(rc msg)←LoadConfiguration ConfigFile←args
+                  :If 0≠⊃(rc msg)←LoadConfiguration JarvisConfig←args
                       Log'Error loading configuration: ',msg
                   :EndIf
               :Else
@@ -136,7 +139,7 @@
               args[1]←⊂,args[1] ⍝ nest port so ∇default works properly
           :EndIf
      
-          (Port CodeLocation Paradigm ConfigFile)←args default Port CodeLocation Paradigm ConfigFile
+          (Port CodeLocation Paradigm JarvisConfig)←args default Port CodeLocation Paradigm JarvisConfig
       :EndIf
     ∇
 
@@ -201,7 +204,7 @@
       :Else ⋄ _rootFolder←⊃1 ⎕NPARTS ⎕WSID
       :EndIf
      
-      →0 If(rc msg)←LoadConfiguration ConfigFile
+      →0 If(rc msg)←LoadConfiguration JarvisConfig
       →0 If(rc msg)←CheckPort
       →0 If(rc msg)←LoadConga
       →0 If(rc msg)←CheckCodeLocation
@@ -212,7 +215,7 @@
       Log'Jarvis started in "',Paradigm,'" mode on port ',⍕Port
       Log'Serving code in ',(⍕CodeLocation),(Folder≢'')/' (populated with code from "',Folder,'")'
      
-      :Select ⊃HtmlInterface
+      :Select ⊃HTMLInterface
       :Case 0 ⍝ explicitly no HTML interface, carry on
       :Case 1 ⍝ explicitly turned on
           :If Paradigm≢'JSON'
@@ -223,7 +226,7 @@
       :Case ¯1
           _htmlEnabled←Paradigm≡'JSON' ⍝ if not specified, HTML interface is enabled for JSON paradigm
       :Else
-          html←1 ⎕NPARTS((isRelPath HtmlInterface)/_rootFolder),HtmlInterface
+          html←1 ⎕NPARTS((isRelPath HTMLInterface)/_rootFolder),HTMLInterface
           :If isDir∊html
               _htmlFolder←{⍵,('/'=⊢/⍵)↓'/'}∊html
           :Else
@@ -304,7 +307,7 @@
                   config←⍎value
                   →Load
               :EndIf
-              file←ConfigFile
+              file←JarvisConfig
               :If ~0∊⍴value
                   file←value
               :EndIf
@@ -365,15 +368,15 @@
     ∇ (rc msg)←CheckCodeLocation;root;m;res;tmp;fn;t;path
       (rc msg)←0 ''
       :If 0∊⍴CodeLocation
-          :If 0∊⍴ConfigFile ⍝ if there's a configuration file, use its folder for CodeLocation
+          :If 0∊⍴JarvisConfig ⍝ if there's a configuration file, use its folder for CodeLocation
               →0⊣(rc msg)←4 'CodeLocation is empty!'
           :Else
-              CodeLocation←⊃1 ⎕NPARTS ConfigFile
+              CodeLocation←⊃1 ⎕NPARTS JarvisConfig
           :EndIf
       :EndIf
       :Select ⊃{⎕NC'⍵'}CodeLocation ⍝ need dfn because CodeLocation is a field and will always be nameclass 2
       :Case 9 ⍝ reference, just use it
-      :Case 2 ⍝ variable, could be file path or ⍕ of reference from ConfigFile
+      :Case 2 ⍝ variable, could be file path or ⍕ of reference from JarvisConfig
           :If 326=⎕DR tmp←{0::⍵ ⋄ '#'≠⊃⍵:⍵ ⋄ ⍎⍵}CodeLocation
           :AndIf 9={⎕NC'⍵'}tmp ⋄ CodeLocation←tmp
           :Else
