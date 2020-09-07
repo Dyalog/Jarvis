@@ -25,7 +25,7 @@
     :Field Public LogFn←''                                     ⍝ Log function name, leave empty to use built in logging
     :Field Public Logging←1                                    ⍝ turn logging on/off
     :Field Public Paradigm←'JSON'                              ⍝ either 'JSON' or 'REST'
-    :Field Public ParsePayload←1                               ⍝ 1=parse payload based on content-type header
+    :Field Public ParsePayload←1                               ⍝ 1=parse payload based on content-type header (REST only)
     :Field Public Port←8080                                    ⍝ Default port to listen on
     :Field Public RootCertDir←''                               ⍝ Root CA certificate folder
     :field Public Priority←'NORMAL:!CTYPE-OPENPGP'             ⍝ Priorities for GnuTLS when negotiation connection
@@ -36,7 +36,7 @@
     :Field Public ServerKeyFile←''                             ⍝ private key file
     :Field Public SessionCleanupTime←60                        ⍝ how frequently (in minutes) do we clean up timed out session info from _sessionsInfo
     :Field Public SessionIdHeader←'Jarvis-SessionID'
-    :Field Public SessionInitFn←''                             ⍝ 
+    :Field Public SessionInitFn←''                             ⍝
     :Field Public SessionPollingTime←1                         ⍝ how frequently (in minutes) we should poll for timed out sessions
     :Field Public SessionStartEndpoint←'Login'
     :Field Public SessionStopEndpoint←'Logout'
@@ -174,6 +174,13 @@
     ∇
 
     ∇ r←Run args;msg;rc
+    ⍝ args is one of
+    ⍝ - a simple character vector which is the name of a configuration file
+    ⍝ - a reference to a namespace containing named configuration settings
+    ⍝ - a depth 1 or 2 vector of
+    ⍝   [1] integer port to listen on
+    ⍝   [2] charvec function folder or ref to code location
+    ⍝   [3] paradigm to use ('JSON' or 'REST')
       :Access shared public
       :Trap 0
           (rc msg)←(r←⎕NEW ⎕THIS args).Start
@@ -602,6 +609,10 @@
      
           :If ns.Req.Complete
      
+              :If ns.Req.Charset≡'utf-8'
+                  ns.Req.Body←'UTF-8'⎕UCS ⎕UCS ns.Req.Body
+              :EndIf
+     
               (stop1/⍨~⊃1 DebugLevel 4+2×~0∊⍴ValidateRequestFn)⎕STOP⊃⎕SI
      stop1: ⍝ intentional stop for request-level debugging
               ⍬ ⎕STOP⊃⎕SI
@@ -654,7 +665,7 @@
       →0 If HandleCORSRequest ns.Req
       →0 If('No function specified')ns.Req.Fail 400×0∊⍴fn
       →0 If('Unsupported request method')ns.Req.Fail 405×ns.Req.Method≢'post'
-      →0 If'(Content-Type should be application/json)'ns.Req.Fail 400×(0∊⍴ns.Req.Body)⍱'application/json'begins lc ns.Req.GetHeader'content-type'
+      →0 If'(Content-Type should be application/json)'ns.Req.Fail 400×(0∊⍴ns.Req.Body)⍱ns.Req.ContentType≡'application/json'
       →0 If'(Cannot accept query parameters)'ns.Req.Fail 400×~0∊⍴ns.Req.QueryParams
      
       :Trap 0 DebugLevel 1
@@ -696,7 +707,7 @@
      
       :If ParsePayload
           :Trap 0 DebugLevel 1
-              :Select ct←⊃';'(≠⊆⊢)lc ns.Req.GetHeader'content-type'
+              :Select ns.Req.ContentType
               :Case 'application/json'
                   ns.Req.Payload←0 JSONin ns.Req.Body
               :Case 'application/xml'
@@ -842,6 +853,8 @@
     ∇
 
     :class Request
+        :Field Public Instance ContentType←''    ⍝ content-type header value
+        :Field Public Instance Charset←'UTF-8'   ⍝ default charset
         :Field Public Instance Complete←0        ⍝ do we have a complete request?
         :Field Public Instance Input←''
         :Field Public Instance Headers←0 2⍴⊂''   ⍝ HTTPRequest header fields (plus any supplied from HTTPTrailer event)
@@ -864,6 +877,7 @@
         GetFromTable←{(⍵[;1]⍳⊂,⍺)⊃⍵[;2],⊂''}
         split←{p←(⍺⍷⍵)⍳1 ⋄ ((p-1)↑⍵)(p↓⍵)} ⍝ Split ⍵ on first occurrence of ⍺
         lc←0∘(819⌶)
+        deb←' '∘(1↓,⊢⍤/⍨1(⊢∨⌽)0,≠)
 
         ∇ {r}←{message}Fail status
         ⍝ Set HTTP response status code and message if status≠0
@@ -888,7 +902,7 @@
           Response.Headers←0 2⍴'' ''
         ∇
 
-        ∇ make1 args;query;origin;length
+        ∇ make1 args;query;origin;length;charset
         ⍝ args is the result of Conga HTTPHeader event
           :Access public
           :Implements constructor
@@ -896,6 +910,10 @@
           (Method Input HTTPVersion Headers)←args
           Headers[;1]←lc Headers[;1]  ⍝ header names are case insensitive
           Method←lc Method
+         
+          (ContentType charset)←deb¨lc 2↑(';'(≠⊆⊢)GetHeader'content-type'),⊂''
+          charset←deb⊃1↓'='(≠⊆⊢)charset
+          Charset←(1+0∊⍴charset)⊃charset Charset
          
           Response←⎕NS''
           Response.(Status StatusText Payload)←200 'OK' ''
@@ -1388,7 +1406,7 @@
 ⍝  fn = (0 == fn.indexOf('/')) ? fn : '/' + fn;
 ⍝
 ⍝  xhttp.open("POST", fn, true);
-⍝  xhttp.setRequestHeader("Content-Type", "application/json; charset=utf-8");
+⍝  xhttp.setRequestHeader("content-type", "application/json; charset=utf-8");
 ⍝
 ⍝  xhttp.onreadystatechange = function() {
 ⍝    if (this.readyState == 4){
