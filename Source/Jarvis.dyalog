@@ -65,7 +65,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.4' '2020-09-04'
+      r←'Jarvis' '1.5' '2020-09-07'
     ∇
 
     ∇ r←Config
