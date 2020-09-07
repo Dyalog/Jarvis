@@ -1223,7 +1223,7 @@
 
     ∇ r←isDir path
     ⍝ is path a directory?
-      r←{22::0 ⋄ 1 ⎕NINFO ⍵}path
+      r←{22::0 ⋄ 1=1 ⎕NINFO ⍵}path
     ∇
 
     lc←0∘(819⌶) ⍝ lower case
@@ -1246,7 +1246,7 @@
           {'^',(⍵~'^$'),'$'}{¯1=⎕NC('A'@(∊∘'?*'))r←⍵:('/'=⊣/⍵)↓(¯1×'/'=⊢/⍵)↓⍵   ⍝ already regex? (remove leading/trailing '/'
               r←∊(⊂'\.')@('.'=⊢)r  ⍝ escape any periods
               r←'.'@('?'=⊢)r       ⍝ ? → .
-              r←∊(⊂'.*')@('*'=⊢)r  ⍝ * → .*
+              ∊(⊂'.*')@('*'=⊢)r    ⍝ * → .*
           }⍵            ⍝ add start and end of string markers
       }w
     ∇
