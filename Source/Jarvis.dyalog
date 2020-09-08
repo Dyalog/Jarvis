@@ -65,7 +65,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.5' '2020-09-07'
+      r←'Jarvis' '1.6' '2020-09-08'
     ∇
 
     ∇ r←Config
@@ -241,7 +241,7 @@
               _htmlDefaultPage←∊1↓html
           :EndIf
           _htmlEnabled←⎕NEXISTS _htmlFolder,_htmlDefaultPage
-          Log(~_htmlEnabled)/'HTML home page file "',html,'" not found.'
+          Log(~_htmlEnabled)/'HTML home page file "',(∊html),'" not found.'
       :EndSelect
      
       Log _htmlEnabled/'Click http',(~Secure)↓'s://localhost:',(⍕Port),' to access web interface'
@@ -461,7 +461,7 @@
 
     Exists←{0:: ¯1 (⍺,' "',⍵,'" is not a valid folder name.') ⋄ ⎕NEXISTS ⍵:0 '' ⋄ ¯1 (⍺,' "',⍵,'" was not found.')}
 
-    ∇ (rc msg)←StartServer;r;cert;secureParams;accept;deny;mask;certs
+    ∇ (rc msg)←StartServer;r;cert;secureParams;accept;deny;mask;certs;asc;options
       msg←'Unable to start server'
       accept←'Accept'ipRanges AcceptFrom
       deny←'Deny'ipRanges DenyFrom
@@ -493,11 +493,21 @@
           :EndIf
           secureParams←('X509'cert)('SSLValidation'SSLValidation)('Priority'Priority)
       :EndIf
-      :If 0=rc←1⊃r←#.DRC.Srv'' ''Port'http'BlockSize,secureParams,accept,deny
+     
+      {}#.DRC.SetProp'.' 'EventMode' 1 ⍝ report Close/Timeout as events
+     
+      options←''
+      :If asc←3 3≡2↑#.DRC.Version ⍝ can we set DecodeBuffers at server creation?
+          options←⊂'Options' 5 ⍝ DecodeBuffers + WSAutoAccept
+      :EndIf
+     
+      :If 0=rc←1⊃r←#.DRC.Srv'' ''Port'http'BlockSize,secureParams,accept,deny,options
           ServerName←2⊃r
-          {}#.DRC.SetProp'.' 'EventMode' 1 ⍝ report Close/Timeout as events
-          {}#.DRC.SetProp ServerName'FIFOMode' 0
-          {}#.DRC.SetProp ServerName'DecodeBuffers' 15 ⍝ 15 ⍝ decode all buffers
+          :If ~asc
+              {}#.DRC.SetProp ServerName'FIFOMode' 0 ⍝ deprecated in Conga v3.2
+              {}#.DRC.SetProp ServerName'DecodeBuffers' 15 ⍝ 15 ⍝ decode all buffers
+              {}#.DRC.SetProp ServerName'WSFeatures' 1 ⍝ auto accept WS requests 
+          :EndIf
           :If 0∊⍴Hostname ⍝ if Host hasn't been set, set it to the default
               Hostname←'http',(~Secure)↓'s://',(2 ⎕NQ'.' 'TCPGetHostID'),((~Port∊80 443)/':',⍕Port),'/'
           :EndIf
@@ -553,6 +563,7 @@
                       Log'Object ''',ServerName,''' has been closed - Jarvis shutting down'
                       _stop←1
                   :EndIf
+     
               :Else
                   Log'Conga wait failed:'
                   Log wres
@@ -877,7 +888,7 @@
         GetFromTable←{(⍵[;1]⍳⊂,⍺)⊃⍵[;2],⊂''}
         split←{p←(⍺⍷⍵)⍳1 ⋄ ((p-1)↑⍵)(p↓⍵)} ⍝ Split ⍵ on first occurrence of ⍺
         lc←0∘(819⌶)
-        deb←' '∘(1↓,⊢⍤/⍨1(⊢∨⌽)0,≠)
+        deb←{{1↓¯1↓⍵/⍨~'  '⍷⍵}' ',⍵,' '}
 
         ∇ {r}←{message}Fail status
         ⍝ Set HTTP response status code and message if status≠0
