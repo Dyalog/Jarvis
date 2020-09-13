@@ -29,6 +29,7 @@
     :Field Public Port←8080                                    ⍝ Default port to listen on
     :Field Public RootCertDir←''                               ⍝ Root CA certificate folder
     :field Public Priority←'NORMAL:!CTYPE-OPENPGP'             ⍝ Priorities for GnuTLS when negotiation connection
+    :Field Public Report404InHTML←1                            ⍝ Report HTTP 404 status (not found) in HTML (only valid if HTML interface is enabled)
     :Field Public RESTMethods←'Get,Post,Put,Delete,Patch,Options'
     :Field Public Secure←0                                     ⍝ 0 = use HTTP, 1 = use HTTPS
     :field Public ServerCertSKI←''                             ⍝ Server cert's Subject Key Identifier from store
@@ -46,26 +47,44 @@
     :Field Public WebSocketSupport←0                           ⍝ set to 1 to include WebSocket
     :Field Public WebSocket
 
-    :Field _rootFolder←''                                      ⍝ root folder for relative file paths
-    :Field _configLoaded←0
-    :Field _htmlFolder←''
-    :Field _htmlDefaultPage←'index.html'
-    :Field _htmlEnabled←0
-    :Field _stop←0                                             ⍝ set to 1 to stop server
-    :Field _started←0
-    :Field _stopped←1
-    :field _paused←0
-    :Field _sessionThread←¯1
-    :Field _serverThread←¯1
-    :Field _taskThreads←⍬
-    :Field _sessions←⍬                                         ⍝ vector of session namespaces
-    :Field _sessionsInfo←0 5⍴'' '' 0 0 0                       ⍝ [;1] id [;2] ip addr [;3] creation time [;4] last active time [;5] ref to session
-    :Field _includeRegex←''                                    ⍝ private field compiled regex from IncludeFns
-    :Field _excludeRegex←''                                    ⍝ private compiled regex from ExcludeFns
+  ⍝↓↓↓ some of these private fields are also set in ∇init so that a server can be stopped, updated, and restarted
+    :Field _rootFolder←''                ⍝ root folder for relative file paths
+    :Field _configLoaded←0               ⍝ indicates whether config was already loaded by Autostart
+    :Field _htmlFolder←''                ⍝ folder containing HTML interface files, if any
+    :Field _htmlDefaultPage←'index.html' ⍝ default page name if HTMLInterface is set to serve from a folder
+    :Field _htmlEnabled←0                ⍝ is the HTML interface enabled?
+    :Field _stop←0                       ⍝ set to 1 to stop server
+    :Field _started←0                    ⍝ is the server started
+    :Field _stopped←1                    ⍝ is the server stopped
+    :field _paused←0                     ⍝ is the server paused
+    :Field _sessionThread←¯1             ⍝ thread for the session cleanup process
+    :Field _serverThread←¯1              ⍝ thread for the HTTP server
+    :Field _taskThreads←⍬                ⍝ vector of thread handling requests
+    :Field _sessions←⍬                   ⍝ vector of session namespaces
+    :Field _sessionsInfo←0 5⍴'' '' 0 0 0 ⍝ [;1] id [;2] ip addr [;3] creation time [;4] last active time [;5] ref to session
+    :Field _includeRegex←''              ⍝ private field compiled regex from IncludeFns
+    :Field _excludeRegex←''              ⍝ private compiled regex from ExcludeFns
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.6' '2020-09-08'
+      r←'Jarvis' '1.7' '2020-09-12'
+    ∇
+
+    ∇ Init
+    ⍝ called by ∇Start
+    ⍝ see :Field definitions
+      _rootFolder←''
+      _configLoaded←0
+      _htmlFolder←''
+      _htmlDefaultPage←'index.html'
+      _htmlEnabled←0
+      _sessionThread←¯1
+      _serverThread←¯1
+      _taskThreads←⍬
+      _sessions←⍬
+      _sessionsInfo←0 5⍴'' '' 0 0 0
+      _includeRegex←''
+      _excludeRegex←''
     ∇
 
     ∇ r←Config
@@ -190,7 +209,7 @@
       r←(r(rc msg))
     ∇
 
-    ∇ (rc msg)←Start;html
+    ∇ (rc msg)←Start;html;homePage
       :Access public
      
       :If _started
@@ -222,6 +241,7 @@
       Log'Jarvis started in "',Paradigm,'" mode on port ',⍕Port
       Log'Serving code in ',(⍕CodeLocation),(Folder≢'')/' (populated with code from "',Folder,'")'
      
+      homePage←1 ⍝ does
       :Select ⊃HTMLInterface
       :Case 0 ⍝ explicitly no HTML interface, carry on
       :Case 1 ⍝ explicitly turned on
@@ -233,6 +253,7 @@
       :Case ¯1
           _htmlEnabled←Paradigm≡'JSON' ⍝ if not specified, HTML interface is enabled for JSON paradigm
       :Else
+          _htmlEnabled←1
           html←1 ⎕NPARTS((isRelPath HTMLInterface)/_rootFolder),HTMLInterface
           :If isDir∊html
               _htmlFolder←{⍵,('/'=⊢/⍵)↓'/'}∊html
@@ -240,11 +261,11 @@
               _htmlFolder←1⊃html
               _htmlDefaultPage←∊1↓html
           :EndIf
-          _htmlEnabled←⎕NEXISTS _htmlFolder,_htmlDefaultPage
-          Log(~_htmlEnabled)/'HTML home page file "',(∊html),'" not found.'
+          homePage←⎕NEXISTS html←_htmlFolder,_htmlDefaultPage
+          Log(~homePage)/'HTML home page file "',(∊html),'" not found.'
       :EndSelect
      
-      Log _htmlEnabled/'Click http',(~Secure)↓'s://localhost:',(⍕Port),' to access web interface'
+      Log(_htmlEnabled∧homePage)/'Click http',(~Secure)↓'s://localhost:',(⍕Port),' to access web interface'
     ∇
 
     ∇ (rc msg)←Stop;ts
@@ -506,7 +527,7 @@
           :If ~asc
               {}#.DRC.SetProp ServerName'FIFOMode' 0 ⍝ deprecated in Conga v3.2
               {}#.DRC.SetProp ServerName'DecodeBuffers' 15 ⍝ 15 ⍝ decode all buffers
-              {}#.DRC.SetProp ServerName'WSFeatures' 1 ⍝ auto accept WS requests 
+              {}#.DRC.SetProp ServerName'WSFeatures' 1 ⍝ auto accept WS requests
           :EndIf
           :If 0∊⍴Hostname ⍝ if Host hasn't been set, set it to the default
               Hostname←'http',(~Secure)↓'s://',(2 ⎕NQ'.' 'TCPGetHostID'),((~Port∊80 443)/':',⍕Port),'/'
@@ -650,7 +671,6 @@
     ∇
 
     ∇ fn HandleJSONRequest ns;payload;resp;valence;nc;debug;ind;file
-     
       →handle If'get'≢ns.Req.Method
       →0 If('Request method should be POST')ns.Req.Fail 405×~_htmlEnabled
       →handleHtml If~0∊⍴_htmlFolder
@@ -667,8 +687,14 @@
           file←_htmlFolder,('/'=⊣/ns.Req.Endpoint)↓ns.Req.Endpoint
       :EndIf
       file←∊1 ⎕NPARTS file
+      file,←(isDir file)/'/',_htmlDefaultPage
       →0 If ns.Req.Fail 400×~_htmlFolder begins file
-      →0 If ns.Req.Fail 404×~⎕NEXISTS file
+      :If 0≠ns.Req.Fail 404×~⎕NEXISTS file
+          →0 If 0=Report404InHTML
+          ns.Req.Response.Headers←1 2⍴'Content-Type' 'text/html; charset=utf-8'
+          ns.Req.Response.Payload←'<h3 style="color:red;">Not found: ',(file↓⍨≢_htmlFolder),'</h3>'
+          →0
+      :EndIf
       ns.Req.Response.Payload←''file
       →0
      
