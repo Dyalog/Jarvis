@@ -4,7 +4,7 @@ node ('Docker') {
     stage ('Checkout') {
         checkout scm
     }
-    withDockerRegistry(credentialsId: '6d50b250-e0a3-4240-91de-b11a1b206597') {
+    withDockerRegistry(credentialsId: '0435817a-5f0f-47e1-9dcc-800d85e5c335') {
         stage ('Build Jarvis Container') {
             jarvis=docker.build('dyalog/jarvis', '--no-cache .')
         }
