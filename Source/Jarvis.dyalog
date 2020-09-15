@@ -366,7 +366,10 @@
       ⍝    however, on when using a bound workspaces DYALOG may not be set,
       ⍝    in which case we look in the same folder at the executable
       :If 0=#.⎕NC'Conga'
-          dyalog←1⊃1 ⎕NPARTS⊃2 ⎕NQ'.' 'GetCommandLineArgs'
+          :If 0∊⍴dyalog←2 ⎕NQ'.' 'GetEnvironment' 'DYALOG'
+          :Else
+              dyalog←1⊃1 ⎕NPARTS⊃2 ⎕NQ'.' 'GetCommandLineArgs'
+          :EndIf
           :Trap 0 DebugLevel 4
               'Conga'#.⎕CY dyalog,'ws/conga'
           :Else
