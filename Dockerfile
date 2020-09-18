@@ -1,4 +1,4 @@
-FROM dyalog/dyalog
+FROM dyalog/dyalog:18.0
 USER root
 
 ADD . /opt/mdyalog/Jarvis
