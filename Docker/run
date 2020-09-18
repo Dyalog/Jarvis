@@ -18,6 +18,7 @@ echo ""
 
 export MAXWS=${MAXWS-256M}
 
+export JARVIS=/opt/mdyalog/Jarvis
 export DYALOG=/opt/mdyalog/18.0/64/unicode/
 export WSPATH=/opt/mdyalog/18.0/64/unicode/ws
 export TERM=dumb
@@ -32,15 +33,14 @@ if [ $(ls /app 2>/dev/null | wc -l) -gt 0 ]; then
     CODEL=/app
 else
     echo "No application found in /app. Running with sample app"
-    CODEL=/opt/mdyalog/Jarvis/Samples/JSON
+    CODEL=$JARVIS/Samples/JSON
 fi
 export CodeLocation=${CodeLocation-$CODEL}
-
 
 cd /app
 
 if [ -n "$RIDE_INIT" ]; then
-    $DYALOG/dyalog +s -q /Jarvis/Distribution/Jarvis.dws
+    $DYALOG/dyalog +s -q $JARVIS/Distribution/Jarvis.dws
 else
-    $DYALOG/dyalog -s /Jarvis/Distribution/Jarvis.dws
+    $DYALOG/dyalog -s $JARVIS/Distribution/Jarvis.dws
 fi
