@@ -28,9 +28,10 @@ export SESSION_FILE="${SESSION_FILE-$DYALOG/default.dse}"
 
 export Port=8080
 
-if [ $(ls /app 2>/dev/null | wc -l) -gt 0 ]; then
-    echo "Application code found in /app."
+if [ $(ls /app | grep "jarvis.json" 2>/dev/null | wc -l) -eq 1 ]; then
+    echo "Application config found in /app."
     CODEL=/app
+    export ConfigFile=$(ls /app | grep "jarvis.json")
 else
     echo "No application found in /app. Running with sample app"
     CODEL=$JARVIS/Samples/JSON
