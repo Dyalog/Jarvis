@@ -67,7 +67,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.7' '2020-09-12'
+      r←'Jarvis' '1.7.1' '2020-09-21'
     ∇
 
     ∇ Init
@@ -699,6 +699,7 @@
           →0
       :EndIf
       ns.Req.Response.Payload←''file
+      'Content-Type' ns.Req.DefaultHeader ns.Req.ContentTypeForFile file
       →0
      
      handle:
@@ -914,6 +915,9 @@
         :Field Public Instance Password←''
         :Field Public Shared HttpStatus←↑(200 'OK')(201 'Created')(204 'No Content')(301 'Moved Permanently')(302 'Found')(303 'See Other')(304 'Not Modified')(305 'Use Proxy')(307 'Temporary Redirect')(400 'Bad Request')(401 'Unauthorized')(403 'Forbidden')(404 'Not Found')(405 'Method Not Allowed')(406 'Not Acceptable')(408 'Request Timeout')(409 'Conflict')(410 'Gone')(411 'Length Required')(412 'Precondition Failed')(413 'Request Entity Too Large')(414 'Request-URI Too Long')(415 'Unsupported Media Type')(500 'Internal Server Error')(501 'Not Implemented')(503 'Service Unavailable')
 
+        ⍝ Content types for common file extensions
+        :Field Public Shared ContentTypes←18 2⍴'txt' 'text/plain' 'htm' 'text/html' 'html' 'text/html' 'css' 'text/css' 'xml' 'text/xml' 'svg' 'image/svg+xml' 'json' 'application/json' 'zip' 'application/x-zip-compressed' 'csv' 'text/csv' 'pdf' 'application/pdf' 'mp3' 'audio/mpeg' 'pptx' 'application/vnd.openxmlformats-officedocument.presentationml.presentation' 'js' 'application/javascript' 'png' 'image/png' 'jpg' 'image/jpeg' 'bmp' 'image/bmp' 'jpeg' 'image/jpeg' 'woff' 'application/font-woff'
+
         GetFromTable←{(⍵[;1]⍳⊂,⍺)⊃⍵[;2],⊂''}
         split←{p←(⍺⍷⍵)⍳1 ⋄ ((p-1)↑⍵)(p↓⍵)} ⍝ Split ⍵ on first occurrence of ⍺
         lc←0∘(819⌶)
@@ -1093,6 +1097,13 @@
               :EndIf
               Response.(Status StatusText)←status statusText
           :EndIf
+        ∇
+
+        ∇ r←ContentTypeForFile filename;ext
+          :Access public instance
+          ext←⊂1↓3⊃⎕NPARTS filename
+          r←(ContentTypes[;1]⍳ext)⊃ContentTypes[;2],⊂'text/html'
+          r,←('text/html'≡r)/'; charset=utf-8'
         ∇
 
     :EndClass
