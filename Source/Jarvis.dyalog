@@ -45,7 +45,7 @@
     :Field Public SSLValidation←64                             ⍝ request, but do not require a client certificate
     :Field Public ValidateRequestFn←''                         ⍝ name of the request validation function
     :Field Public WebSocketSupport←0                           ⍝ set to 1 to include WebSocket
-    :Field Public WebSocket
+    :Field Public WebSocket←''
 
   ⍝↓↓↓ some of these private fields are also set in ∇init so that a server can be stopped, updated, and restarted
     :Field _rootFolder←''                ⍝ root folder for relative file paths
@@ -1325,12 +1325,18 @@
     ⍝ Loads an APL "project" folder
       (rc msg)←0 ''
       root←{6::⍵ ⋄ root}#
-      findFiles←{⊃{(⍵=2)/⍺}/0 1(⎕NINFO⍠1)∊1 ⎕NPARTS path,'/',⍵}
+      findFiles←{
+          (names type hidden)←0 1 6(⎕NINFO⍠1)∊1 ⎕NPARTS path,'/',⍵
+          names/⍨(~hidden)∧type=2
+      }
       files←''
       :For pattern :In ','(≠⊆⊢)LoadableFiles
           files,←findFiles pattern
       :EndFor
-      folders←⊃{(⍵=1)/⍺}/0 1(⎕NINFO⍠1)∊1 ⎕NPARTS path,'/*'
+      folders←{
+          (names type hidden)←0 1 6(⎕NINFO⍠1)∊1 ⎕NPARTS path,'/*'
+          names/⍨(~hidden)∧type=1
+      }⍬
       :For file :In files
           :Trap 11
               2 root.⎕FIX'file://',file
