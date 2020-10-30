@@ -5,6 +5,7 @@
     (⎕ML ⎕IO)←1 1
 
     :Field Public AcceptFrom←⍬                                 ⍝ IP addresses to accept requests from - empty means accept from any IP address
+    :Field Public AllowFormData←0                              ⍝ do we allow POST form data in JSON paradigm?
     :Field Public AppInitFn←''                                 ⍝ name of the application "bootstrap" function
     :Field Public AuthenticateFn←''                            ⍝ function name to perform authentication,if empty, no authentication is necessary
     :Field Public BlockSize←10000                              ⍝ Conga block size
@@ -67,7 +68,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.7.1' '2020-09-21'
+      r←'Jarvis' '1.8.1' '2020-10-30'
     ∇
 
     ∇ Init
@@ -699,21 +700,30 @@
           →0
       :EndIf
       ns.Req.Response.Payload←''file
-      'Content-Type' ns.Req.DefaultHeader ns.Req.ContentTypeForFile file
+      'Content-Type'ns.Req.DefaultHeader ns.Req.ContentTypeForFile file
       →0
      
      handle:
       →0 If HandleCORSRequest ns.Req
       →0 If('No function specified')ns.Req.Fail 400×0∊⍴fn
       →0 If('Unsupported request method')ns.Req.Fail 405×ns.Req.Method≢'post'
-      →0 If'(Content-Type should be application/json)'ns.Req.Fail 400×(0∊⍴ns.Req.Body)⍱ns.Req.ContentType≡'application/json'
+      →0 If('(Content-Type should be application/json',AllowFormData/' or multipart/form-data')ns.Req.Fail 400×(0∊⍴ns.Req.Body)⍱(⊂ns.Req.ContentType)∊(~AllowFormData)↓'multipart/form-data' 'application/json'
       →0 If'(Cannot accept query parameters)'ns.Req.Fail 400×~0∊⍴ns.Req.QueryParams
      
-      :Trap 0 DebugLevel 1
-          ns.Req.Payload←{0∊⍴⍵:⍵ ⋄ 0 JSONin ⍵}ns.Req.Body
-      :Else
-          →0⊣'Could not parse payload as JSON'ns.Req.Fail 400
-      :EndTrap
+      :Select ns.Req.ContentType
+      :Case 'application/json'
+          :Trap 0 DebugLevel 1
+              ns.Req.Payload←{0∊⍴⍵:⍵ ⋄ 0 JSONin ⍵}ns.Req.Body
+          :Else
+              →0⊣'Could not parse payload as JSON'ns.Req.Fail 400
+          :EndTrap
+      :Case 'multipart/form-data'
+          :Trap 0 DebugLevel 1
+              ns.Req.Payload←ParseMultipartForm ns.Req
+          :Else
+              →0⊣'Could not parse payload as multipart/form-data'ns.Req.Fail 400
+          :EndTrap
+      :EndSelect
      
       →0 If~fn CheckAuthentication ns.Req
      
@@ -738,9 +748,33 @@
           ⍬ ⎕STOP⊃⎕SI
           →0⊣ns.Req.Fail 500
       :EndTrap
-      →0 If 2≠⌊0.01×ns.Req.Response.Status
-      'content-type'ns.Req.SetHeader'application/json; charset=utf-8'
-      ns.Req.Response ToJSON resp
+      →0 If 2≠⌊0.01×ns.Req.Response.Status ⍝ exit if not a successful HTTP code
+      'content-type'ns.Req.DefaultHeader'application/json; charset=utf-8' ⍝ set the header if not set
+      →0 If~'application/json'⍷ns.Req.(Response.Headers GetHeader'content-type') ⍝ if the response is JSON
+      ns.Req.Response ToJSON resp ⍝ convert it
+    ∇
+
+    ∇ formData←ParseMultipartForm req;boundary;body;part;headers;payload;disposition;type;name;filename;tmp
+      boundary←'--',req.Boundary ⍝ the HTTP standard prepends '--' to the boundary
+      body←req.Body
+      formData←⎕NS''
+      body←⊃body splitOnFirst boundary,'--'  ⍝ drop off trailing boundary ('--' is appended to the trailing boundary)
+      :For part :In (crlf,body)splitOn crlf,boundary ⍝ split into parts
+          (headers payload)←part splitOnFirst crlf,crlf
+          (disposition type)←deb¨2↑headers splitOn crlf
+          (name filename)←deb¨2↑1↓disposition splitOn';'
+          name←'"'~⍨2⊃name splitOn'='
+          tmp←⎕NS''
+          :If {¯1=⎕NC ⍵}name
+              →0⊣'Invalid form field name for Jarvis'req.Fail 400
+          :EndIf
+          filename←'"'~⍨2⊃2↑filename splitOn'='
+          tmp.(Name Filename)←name filename
+          tmp.Content←payload
+          tmp.Content_Type←deb 2⊃2↑type splitOn':'
+          :If 0=formData.⎕NC name ⋄ formData{⍺⍎⍵,'←⍬'}name ⋄ :EndIf
+          formData(name{⍺⍎⍺⍺,',←⍵'})tmp
+      :EndFor
     ∇
 
     ∇ fn HandleRESTRequest ns;ind;exec;valence;ct;resp
@@ -894,9 +928,10 @@
     ∇
 
     :class Request
-        :Field Public Instance ContentType←''    ⍝ content-type header value
-        :Field Public Instance Charset←'UTF-8'   ⍝ default charset
+        :Field Public Instance Boundary←''       ⍝ boundary for content-type 'multipart/form-data'
+        :Field Public Instance Charset←''        ⍝ content charset (defaults to 'utf-8' if content-type is application/json)
         :Field Public Instance Complete←0        ⍝ do we have a complete request?
+        :Field Public Instance ContentType←''    ⍝ content-type header value
         :Field Public Instance Input←''
         :Field Public Instance Headers←0 2⍴⊂''   ⍝ HTTPRequest header fields (plus any supplied from HTTPTrailer event)
         :Field Public Instance Method←''         ⍝ HTTP method (GET, POST, PUT, etc)
@@ -946,7 +981,7 @@
           Response.Headers←0 2⍴'' ''
         ∇
 
-        ∇ make1 args;query;origin;length;charset
+        ∇ make1 args;query;origin;length;param;value;type
         ⍝ args is the result of Conga HTTPHeader event
           :Access public
           :Implements constructor
@@ -955,9 +990,17 @@
           Headers[;1]←lc Headers[;1]  ⍝ header names are case insensitive
           Method←lc Method
          
-          (ContentType charset)←deb¨lc 2↑(';'(≠⊆⊢)GetHeader'content-type'),⊂''
-          charset←deb⊃1↓'='(≠⊆⊢)charset
-          Charset←(1+0∊⍴charset)⊃charset Charset
+          (ContentType param)←deb¨2↑(';'(≠⊆⊢)GetHeader'content-type'),⊂''
+          ContentType←lc ContentType
+          (type value)←2↑⊆deb¨'='(≠⊆⊢)param
+          :Select lc type
+          :Case '' ⍝ no parameter set
+              CharSet←(ContentType≡'application/json')/'utf-8'
+          :Case 'charset'
+              CharSet←lc value
+          :Case 'boundary'
+              Boundary←value
+          :EndSelect
          
           Response←⎕NS''
           Response.(Status StatusText Payload)←200 'OK' ''
@@ -1225,7 +1268,19 @@
     :Section Utilities
 
     If←((0∘≠⊃)⊢)⍴⊣
+    stripQuotes←{'""'≡2↑¯1⌽⍵:¯1↓1↓⍵ ⋄ ⍵} ⍝ strip leading and ending "
+    deb←{{1↓¯1↓⍵/⍨~'  '⍷⍵}' ',⍵,' '} ⍝ delete extraneous blanks
+    dlb←{⍵↓⍨+/∧\' '=⍵} ⍝ delete leading blanks
+    lc←0∘(819⌶) ⍝ lower case
+    nocase←{(lc ⍺)⍺⍺ lc ⍵} ⍝ case insensitive operator
+    begins←{⍺≡(⍴⍺)↑⍵} ⍝ does ⍺ begin with ⍵?
+    ends←{⍺≡(-≢⍺)↑⍵} ⍝ does ⍺ end with ⍵?
+    match←{⍺ (≡nocase) ⍵} ⍝ case insensitive ≡
+    sins←{0∊⍴⍺:⍵ ⋄ ⍺} ⍝ set if not set
 
+    ∇ r←crlf
+      r←⎕UCS 13 10
+    ∇
 
     ∇ r←Now
       :Access public shared
@@ -1257,8 +1312,15 @@
     ∇
 
     ∇ r←a splitOn w
+    ⍝ split a where w occurs (removing w from the result)
       :Access public shared
-      r←a⊆⍨~a∊w
+      r←a{⍺{(¯1+⊃¨⊆⍨⍵)↓¨⍵⊆⍺}(1+≢⍵)*⍵⍷⍺}w
+    ∇
+
+    ∇ r←a splitOnFirst w
+    ⍝ split a on first occurence of w (removing w from the result)
+      :Access public shared
+      r←a{⍺{(¯1+⊃¨⊆⍨⍵)↓¨⍵⊆⍺}(1+≢⍵)*<\⍵⍷⍺}w
     ∇
 
     ∇ r←type ipRanges string;ranges
@@ -1294,12 +1356,6 @@
     ⍝ is path a directory?
       r←{22::0 ⋄ 1=1 ⎕NINFO ⍵}path
     ∇
-
-    lc←0∘(819⌶) ⍝ lower case
-    nocase←{(lc ⍺)⍺⍺ lc ⍵}
-    begins←{⍺≡(⍴⍺)↑⍵}
-    match←{⍺ (≡nocase) ⍵}
-    sins←{0∊⍴⍺:⍵ ⋄ ⍺} ⍝ set if not set
 
     ∇ r←SourceFile;class
       :Access public shared
@@ -1423,7 +1479,6 @@
     ∇
 
     ∇ r←HtmlPage
-      :Access public shared
       r←ScriptFollows
 ⍝<!DOCTYPE html>
 ⍝<html>
