@@ -68,7 +68,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.8.1' '2020-10-30'
+      r←'Jarvis' '1.8.2' '2020-11-02'
     ∇
 
     ∇ Init
@@ -761,6 +761,7 @@
       body←⊃body splitOnFirst boundary,'--'  ⍝ drop off trailing boundary ('--' is appended to the trailing boundary)
       :For part :In (crlf,body)splitOn crlf,boundary ⍝ split into parts
           (headers payload)←part splitOnFirst crlf,crlf
+          payload↓⍨←¯2×crlf≡¯2↑payload
           (disposition type)←deb¨2↑headers splitOn crlf
           (name filename)←deb¨2↑1↓disposition splitOn';'
           name←'"'~⍨2⊃name splitOn'='
