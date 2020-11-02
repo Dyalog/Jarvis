@@ -755,13 +755,12 @@
     ∇
 
     ∇ formData←ParseMultipartForm req;boundary;body;part;headers;payload;disposition;type;name;filename;tmp
-      boundary←'--',req.Boundary ⍝ the HTTP standard prepends '--' to the boundary
+      boundary←crlf,'--',req.Boundary ⍝ the HTTP standard prepends '--' to the boundary
       body←req.Body
       formData←⎕NS''
       body←⊃body splitOnFirst boundary,'--'  ⍝ drop off trailing boundary ('--' is appended to the trailing boundary)
-      :For part :In (crlf,body)splitOn crlf,boundary ⍝ split into parts
+      :For part :In (crlf,body)splitOn boundary ⍝ split into parts
           (headers payload)←part splitOnFirst crlf,crlf
-          payload↓⍨←¯2×crlf≡¯2↑payload
           (disposition type)←deb¨2↑headers splitOn crlf
           (name filename)←deb¨2↑1↓disposition splitOn';'
           name←'"'~⍨2⊃name splitOn'='
