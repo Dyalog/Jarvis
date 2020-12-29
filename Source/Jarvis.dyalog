@@ -22,6 +22,7 @@
     :Field Public HTTPAuthentication←'basic'                   ⍝ valid settings are currently 'basic' or ''
     :Field Public IncludeFns←''                                ⍝ vector of vectors for function names to be included (can use regex or ? and * as wildcards)
     :Field Public JarvisConfig←''                              ⍝ configuration file path (if any). This parameter was formerly named ConfigFile
+    :Field Public JSONInputFormat←'D'                          ⍝ set this to 'M' to have Jarvis convert JSON request payloads to the ⎕JSON matrix format
     :Field Public LoadableFiles←'*.apl*,*.dyalog'              ⍝ file patterns that can be loaded if loading from folder
     :Field Public LogFn←''                                     ⍝ Log function name, leave empty to use built in logging
     :Field Public Logging←1                                    ⍝ turn logging on/off
@@ -68,7 +69,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.8.2' '2020-11-02'
+      r←'Jarvis' '1.8.3' '2020-12-29'
     ∇
 
     ∇ Init
@@ -165,10 +166,10 @@
 
     ∇ MakeCommon
       :Trap 11
-          JSONin←⎕JSON⍠'Dialect' 'JSON5' ⋄ {}JSONin 1
+          JSONin←⎕JSON⍠('Dialect' 'JSON5')('Format'JSONInputFormat) ⋄ {}JSONin 1
           JSONout←⎕JSON⍠'HighRank' 'Split' ⋄ {}JSONout 1
       :Else
-          JSONout←JSONin←⎕JSON
+          JSONout←JSONin←⎕JSON⍠('Format'JSONInputFormat)
       :EndTrap
     ∇
 
