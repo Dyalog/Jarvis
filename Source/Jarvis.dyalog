@@ -166,10 +166,12 @@
 
     ∇ MakeCommon
       :Trap 11
-          JSONin←⎕JSON⍠('Dialect' 'JSON5')('Format'JSONInputFormat) ⋄ {}JSONin 1
+          JSONin←{⎕JSON⍠('Dialect' 'JSON5')('Format'JSONInputFormat)⊢⍵} ⋄ {}JSONin 1
           JSONout←⎕JSON⍠'HighRank' 'Split' ⋄ {}JSONout 1
+          JSONread←⎕JSON⍠'Dialect' 'JSON5' ⍝ for reading configuration files
       :Else
-          JSONout←JSONin←⎕JSON⍠('Format'JSONInputFormat)
+          JSONin←{⎕JSON⍠('Format'JSONInputFormat)⊢⍵}
+          JSONread←JSONout←⎕JSON
       :EndTrap
     ∇
 
@@ -343,7 +345,7 @@
               :EndIf
               →0 If 0∊⍴file
               :If ⎕NEXISTS file
-                  config←JSONin⊃⎕NGET file
+                  config←JSONread⊃⎕NGET file
               :Else
                   →0⊣(rc msg)←6('Configuation file "',file,'" not found')
               :EndIf
