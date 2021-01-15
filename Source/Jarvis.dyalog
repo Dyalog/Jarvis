@@ -998,9 +998,9 @@
           (type value)←2↑⊆deb¨'='(≠⊆⊢)param
           :Select lc type
           :Case '' ⍝ no parameter set
-              CharSet←(ContentType≡'application/json')/'utf-8'
+              Charset←(ContentType≡'application/json')/'utf-8'
           :Case 'charset'
-              CharSet←lc value
+              Charset←lc value
           :Case 'boundary'
               Boundary←value
           :EndSelect
