@@ -69,7 +69,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.8.3' '2020-12-29'
+      r←'Jarvis' '1.8.4' '2021-01-15'
     ∇
 
     ∇ Init
