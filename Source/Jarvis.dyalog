@@ -66,28 +66,30 @@
     :Field _sessionsInfo←0 5⍴'' '' 0 0 0 ⍝ [;1] id [;2] ip addr [;3] creation time [;4] last active time [;5] ref to session
     :Field _includeRegex←''              ⍝ private field compiled regex from IncludeFns
     :Field _excludeRegex←''              ⍝ private compiled regex from ExcludeFns
+    :Field _connections                  ⍝ namespace containing open connections
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.8.4' '2021-01-15'
+      r←'Jarvis' '1.8.5' '2021-02-03'
     ∇
 
-    ∇ Init
-    ⍝ called by ∇Start
-    ⍝ see :Field definitions
-      _rootFolder←''
-      _configLoaded←0
-      _htmlFolder←''
-      _htmlDefaultPage←'index.html'
-      _htmlEnabled←0
-      _sessionThread←¯1
-      _serverThread←¯1
-      _taskThreads←⍬
-      _sessions←⍬
-      _sessionsInfo←0 5⍴'' '' 0 0 0
-      _includeRegex←''
-      _excludeRegex←''
-    ∇
+⍝    ∇ Init
+⍝    ⍝ called by ∇Start
+⍝    ⍝ see :Field definitions
+⍝      _rootFolder←''
+⍝      _configLoaded←0
+⍝      _htmlFolder←''
+⍝      _htmlDefaultPage←'index.html'
+⍝      _htmlEnabled←0
+⍝      _sessionThread←¯1
+⍝      _serverThread←¯1
+⍝      _taskThreads←⍬
+⍝      _sessions←⍬
+⍝      _sessionsInfo←0 5⍴'' '' 0 0 0
+⍝      _includeRegex←''
+⍝      _excludeRegex←''
+⍝      _connections←⎕NS ''
+⍝    ∇
 
     ∇ r←Config
     ⍝ returns current configuration
@@ -529,6 +531,8 @@
           options←⊂'Options' 5 ⍝ DecodeBuffers + WSAutoAccept
       :EndIf
      
+      _connections←⎕NS''
+     
       :If 0=rc←1⊃r←#.DRC.Srv'' ''Port'http'BlockSize,secureParams,accept,deny,options
           ServerName←2⊃r
           :If ~asc
@@ -539,7 +543,6 @@
           :If 0∊⍴Hostname ⍝ if Host hasn't been set, set it to the default
               Hostname←'http',(~Secure)↓'s://',(2 ⎕NQ'.' 'TCPGetHostID'),((~Port∊80 443)/':',⍕Port),'/'
           :EndIf
-          Connections←#.⎕NS''
           InitSessions
           RunServer
           msg←''
@@ -570,14 +573,14 @@
                       :If 0≠4⊃wres
                           Log'RunServer: DRC.Wait reported error ',(⍕congaError 4⊃wres),' on ',(2⊃wres),GetIP obj
                       :EndIf
-                      Connections.⎕EX obj
+                      _connections.⎕EX obj
      
                   :Case 'Connect'
-                      obj Connections.⎕NS''
-                      (Connections⍎obj).IP←2⊃2⊃#.DRC.GetProp obj'PeerAddr'
+                      obj _connections.⎕NS''
+                      (_connections⍎obj).IP←2⊃2⊃#.DRC.GetProp obj'PeerAddr'
      
                   :CaseList 'HTTPHeader' 'HTTPTrailer' 'HTTPChunk' 'HTTPBody'
-                      _taskThreads←⎕TNUMS∩_taskThreads,(Connections⍎obj){⍺ HandleRequest ⍵}&wres
+                      _taskThreads←⎕TNUMS∩_taskThreads,(_connections⍎obj){⍺ HandleRequest ⍵}&wres
      
                   :CaseList 'Closed' 'Timeout'
      
@@ -656,7 +659,11 @@
      stop1: ⍝ intentional stop for request-level debugging
               ⍬ ⎕STOP⊃⎕SI
      
-              →resp If ns.Req.Response.Status≠200
+              :If _htmlEnabled∧ns.Req.Response.Status≠200
+                  ns.Req.Response.Headers←1 2⍴'Content-Type' 'text/html; charset=utf-8'
+                  ns.Req.Response.Payload←'<h3>',(⍕ns.Req.Response.((⍕Status),' ',StatusText)),'</h3>'
+                  →resp
+              :EndIf
      
             ⍝ Application-specified validation
               rc←Validate ns.Req
@@ -699,7 +706,7 @@
       :If 0≠ns.Req.Fail 404×~⎕NEXISTS file
           →0 If 0=Report404InHTML
           ns.Req.Response.Headers←1 2⍴'Content-Type' 'text/html; charset=utf-8'
-          ns.Req.Response.Payload←'<h3 style="color:red;">Not found: ',(file↓⍨≢_htmlFolder),'</h3>'
+          ns.Req.Response.Payload←'<h3>Not found: ',(file↓⍨≢_htmlFolder),'</h3>'
           →0
       :EndIf
       ns.Req.Response.Payload←''file
@@ -904,13 +911,13 @@
           Log'Conga error when sending response',GetIP obj
           Log⍕z
       :EndIf
-      Connections.⎕EX obj
+      _connections.⎕EX obj
     ∇
 
     :EndSection ⍝ Request Handling
 
     ∇ ip←GetIP objname
-      ip←{6::'' ⋄ ' (IP Address ',(⍕(Connections⍎⍵).IP),')'}objname
+      ip←{6::'' ⋄ ' (IP Address ',(⍕(_connections⍎⍵).IP),')'}objname
     ∇
 
     ∇ r←CheckFunctionName fn
@@ -1010,13 +1017,21 @@
           Response.Headers←0 2⍴'' ''
          
           (Endpoint query)←'?'split Input
-          Endpoint←URLDecode Endpoint
-          QueryParams←URLDecode¨2↑[2]↑'='(≠⊆⊢)¨'&'(≠⊆⊢)query
+
+          :Trap 11 ⍝ trap domain error on possible bad UTF-8 sequence
+              Endpoint←URLDecode Endpoint
+              QueryParams←URLDecode¨2↑[2]↑'='(≠⊆⊢)¨'&'(≠⊆⊢)query
+              :If 'basic '≡lc 6↑auth←GetHeader'authorization'
+                  (UserID Password)←':'split Base64Decode 6↓auth
+              :EndIf
+          :Else
+              Complete←1 ⍝ mark as complete
+              Fail 400   ⍝ 400 = bad request
+              →0
+          :EndTrap
+         
           Complete←('get'≡Method)∨(length←GetHeader'content-length')≡,'0' ⍝ we're a GET or 0 content-length
           Complete∨←(0∊⍴length)>∨/'chunked'⍷GetHeader'transfer-encoding' ⍝ or no length supplied and we're not chunked
-          :If 'basic '≡lc 6↑auth←GetHeader'authorization'
-              (UserID Password)←':'split Base64Decode 6↓auth
-          :EndIf
         ∇
 
         ∇ ProcessBody args
