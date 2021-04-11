@@ -38,8 +38,8 @@
     :Field Public ServerCertFile←''                            ⍝ public certificate file
     :Field Public ServerKeyFile←''                             ⍝ private key file
     :Field Public SessionCleanupTime←60                        ⍝ how frequently (in minutes) do we clean up timed out session info from _sessionsInfo
-    :Field Public SessionIdHeader←'Jarvis-SessionID'
-    :Field Public SessionInitFn←''                             ⍝
+    :Field Public SessionIdHeader←'Jarvis-SessionID'           ⍝ Name of the header field for the session tokem
+    :Field Public SessionInitFn←''                             ⍝ Function name to call when initializing a session
     :Field Public SessionPollingTime←1                         ⍝ how frequently (in minutes) we should poll for timed out sessions
     :Field Public SessionStartEndpoint←'Login'
     :Field Public SessionStopEndpoint←'Logout'
@@ -64,7 +64,7 @@
     :Field _taskThreads←⍬                ⍝ vector of thread handling requests
     :Field _sessions←⍬                   ⍝ vector of session namespaces
     :Field _sessionsInfo←0 5⍴'' '' 0 0 0 ⍝ [;1] id [;2] ip addr [;3] creation time [;4] last active time [;5] ref to session
-    :Field _includeRegex←''              ⍝ private field compiled regex from IncludeFns
+    :Field _includeRegex←''              ⍝ private compiled regex from IncludeFns
     :Field _excludeRegex←''              ⍝ private compiled regex from ExcludeFns
     :Field _connections                  ⍝ namespace containing open connections
 
@@ -1017,7 +1017,7 @@
           Response.Headers←0 2⍴'' ''
          
           (Endpoint query)←'?'split Input
-
+         
           :Trap 11 ⍝ trap domain error on possible bad UTF-8 sequence
               Endpoint←URLDecode Endpoint
               QueryParams←URLDecode¨2↑[2]↑'='(≠⊆⊢)¨'&'(≠⊆⊢)query
@@ -1188,10 +1188,16 @@
           :If 0<≢_sessionsInfo
               :Hold 'Sessions'
                   :If ∨/expired←SessionTimeout IsExpired _sessionsInfo[;4] ⍝ any expired?
+                  ⍝ ↓↓↓ if a session expires, remove the namespace from _sessions
+                  ⍝     but leave the entry in _sessionsInfo (removing the namespace reference)
+                  ⍝     so that we can report to the user that his session timed out
+                  ⍝     if he returns before SessionCleanupTime passes
                       _sessions~←expired/_sessionsInfo[;5] ⍝ remove from sessions list
-                      (expired/_sessionsInfo[;5])←⊂⍬       ⍝ remove reference from _sessionsInfo
+                      (expired/_sessionsInfo[;5])←0        ⍝ remove reference from _sessionsInfo
                   :EndIf
-                  :If ∨/dead←SessionCleanupTime IsExpired _sessionsInfo[;4] ⍝ any expired sessions need their info removed?
+                  ⍝ ↓↓↓ SessionCleanupTime is used to clean up _sessionsInfo after a session has expired
+                  ⍝     In general SessionCleanupTime should be set to a value ≥ SessionTimeout
+                  :If ∨/dead←(0=_sessionsInfo[;5])∧SessionCleanupTime IsExpired _sessionsInfo[;4] ⍝ any expired sessions need their info removed?
                       _sessionsInfo⌿⍨←~dead ⍝ remove from _sessionsInfo
                   :EndIf
               :EndHold
@@ -1263,16 +1269,14 @@
     ∇
 
     ∇ r←CheckSession req;ind;session;timedOut;id
-    ⍝ check for valid session
+    ⍝ check for valid session (only called if SessionTimeout≠0)
       r←0
       :Hold 'Sessions'
           ind←_sessionsInfo[;1]⍳⊂id←req.GetHeader SessionIdHeader
           →0 If'Invalid session ID'req.Fail 403×ind>≢_sessionsInfo
-          :If SessionTimeout>0
-              :If 0∊⍴session←⊃_sessionsInfo[ind;5] ⍝ already timed out (session was already removed from _sessions)
-              :OrIf SessionTimeout IsExpired _sessionsInfo[ind;4] ⍝ newly expired
-                  req TimeoutSession ind
-              :EndIf
+          :If 0∊⍴session←⊃_sessionsInfo[ind;5] ⍝ already timed out (session was already removed from _sessions)
+          :OrIf SessionTimeout IsExpired _sessionsInfo[ind;4] ⍝ newly expired
+              req TimeoutSession ind
           :EndIf
           SessionIdHeader req.SetHeader id
           _sessionsInfo[ind;4]←Now
