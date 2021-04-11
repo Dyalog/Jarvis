@@ -1268,7 +1268,7 @@
       :Hold 'Sessions'
           ind←_sessionsInfo[;1]⍳⊂id←req.GetHeader SessionIdHeader
           →0 If'Invalid session ID'req.Fail 403×ind>≢_sessionsInfo
-          :If SessionTimeout>0
+          :If SessionTimeout≠0
               :If 0∊⍴session←⊃_sessionsInfo[ind;5] ⍝ already timed out (session was already removed from _sessions)
               :OrIf SessionTimeout IsExpired _sessionsInfo[ind;4] ⍝ newly expired
                   req TimeoutSession ind
