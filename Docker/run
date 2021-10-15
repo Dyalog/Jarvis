@@ -23,7 +23,6 @@ export DYALOG=/opt/mdyalog/18.0/64/unicode/
 export WSPATH=/opt/mdyalog/18.0/64/unicode/ws
 export TERM=dumb
 export APL_TEXTINAPLCORE=${APL_TEXTINAPLCORE-1}
-export TRACE_ON_ERROR=1
 export SESSION_FILE="${SESSION_FILE-$DYALOG/default.dse}"
 
 export Port=8080
@@ -43,7 +42,9 @@ export CodeLocation=${CodeLocation-$CODEL}
 cd /app
 
 if [ -n "$RIDE_INIT" ]; then
+    export TRACE_ON_ERROR=1
     $DYALOG/dyalog +s -q $JARVIS/Distribution/Jarvis.dws
 else
+    export TRACE_ON_ERROR=0  # No session so can never open a trace window
     $DYALOG/dyalog -s $JARVIS/Distribution/Jarvis.dws
 fi
