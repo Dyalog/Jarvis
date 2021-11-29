@@ -19,8 +19,8 @@ echo ""
 export MAXWS=${MAXWS-256M}
 
 export JARVIS=/opt/mdyalog/Jarvis
-export DYALOG=/opt/mdyalog/18.0/64/unicode/
-export WSPATH=/opt/mdyalog/18.0/64/unicode/ws
+export DYALOG=/opt/mdyalog/18.2/64/unicode/
+export WSPATH=${DYALOG}/ws
 export TERM=dumb
 export APL_TEXTINAPLCORE=${APL_TEXTINAPLCORE-1}
 export SESSION_FILE="${SESSION_FILE-$DYALOG/default.dse}"
