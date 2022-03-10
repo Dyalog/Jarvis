@@ -1,6 +1,6 @@
 #!/bin/bash
 
-## This file replaces the Dyalog mapl script
+## This file starts the Jarvis container
 echo " _______     __      _      ____   _____ "
 echo "|  __ \ \   / //\   | |    / __ \ / ____|"
 echo "|_|  | \ \_/ //  \  | |   | |  | | |     "
@@ -9,23 +9,20 @@ echo " ____| | | |/ /  \ \| |___| |__| | |__| |"
 echo "|_____/  |_/_/    \_\______\____/ \_____|"
 echo ""
 echo "https://www.dyalog.com"
-echo ""
-echo "*************************************************************************************"
-echo "*               This software is for non-commercial evaluation ONLY                 *"
-echo "* https://www.dyalog.com/uploads/documents/Private_Personal_Educational_Licence.pdf *"
-echo "*************************************************************************************"
-echo ""
 
-export MAXWS=${MAXWS-256M}
+echo ""
 
 export JARVIS=/opt/mdyalog/Jarvis
+export DYALOG_JARVIS_THREAD=${DYALOG_JARVIS_THREAD-DEBUG}
+export DYALOG_JARVIS_PORT=${DYALOG_JARVIS_PORT-8080}
+export MAXWS=${MAXWS-256M}
 export DYALOG=/opt/mdyalog/18.2/64/unicode/
-export WSPATH=${DYALOG}/ws
+export WSPATH=/opt/mdyalog/18.2/64/unicode/ws
 export TERM=dumb
 export APL_TEXTINAPLCORE=${APL_TEXTINAPLCORE-1}
-export SESSION_FILE="${SESSION_FILE-$DYALOG/default.dse}"
+export TRACE_ON_ERROR=${TRACE_ON_ERROR-1}
 
-export Port=8080
+export SESSION_FILE="${SESSION_FILE-$DYALOG/default.dse}"
 
 if [ $(ls /app | grep "jarvis.json" 2>/dev/null | wc -l) -eq 1 ]; then
     echo "Application config found in /app/jarvis.json"    
@@ -42,9 +39,7 @@ export CodeLocation=${CodeLocation-$CODEL}
 cd /app
 
 if [ -n "$RIDE_INIT" ]; then
-    export TRACE_ON_ERROR=1
     $DYALOG/dyalog +s -q $JARVIS/Distribution/Jarvis.dws
 else
-    export TRACE_ON_ERROR=0  # No session so can never open a trace window
     $DYALOG/dyalog -s $JARVIS/Distribution/Jarvis.dws
 fi
