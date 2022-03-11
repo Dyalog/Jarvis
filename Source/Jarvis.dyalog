@@ -622,7 +622,7 @@
     ∇
 
     ∇ (rc msg)←RunServer;thread
-      thread←⎕C,⍕DYALOG_JARVIS_THREAD
+      thread←lc,⍕DYALOG_JARVIS_THREAD
       :If (⊂thread)∊'' 'auto'
           :If InTerm ⍝ do we have an interactive terminal?
               thread←'debug'
