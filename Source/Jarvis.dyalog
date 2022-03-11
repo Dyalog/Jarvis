@@ -64,7 +64,7 @@
     :Field Public SSLValidation←64                             ⍝ Conga: request, but do not require a client certificate
     :Field Public WaitTimeout←2500                             ⍝ ms to wait in LDRC.Wait
 
-    :Field Public Shared LDRC                                  ⍝ Jarvis-set reference to Conga after CongaRef has been resolved
+    :Field Public Shared LDRC←''                               ⍝ Jarvis-set reference to Conga after CongaRef has been resolved
     :Field Public Shared CongaPath←''                          ⍝ user-supplied path to Conga workspace and/or shared libraries
     :Field Public Shared CongaRef←''                           ⍝ user-supplied reference to Conga library instance
     :Field CongaVersion←''                                     ⍝ Conga version
