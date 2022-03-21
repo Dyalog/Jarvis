@@ -1,0 +1,10 @@
+﻿ Run;getEnv;JARVIS
+⍝ Run function suitable for use with LOAD=$JARVIS/Source
+
+ getEnv←{2 ⎕NQ '.' 'GetEnvironment' ⍵}
+
+ :If 0∊⍴getEnv 'AttachDebugger'
+     Server←AutoStart
+ :Else
+     ⎕←'Autostart not run because AttachDebugger was set'
+ :EndIf

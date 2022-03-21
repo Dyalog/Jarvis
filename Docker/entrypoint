@@ -21,6 +21,7 @@ export WSPATH=/opt/mdyalog/18.2/64/unicode/ws
 export TERM=dumb
 export APL_TEXTINAPLCORE=${APL_TEXTINAPLCORE-1}
 export TRACE_ON_ERROR=${TRACE_ON_ERROR-1}
+export LOAD=$JARVIS/Source
 
 export SESSION_FILE="${SESSION_FILE-$DYALOG/default.dse}"
 
@@ -39,7 +40,7 @@ export CodeLocation=${CodeLocation-$CODEL}
 cd /app
 
 if [ -n "$RIDE_INIT" ]; then
-    $DYALOG/dyalog +s -q $JARVIS/Distribution/Jarvis.dws
+    $DYALOG/dyalog +s -q
 else
-    $DYALOG/dyalog -s $JARVIS/Distribution/Jarvis.dws
+    $DYALOG/dyalog -s
 fi
