@@ -1,0 +1,13 @@
+{
+    assets: "",
+    description: "JSON and REST Web Service Framework",
+    group: "dyalog",
+    info_url: "https://dyalog.github.io/Jarvis",
+    io: 1,
+    ml: 1,
+    name: "Jarvis",
+    source: "source/Jarvis.dyalog",
+    tags: "mac-os,windows,linux,http,webservice,json,rest",
+    version: "1.9.1",
+    wx: 3,   
+}

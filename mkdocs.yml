@@ -1,0 +1,40 @@
+site_name: Jarvis
+repo_url: https://github.com/dyalog/Jarvis
+repo_name: Dyalog/Jarvis
+dev_addr: 127.0.0.1:22361
+copyright: Copyright &copy; 2019-2022 <strong><a href="https://dyalog.com">Dyalog, LTD</a></strong>
+nav:
+    - Introduction: 'index.md'
+    - 'User Guide': 
+      - 'Concepts': 'concepts.md'
+      - 'User Guide': 'userguide.md'
+    - Reference:
+      - 'Reference Guide': 'reference.md'
+      - 'Configuration Settings': 'configuration.md'
+    - About: 
+      - License: 'LICENSE.md'
+      - 'Release Notes': 'release-notes.md'
+
+theme:
+  favicon: 'img/favicon-32.png'
+  logo: 'img/dyalog-white.svg'
+  features:
+    - navigation.sections
+    - navigation.instant
+  name: material
+
+extra:
+  generator: false
+
+extra_css:
+  - css/main.css
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - abbr 
+  - footnotes
+  - toc:
+      title: On this page
