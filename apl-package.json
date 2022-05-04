@@ -1,5 +1,5 @@
 {
-    API: "Jarvis",
+    api: "Jarvis",
     assets: "",
     description: "JSON and REST Web Service Framework",
     group: "dyalog",
