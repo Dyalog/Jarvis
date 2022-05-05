@@ -1,0 +1,10 @@
+﻿ r←{names}TableToNS table
+⍝ transform a table into a vector of namespaces, one per row
+⍝ names are the column names, if not supplied, the first row of the table is assumed to be the column names
+ :Access public shared
+ :If 0∊⍴table ⋄ →0⊣r←0⍴⎕NS'' ⋄ :EndIf
+ :If 0=⎕NC'names' ⋄ names←table[1;] ⋄ table←1↓table ⋄ :EndIf
+ :If 0∊⍴table ⋄ →0⊣r←0⍴⎕NS'' ⋄ :EndIf
+ names←0∘(7162⌶)¨names
+ r←⎕NS¨(≢table)⍴⊂''
+ r(names{⍺.⍎'(',(⍕⍺⍺),')←⍵'})¨↓table

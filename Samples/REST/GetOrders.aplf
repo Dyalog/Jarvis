@@ -7,26 +7,26 @@
  :Case 0 ⍝ GET orders - retrieve list of orders
 
      ExitIf req.Fail 404×1=≢Database.Orders
-     r←req.Server.TableToNS Database.Orders
+     r←TableToNS Database.Orders
      r.orderUri←req.MakeURI¨1↓Database.Orders[;1]
 
  :Case 1 ⍝ GET orders/orderid - retrieve information for an order
 
      ExitIf req.Fail 404×0=oind←Database.Orders[;1]lookup parts[1]
-     r←⊃req.Server.TableToNS Database.Orders[1,oind;]
+     r←⊃TableToNS Database.Orders[1,oind;]
      r.customerUri←'Customers'req.MakeURI Database.Orders[oind;2]
 
  :Case 2 ⍝ GET orders/orderid/items
 
      ExitIf req.Fail 404×0∊dind←Database.Details[;1]lookup parts[1]
-     r←req.Server.TableToNS Database.Details[1,dind;]
+     r←TableToNS Database.Details[1,dind;]
      r.itemUri←req.MakeURI¨Database.Details[oind;2]
 
  :Case 3 ⍝ GET orders/orderid/items/itemid
 
      ExitIf req.Fail 404×0∊Database.Details[;1 2]lookup parts[1 3]
      ExitIf req.Fail 404×0∊pind←Database.Products[;1]lookup parts[3]
-     r←req.Server.TableToNS Database.Products[1,pind;]
+     r←TableToNS Database.Products[1,pind;]
 
  :Else
      req.Fail 404
