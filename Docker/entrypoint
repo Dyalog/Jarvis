@@ -13,6 +13,8 @@ echo "https://www.dyalog.com"
 echo ""
 
 export JARVIS=/opt/mdyalog/Jarvis
+## Set default threading to "1", which means
+## run Jarvis on Thread 1 and dequeue it
 export DYALOG_JARVIS_THREAD=${DYALOG_JARVIS_THREAD-1}
 export DYALOG_JARVIS_PORT=${DYALOG_JARVIS_PORT-8080}
 export MAXWS=${MAXWS-256M}
