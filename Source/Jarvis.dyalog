@@ -5,14 +5,17 @@
     (⎕ML ⎕IO)←1 1
 
   ⍝ User hooks settings (see also Session settings)
+    :Field Public AppCloseFn←''                                ⍝ name of the function to run on application (server) shutdown
     :Field Public AppInitFn←''                                 ⍝ name of the application "bootstrap" function
     :Field Public AuthenticateFn←''                            ⍝ function name to perform authentication,if empty, no authentication is necessary
-    :Field Public LogFn←''                                     ⍝ Log function name, leave empty to use built in logging
     :Field Public SessionInitFn←''                             ⍝ Function name to call when initializing a session
+    :Field Public SessionStartEndpoint←'Login'                 ⍝ name of the function to call to start session if using sessioning
+    :Field Public SessionStopEndpoint←'Logout'                 ⍝ name of the function to call to close session if using sessioning
     :Field Public ValidateRequestFn←''                         ⍝ name of the request validation function
 
    ⍝ Operational settings
     :Field Public CodeLocation←''                              ⍝ reference to application code location, if the user specifies a folder, that value is saved in Folder
+    :Field Public ConnectionTimeout←30                         ⍝ HTTP/1.1 connection timeout in seconds
     :Field Public Debug←0                                      ⍝ 0 = all errors are trapped, 1 = stop on an error, 2 = stop on intentional error before processing request, 4 = Jarvis framework debugging
     :Field Public DefaultContentType←'application/json; charset=utf-8'
     :Field Public ErrorInfoLevel←1                             ⍝ level of information to provide if an APL error occurs, 0=none, 1=⎕EM, 2=⎕SI
@@ -35,8 +38,6 @@
    ⍝ Session settings
     :Field Public SessionIdHeader←'Jarvis-SessionID'           ⍝ Name of the header field for the session tokem
     :Field Public SessionPollingTime←1                         ⍝ how frequently (in minutes) we should poll for timed out sessions
-    :Field Public SessionStartEndpoint←'Login'                 ⍝ name of the function to call to start session
-    :Field Public SessionStopEndpoint←'Logout'                 ⍝ name of the function to call to close session
     :Field Public SessionTimeout←0                             ⍝ 0 = do not use sessions, ¯1 = no timeout , 0< session timeout time (in minutes)
     :Field Public SessionCleanupTime←60                        ⍝ how frequently (in minutes) do we clean up timed out session info from _sessionsInfo
 
@@ -61,8 +62,9 @@
     :field Public ServerCertSKI←''                             ⍝ Conga: Server cert's Subject Key Identifier from store
     :Field Public ServerCertFile←''                            ⍝ Conga: public certificate file
     :Field Public ServerKeyFile←''                             ⍝ Conga: private key file
+    :Field Public ServerName←''                                ⍝ Server name, '' means Conga assigns it
     :Field Public SSLValidation←64                             ⍝ Conga: request, but do not require a client certificate
-    :Field Public WaitTimeout←2500                             ⍝ ms to wait in LDRC.Wait
+    :Field Public WaitTimeout←15000                            ⍝ ms to wait in LDRC.Wait
 
     :Field Public Shared LDRC←''                               ⍝ Jarvis-set reference to Conga after CongaRef has been resolved
     :Field Public Shared CongaPath←''                          ⍝ user-supplied path to Conga workspace and/or shared libraries
@@ -87,10 +89,11 @@
     :Field _includeRegex←''              ⍝ private compiled regex from IncludeFns
     :Field _excludeRegex←''              ⍝ private compiled regex from ExcludeFns
     :Field _connections                  ⍝ namespace containing open connections
+    :Field _conxRef                      ⍝ reference to _connections⍎ServerName
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.9.1' '2022-03-10'
+      r←'Jarvis' '1.10.2' '2022-08-29'
     ∇
 
     ∇ r←Config
@@ -122,6 +125,16 @@
               r←ts,∊(⎕UCS 13),msg
           :EndIf
           ⎕←r
+      :EndIf
+    ∇
+
+    ∇ r←New arg
+    ⍝ create a new instance of Jarvis
+      :Access public shared
+      :If 0∊⍴arg
+          r←##.⎕NEW ⎕THIS
+      :Else
+          r←##.⎕NEW ⎕THIS arg
       :EndIf
     ∇
 
@@ -272,11 +285,11 @@
               Log(~homePage)/'HTML home page file "',(∊html),'" not found.'
           :EndSelect
      
+          →0 If(rc msg)←StartServer
+     
           Log'Jarvis starting in "',Paradigm,'" mode on port ',⍕Port
           Log'Serving code in ',(⍕CodeLocation),(Folder≢'')/' (populated with code from "',Folder,'")'
-          Log(_htmlEnabled∧homePage)/'Click http',(~Secure)↓'s://localhost:',(⍕Port),' to access web interface'
-     
-          →0 If(rc msg)←StartServer
+          Log(_htmlEnabled∧homePage)/'Click http',(~Secure)↓'s://',MyAddr,':',(⍕Port),' to access web interface'
      
       :Else ⍝ :Trap
           (rc msg)←¯1 ⎕DMX.EM
@@ -294,8 +307,9 @@
       ts←⎕AI[3]
       _stop←1
       Log'Stopping server...'
+      {0:: ⋄ LDRC.Close 2⊃LDRC.Clt'' ''Port'http'}''
       :While ~_stopped
-          :If 10000<⎕AI[3]-ts
+          :If WaitTimeout<⎕AI[3]-ts
               →0⊣(rc msg)←¯1 'Server seems stuck'
           :EndIf
       :EndWhile
@@ -536,7 +550,7 @@
           →0⊣(rc msg)←5 'CodeLocation is not valid, it should be either a namespace/class reference or a file path'
       :EndSelect
      
-      :For fn :In AppInitFn ValidateRequestFn AuthenticateFn SessionInitFn~⊂''
+      :For fn :In AppInitFn AppCloseFn ValidateRequestFn AuthenticateFn SessionInitFn~⊂''
           :If 3≠CodeLocation.⎕NC fn
               msg,←(0∊⍴msg)↓',"CodeLocation.',fn,'" was not found '
           :EndIf
@@ -602,9 +616,13 @@
       :EndIf
      
       _connections←⎕NS''
+      _connections.index←2 0⍴'' 0
+      _connections.lastCheck←0
      
-      :If 0=rc←1⊃r←LDRC.Srv'' ''Port'http'BufferSize,secureParams,accept,deny,options
+      :If 0=rc←1⊃r←LDRC.Srv ServerName''Port'http'BufferSize,secureParams,accept,deny,options
           ServerName←2⊃r
+          ServerName _connections.⎕NS''
+          _conxRef←_connections⍎ServerName
           :If 3.3>CongaVersion
               {}LDRC.SetProp ServerName'FIFOMode' 0 ⍝ deprecated in Conga v3.2
               {}LDRC.SetProp ServerName'DecodeBuffers' 15 ⍝ 15 ⍝ decode all buffers
@@ -616,7 +634,7 @@
           InitSessions
           (rc msg)←RunServer
       :Else
-          →∆EXIT⊣msg←'Error creating server',(rc∊98 10048)/': port ',(⍕Port),' is already in use' ⍝ 98=Linux, 10048=Windows
+          Log msg←'Error creating server',(rc∊98 10048)/': port ',(⍕Port),' is already in use' ⍝ 98=Linux, 10048=Windows
       :EndIf
      ∆EXIT:
     ∇
@@ -645,7 +663,7 @@
       :EndSelect
     ∇
 
-    ∇ {r}←Server arg;wres;rc;obj;evt;data;ref;ip;msg
+    ∇ {r}←Server arg;wres;rc;obj;evt;data;ref;ip;msg;tmp
       (_started _stopped)←1 0
       :While ~_stop
           :Trap 0 DebugLevel 1
@@ -660,17 +678,25 @@
                       :If 0≠4⊃wres
                           Log'Server: DRC.Wait reported error ',(⍕4⊃wres),' on ',(2⊃wres),GetIP obj
                       :EndIf
-                      _connections.⎕EX obj
-                      {0:: ⋄ LDRC.Close ⍵}obj
+                      RemoveConnection obj ⍝ Conga closes object on an Error event
      
                   :Case 'Connect'
-                      obj _connections.⎕NS''
-                      (_connections⍎obj).IP←2⊃2⊃LDRC.GetProp obj'PeerAddr'
+                      AddConnection obj
      
                   :CaseList 'HTTPHeader' 'HTTPTrailer' 'HTTPChunk' 'HTTPBody'
-                      _taskThreads←⎕TNUMS∩_taskThreads,(_connections⍎obj){⍺ HandleRequest ⍵}&wres
+                      :If 0≠_connections.⎕NC obj
+                          ref←_connections⍎obj
+                          _taskThreads←⎕TNUMS∩_taskThreads,ref{⍺ HandleRequest ⍵}&wres
+                          ref.Time←⎕AI[3]
+                      :Else
+                          Log'Server: Object ''_connections.',obj,''' was not found.'
+                          {}{0:: ⋄ LDRC.Close ⍵}obj
+                      :EndIf
      
-                  :CaseList 'Closed' 'Timeout'
+                  :Case 'Closed'
+                      RemoveConnection obj
+     
+                  :Case 'Timeout'
      
                   :Else ⍝ unhandled event
                       Log'Server: Unhandled Conga event:'
@@ -686,17 +712,56 @@
                   Log'Server: Conga wait failed:'
                   Log wres
               :EndSelect ⍝ rc
-          :Else
+     
+              CleanupConnections
+     
+          :Else ⍝ :Trap
               Log'*** Server error ',msg←(JSONout⍠'Compact' 0)⎕DMX
               r←¯1 msg
               →Exit
           :EndTrap
       :EndWhile
+     
       r←0 'Server stopped'
+     
      Exit:
       Close
       ⎕TKILL _sessionThread
       (_stop _started _stopped)←0 0 1
+    ∇
+
+    ∇ AddConnection name
+      :Hold '_connections'
+          name _connections.⎕NS''
+          _connections.index,←(name(⍳↓⊣)'.')(⎕AI[3])
+          (_connections⍎name).IP←2⊃2⊃LDRC.GetProp obj'PeerAddr'
+      :EndHold
+    ∇
+
+    ∇ RemoveConnection name
+      :Hold '_connections'
+          _connections.⎕EX name
+          _connections.index/⍨←_connections.index[1;]≢¨⊂name(⍳↓⊣)'.'
+      :EndHold
+    ∇
+
+    ∇ CleanupConnections;conxNames;timedOut;dead;kids;connecting;connected
+      :If _connections.lastCheck<⎕AI[3]-ConnectionTimeout×1000
+          :Hold '_connections'
+              connecting←connected←⍬
+              :If ~0∊⍴kids←2 2⊃LDRC.Tree ServerName
+                  (connecting connected)←2↑{((2 2⍴3 1 3 4)⍪⍵[;2 3]){⊂1↓⍵}⌸'' '',⍵[;1]}↑⊃¨kids
+              :EndIf
+              conxNames←_connections.index[1;]~connecting
+              timedOut←_connections.index[1;]/⍨ConnectionTimeout<0.001×⎕AI[3]-_connections.index[2;]
+              :If ∨/~0∘∊∘⍴¨connected conxNames
+                  {0∊⍴⍵: ⋄ {}LDRC.Close ServerName,'.',⍵}¨dead←(connected~conxNames),timedOut
+                  _conxRef.⎕EX(conxNames~connected~dead),timedOut
+                  _connections.index/⍨←_connections.index[1;]∊_conxRef.⎕NL ¯9
+              :EndIf
+              _connections.lastCheck←⎕AI[3]
+          :EndHold
+      :EndIf
     ∇
 
     :Section RequestHandling
@@ -845,8 +910,9 @@
       :Else
           →0⊣ns.Req.Fail 500
       :EndTrap
-     
-      →0 If 2≠⌊0.01×ns.Req.Response.Status ⍝ exit if not a successful HTTP code
+    ⍝ ↓↓↓ removed this next line because a non-2XX response might still have a payload
+    ⍝ →0 If 2≠⌊0.01×ns.Req.Response.Status ⍝ exit if not a successful HTTP code
+      →0 If 0∊⍴resp ⍝ exit if there's no response payload
       'content-type'ns.Req.DefaultHeader'application/json; charset=utf-8' ⍝ set the header if not set
       →0 If~'application/json'⍷ns.Req.(Response.Headers GetHeader'content-type') ⍝ if the response is JSON
       ns.Req.Response ToJSON resp ⍝ convert it
@@ -974,12 +1040,15 @@
       :EndTrap
     ∇
 
-    ∇ obj Respond req;status;z;res
+    ∇ obj Respond req;status;z;res;close;conx
       res←req.Response
-      status←(⊂'HTTP/1.1'),res.((⍕Status)StatusText)
-      res.Headers⍪←'server'(⊃Version)
-      res.Headers⍪←'date'(2⊃LDRC.GetProp'.' 'HttpDate')
-      :Select 1⊃z←LDRC.Send obj(status,res.Headers res.Payload)1
+      status←(⊂req.HTTPVersion),res.((⍕Status)StatusText)
+      res.Headers⍪←'Server'(deb⍕2↑Version)
+      res.Headers⍪←'Date'(2⊃LDRC.GetProp'.' 'HttpDate')
+      conx←lc req.GetHeader'connection'
+      close←(('HTTP/1.0'≡req.HTTPVersion)>'keep-alive'≡conx)∨'close'≡conx
+      close∨←2≠⌊0.01×res.Status ⍝ close the connection on non-2XX status 
+      :Select 1⊃z←LDRC.Send obj(status,res.Headers res.Payload)close
       :Case 0 ⍝ everything okay, nothing to do
       :Case 1008 ⍝ Wrong object class likely caused by socket being closed during the request
         ⍝ do nothing for now
@@ -987,7 +1056,6 @@
           Log'Respond: Conga error when sending response',GetIP obj
           Log⍕z
       :EndSelect
-      _connections.⎕EX obj
     ∇
 
     :EndSection ⍝ Request Handling
@@ -1004,7 +1072,7 @@
       :Access public
       r←0
       fn←,⊆fn
-      →0 If r←403×fn∊AppInitFn ValidateRequestFn AuthenticateFn SessionStartEndpoint SessionStopEndpoint SessionInitFn
+      →0 If r←403×fn∊AppInitFn AppCloseFn ValidateRequestFn AuthenticateFn SessionStartEndpoint SessionStopEndpoint SessionInitFn
       :If ~0∊⍴_includeRegex
           →0 If r←404×0∊⍴(_includeRegex ⎕S'%')fn
       :EndIf
@@ -1102,7 +1170,8 @@
               →0
           :EndTrap
          
-          Complete←('get'≡Method)∨(length←GetHeader'content-length')≡,'0' ⍝ we're a GET or 0 content-length
+          length←GetHeader'content-length'
+          Complete←('get'≡Method)∧0=⊃⊃(//)⎕VFI length ⍝ we're a GET and there's no content-length or content-length=0
           Complete∨←(0∊⍴length)>∨/'chunked'⍷GetHeader'transfer-encoding' ⍝ or no length supplied and we're not chunked
         ∇
 
@@ -1384,6 +1453,15 @@
       r←{⍵,('/\'∊⍨⊢/⍵)↓'/'}{0∊⍴t←2 ⎕NQ'.' 'GetEnvironment' 'DYALOG':⊃1 ⎕NPARTS⊃2 ⎕NQ'.' 'GetCommandLineArgs' ⋄ t}''
     ∇
 
+    ∇ r←MyAddr
+      :Access public shared
+      :Trap 0
+          r←2 ⎕NQ #'TCPGetHostID'
+      :Else
+          r←'localhost'
+      :EndTrap
+    ∇
+
     ∇ r←crlf
       r←⎕UCS 13 10
     ∇
@@ -1526,11 +1604,19 @@
 ⍝<meta content="text/html; charset=utf-8" http-equiv="Content-Type">
 ⍝<title>Jarvis</title>
 ⍝ <style>
-⍝   label input textarea button {display:flex;}
-⍝   textarea {width:100%}
+⍝   body {color:#000000;background-color:white;font-family:Verdana;margin-left:0px;margin-top:0px;}
+⍝   button {display:inline-block;font-size:1.1em;}
+⍝   legend {font-size:1.1em;}
+⍝   select {font-size:1.1em;}
+⍝   label  {display:inline-block;margin-bottom:7px;}
+⍝   div {padding:5px;}
+⍝   label input textarea button #result {display:flex;}
+⍝   textarea {width:100%;font-size:18px;}
+⍝   #result {font-size:18px;}
 ⍝ </style>
 ⍝</head>
 ⍝<body>
+⍝<div id="content">
 ⍝<fieldset>
 ⍝  <legend>Request</legend>
 ⍝  <form id="myform">
@@ -1575,6 +1661,7 @@
 ⍝  xhttp.send(document.getElementById("payload").value);
 ⍝}
 ⍝</script>
+⍝</div>
 ⍝</body>
 ⍝</html>
       r←endpoints{i←⍵⍳'⍠' ⋄ ((i-1)↑⍵),⍺,i↓⍵}r
