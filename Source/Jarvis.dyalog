@@ -4,10 +4,10 @@
 
     (⎕ML ⎕IO)←1 1
 
-  ⍝ User hooks settings (see also Session settings)
+  ⍝ User hooks settings
     :Field Public AppCloseFn←''                                ⍝ name of the function to run on application (server) shutdown
     :Field Public AppInitFn←''                                 ⍝ name of the application "bootstrap" function
-    :Field Public AuthenticateFn←''                            ⍝ function name to perform authentication,if empty, no authentication is necessary
+    :Field Public AuthenticateFn←''                            ⍝ name of function to perform authentication,if empty, no authentication is necessary
     :Field Public SessionInitFn←''                             ⍝ Function name to call when initializing a session
     :Field Public SessionStartEndpoint←'Login'                 ⍝ name of the function to call to start session if using sessioning
     :Field Public SessionStopEndpoint←'Logout'                 ⍝ name of the function to call to close session if using sessioning
@@ -47,8 +47,15 @@
     :Field Public JSONInputFormat←'D'                          ⍝ set this to 'M' to have Jarvis convert JSON request payloads to the ⎕JSON matrix format
 
    ⍝ REST mode settings
-    :Field Public ParsePayload←1                               ⍝ 1=parse payload based on content-type header (REST only)
+    :Field Public ParsePayload←1                               ⍝ 1=parse request payload based on content-type header (REST only)
     :Field Public RESTMethods←'Get,Post,Put,Delete,Patch,Options'
+
+  ⍝ CORS settings
+    :Field Public EnableCORS←1                                 ⍝ set to 0 to disable CORS
+    :Field Public CORS_Origin←'*'                              ⍝ default value for Access-Control-Allow-Origin header (set to 1 to reflect request Origin)
+    :Field Public CORS_Methods←¯1                              ⍝ ¯1 = set based on paradigm, 1 = reflect the request's requested method
+    :Field Public CORS_Headers←'*'                             ⍝ default value for Access-Control-Allow-Headers header (set to 1 to reflect request Headers)
+    :Field Public CORS_MaxAge←60                               ⍝ default value (in seconds) for Access-Control-Max-Age header
 
   ⍝ Conga-related settings
     :Field Public AcceptFrom←⍬                                 ⍝ Conga: IP addresses to accept requests from - empty means accept from any IP address
@@ -93,7 +100,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.10.2' '2022-08-29'
+      r←'Jarvis' '1.11.0' '2022-09-14'
     ∇
 
     ∇ r←Config
@@ -284,6 +291,17 @@
               homePage←⎕NEXISTS html←_htmlFolder,_htmlDefaultPage
               Log(~homePage)/'HTML home page file "',(∊html),'" not found.'
           :EndSelect
+     
+          :If EnableCORS ⍝ if we've enabled CORS
+          :AndIf ¯1∊CORS_Methods ⍝ but not set any pre-flighted methods
+              :If Paradigm≡'JSON'
+                  CORS_Methods←'GET,POST,OPTIONS' ⍝ allowed JSON methods are GET, POST, and OPTIONS
+              :Else
+                  CORS_Methods←1↓∊',',¨RESTMethods[;1] ⍝ allowed REST methods are what the service supports
+              :EndIf
+          :EndIf
+     
+          CORS_Methods←uc CORS_Methods
      
           →0 If(rc msg)←StartServer
      
@@ -569,6 +587,13 @@
           :EndIf
       :EndIf
      
+     
+      :If ~0∊⍴AppCloseFn ⍝ application close function specified?
+          :If 1 0 0≢⊃CodeLocation.⎕AT AppCloseFn ⍝ result-returning niladic?
+              →0⊣(rc msg)←8('"',(⍕CodeLocation),'.',AppCloseFn,'" is not a niladic result-returning function')
+          :EndIf
+      :EndIf
+     
       Validate←{0} ⍝ dummy validation function
       :If ~0∊⍴ValidateRequestFn  ⍝ Request validation function specified?
           :If 1 1 0≡⊃CodeLocation.⎕AT ValidateRequestFn ⍝ result-returning monadic?
@@ -591,13 +616,18 @@
     ∇ (rc msg)←Setup
     ⍝ perform final setup before starting server
       (rc msg)←0 ''
-      →(Paradigm∘match¨'json' 'rest')/json rest
-      →0⊣(rc msg)←¯1 'Invalid paradigm'
-     json:RequestHandler←HandleJSONRequest ⋄ →0
-     rest:RequestHandler←HandleRESTRequest
+      Paradigm←uc Paradigm
+      :Select Paradigm
+      :Case 'JSON'
+          RequestHandler←HandleJSONRequest
+      :Case 'REST'
+          RequestHandler←HandleRESTRequest
       :If 2>≢⍴RESTMethods
           RESTMethods←↑2⍴¨'/'(≠⊆⊢)¨','(≠⊆⊢),RESTMethods
       :EndIf
+      :Else
+          (rc msg)←¯1 'Invalid paradigm'
+      :EndSelect
     ∇
 
     Exists←{0:: ¯1 (⍺,' "',⍵,'" is not a valid folder name.') ⋄ ⎕NEXISTS ⍵:0 '' ⋄ ¯1 (⍺,' "',⍵,'" was not found.')}
@@ -634,7 +664,7 @@
           InitSessions
           (rc msg)←RunServer
       :Else
-          Log msg←'Error creating server',(rc∊98 10048)/': port ',(⍕Port),' is already in use' ⍝ 98=Linux, 10048=Windows
+          Log msg←'Error ',(⍕rc),' creating server',(rc∊98 10048)/': port ',(⍕Port),' is already in use' ⍝ 98=Linux, 10048=Windows
       :EndIf
      ∆EXIT:
     ∇
@@ -725,6 +755,11 @@
       r←0 'Server stopped'
      
      Exit:
+     
+      :If ~0∊⍴AppCloseFn
+          r←CodeLocation⍎AppCloseFn
+      :EndIf
+     
       Close
       ⎕TKILL _sessionThread
       (_stop _started _stopped)←0 0 1
@@ -942,6 +977,7 @@
     ∇
 
     ∇ fn HandleRESTRequest ns;ind;exec;valence;ct;resp
+      →0 If HandleCORSRequest ns.Req
       →0 If~fn CheckAuthentication ns.Req
      
       :If ParsePayload
@@ -980,12 +1016,19 @@
       :EndIf
     ∇
 
-    ∇ z←HandleCORSRequest req
-      'Access-Control-Allow-Origin'req.DefaultHeader'*'
-      →0 If~z←req.Method≡'options'
-      'Access-Control-Allow-Methods'req.DefaultHeader'POST,OPTIONS'
-      'Access-Control-Allow-Headers'req.DefaultHeader req.GetHeader'Access-Control-Request-Headers'
-      'Access-Control-Max-Age'req.DefaultHeader'86400'
+    ∇ r←HandleCORSRequest req;origin;reflect
+      r←0
+      →0 If~EnableCORS
+      →0 If 0∊⍴origin←req.GetHeader'Origin'  ⍝ CORS requests have an Origin header
+      reflect←{(1+(,⍺)≡,1)⊃⍺ ⍵} ⍝ if CORS_xxx setting is 1, reflect the request's value
+      'Access-Control-Allow-Origin'req.DefaultHeader CORS_Origin reflect origin
+      →0 If~req.Method≡'options' ⍝ OPTIONS (with an Origin header) indicates a "pre-flighted" CORS request
+      →0 If 0∊⍴req.GetHeader'Access-Control-Request-Method' ⍝
+      'Access-Control-Allow-Methods'req.DefaultHeader CORS_Methods reflect req.GetHeader'Access-Control-Request-Method'
+      'Access-Control-Allow-Headers'req.DefaultHeader CORS_Headers reflect req.GetHeader'Access-Control-Request-Headers'
+      'Access-Control-Max-Age'req.DefaultHeader(⍕CORS_MaxAge)
+      req.SetStatus 204 ⍝ No Content
+      r←1
     ∇
 
     ∇ response ToJSON data
@@ -1441,6 +1484,7 @@
     deb←{{1↓¯1↓⍵/⍨~'  '⍷⍵}' ',⍵,' '} ⍝ delete extraneous blanks
     dlb←{⍵↓⍨+/∧\' '=⍵} ⍝ delete leading blanks
     lc←0∘(819⌶) ⍝ lower case
+    uc←1∘(819⌶) ⍝ upper case
     nameClass←{⎕NC⊂,'⍵'} ⍝ name class of argument
     nocase←{(lc ⍺)⍺⍺ lc ⍵} ⍝ case insensitive operator
     begins←{⍺≡(⍴⍺)↑⍵} ⍝ does ⍺ begin with ⍵?
