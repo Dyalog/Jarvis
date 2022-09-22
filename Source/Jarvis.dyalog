@@ -244,6 +244,7 @@
     ∇ (rc msg)←Start;html;homePage
       :Access public
       :Trap 0 DebugLevel 1
+          Log'Starting ',⍕2↑Version
           :If _started
               :If 0(,2)≡LDRC.GetProp ServerName'Pause'
                   rc←1⊃LDRC.SetProp ServerName'Pause' 0
@@ -271,6 +272,7 @@
           homePage←1 ⍝ default is to use built-in home page
           :Select ⊃HTMLInterface
           :Case 0 ⍝ explicitly no HTML interface, carry on
+              _htmlEnabled←0
           :Case 1 ⍝ explicitly turned on
               :If Paradigm≢'JSON'
                   Log'HTML interface is only available using JSON paradigm'
@@ -622,9 +624,9 @@
           RequestHandler←HandleJSONRequest
       :Case 'REST'
           RequestHandler←HandleRESTRequest
-      :If 2>≢⍴RESTMethods
-          RESTMethods←↑2⍴¨'/'(≠⊆⊢)¨','(≠⊆⊢),RESTMethods
-      :EndIf
+          :If 2>≢⍴RESTMethods
+              RESTMethods←↑2⍴¨'/'(≠⊆⊢)¨','(≠⊆⊢),RESTMethods
+          :EndIf
       :Else
           (rc msg)←¯1 'Invalid paradigm'
       :EndSelect
@@ -1090,7 +1092,7 @@
       res.Headers⍪←'Date'(2⊃LDRC.GetProp'.' 'HttpDate')
       conx←lc req.GetHeader'connection'
       close←(('HTTP/1.0'≡req.HTTPVersion)>'keep-alive'≡conx)∨'close'≡conx
-      close∨←2≠⌊0.01×res.Status ⍝ close the connection on non-2XX status 
+      close∨←2≠⌊0.01×res.Status ⍝ close the connection on non-2XX status
       :Select 1⊃z←LDRC.Send obj(status,res.Headers res.Payload)close
       :Case 0 ⍝ everything okay, nothing to do
       :Case 1008 ⍝ Wrong object class likely caused by socket being closed during the request
@@ -1639,8 +1641,19 @@
       r←2↓∊(⎕UCS 13 10)∘,¨r
     ∇
 
+    ∇ r←{path}EndPoints ref;ns
+      :Access public
+      :If 0=⎕NC'path' ⋄ path←''
+      :Else ⋄ path,←'/'
+      :EndIf
+      r←path∘,¨ref.⎕NL ¯3
+      :For ns :In ref.⎕NL ¯9.1
+          r,←(path,ns) EndPoints ref⍎ns
+      :EndFor
+    ∇
+
     ∇ r←HtmlPage;endpoints
-      endpoints←∊{'<option value="',⍵,'">',⍵,'</option>'}¨{⍵/⍨0=CheckFunctionName ⍵}CodeLocation.⎕NL ¯3
+      endpoints←∊{'<option value="',⍵,'">',⍵,'</option>'}¨{⍵/⍨0=CheckFunctionName ⍵}EndPoints CodeLocation
       r←ScriptFollows
 ⍝<!DOCTYPE html>
 ⍝<html>
