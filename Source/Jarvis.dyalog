@@ -9,8 +9,6 @@
     :Field Public AppInitFn←''                                 ⍝ name of the application "bootstrap" function
     :Field Public AuthenticateFn←''                            ⍝ name of function to perform authentication,if empty, no authentication is necessary
     :Field Public SessionInitFn←''                             ⍝ Function name to call when initializing a session
-    :Field Public SessionStartEndpoint←'Login'                 ⍝ name of the function to call to start session if using sessioning
-    :Field Public SessionStopEndpoint←'Logout'                 ⍝ name of the function to call to close session if using sessioning
     :Field Public ValidateRequestFn←''                         ⍝ name of the request validation function
 
    ⍝ Operational settings
@@ -40,6 +38,8 @@
     :Field Public SessionPollingTime←1                         ⍝ how frequently (in minutes) we should poll for timed out sessions
     :Field Public SessionTimeout←0                             ⍝ 0 = do not use sessions, ¯1 = no timeout , 0< session timeout time (in minutes)
     :Field Public SessionCleanupTime←60                        ⍝ how frequently (in minutes) do we clean up timed out session info from _sessionsInfo
+    :Field Public SessionStartEndpoint←'Login'                 ⍝ name of endpoint to start session if using sessioning
+    :Field Public SessionStopEndpoint←'Logout'                 ⍝ name of endpoint to close session if using sessioning
 
    ⍝ JSON mode settings
     :Field Public AllowFormData←0                              ⍝ do we allow POST form data in JSON paradigm?
@@ -1112,17 +1112,20 @@
     ∇ r←CheckFunctionName fn
     ⍝ checks the requested function name and returns
     ⍝    0 if the function is allowed
-    ⍝  404 (not found) if the list of allowed functions is non-empty and fn is not in the list
-    ⍝  403 (forbidden) if fn is in the list of disallowed functions
+    ⍝  404 (not found) either the function name does not exist, is not in IncludeFns (if defined), is in ExcludeFns (if defined) 
       :Access public
       r←0
-      fn←,⊆fn
-      →0 If r←403×fn∊AppInitFn AppCloseFn ValidateRequestFn AuthenticateFn SessionStartEndpoint SessionStopEndpoint SessionInitFn
-      :If ~0∊⍴_includeRegex
-          →0 If r←404×0∊⍴(_includeRegex ⎕S'%')fn
-      :EndIf
-      :If ~0∊⍴_excludeRegex
-          r←403×~0∊⍴(_excludeRegex ⎕S'%')fn
+      :If 1<|≡fn
+          r←CheckFunctionName¨fn
+      :Else
+          fn←⊆,fn
+          →0 If r←404×fn∊AppInitFn AppCloseFn ValidateRequestFn AuthenticateFn SessionInitFn
+          :If ~0∊⍴_includeRegex
+              →0 If r←404×0∊⍴(_includeRegex ⎕S'%')fn
+          :EndIf
+          :If ~0∊⍴_excludeRegex
+              r←404×~0∊⍴(_excludeRegex ⎕S'%')fn
+          :EndIf
       :EndIf
     ∇
 
@@ -1578,11 +1581,13 @@
     ∇
 
     ∇ r←makeRegEx w
+      :Access public shared
     ⍝ convert a simple search using ? and * to regex
       r←{0∊⍴⍵:⍵
           {'^',(⍵~'^$'),'$'}{¯1=⎕NC('A'@(∊∘'?*'))r←⍵:('/'=⊣/⍵)↓(¯1×'/'=⊢/⍵)↓⍵   ⍝ already regex? (remove leading/trailing '/'
               r←∊(⊂'\.')@('.'=⊢)r  ⍝ escape any periods
               r←'.'@('?'=⊢)r       ⍝ ? → .
+              r←∊(⊂'\/')@('/'=⊢)r  ⍝ / → \/
               ∊(⊂'.*')@('*'=⊢)r    ⍝ * → .*
           }⍵            ⍝ add start and end of string markers
       }w
@@ -1644,16 +1649,16 @@
     ∇ r←{path}EndPoints ref;ns
       :Access public
       :If 0=⎕NC'path' ⋄ path←''
-      :Else ⋄ path,←'/'
+      :Else ⋄ path,←'.'
       :EndIf
       r←path∘,¨ref.⎕NL ¯3
       :For ns :In ref.⎕NL ¯9.1
-          r,←(path,ns) EndPoints ref⍎ns
+          r,←(path,ns)EndPoints ref⍎ns
       :EndFor
     ∇
 
     ∇ r←HtmlPage;endpoints
-      endpoints←∊{'<option value="',⍵,'">',⍵,'</option>'}¨{⍵/⍨0=CheckFunctionName ⍵}EndPoints CodeLocation
+      :Access public
       r←ScriptFollows
 ⍝<!DOCTYPE html>
 ⍝<html>
@@ -1679,10 +1684,10 @@
 ⍝  <form id="myform">
 ⍝    <div>
 ⍝      <label for="function">Endpoint:</label>
-⍝      <select id="function" name="function">⍠</select>
+⍝      ⍠
 ⍝    </div>
 ⍝    <div>
-⍝      <label for="payload">JSON data:</label>
+⍝      <label for="payload">JSON Payload:</label>
 ⍝      <textarea id="payload" name="payload"></textarea>
 ⍝    </div>
 ⍝    <div>
@@ -1721,6 +1726,13 @@
 ⍝</div>
 ⍝</body>
 ⍝</html>
+      endpoints←{⍵/⍨0=CheckFunctionName ⍵}EndPoints CodeLocation
+      :If 0∊⍴endpoints
+          endpoints←'<b>No Endpoints Found</b>'
+      :Else
+          endpoints←∊{'<option value="',⍵,'">',⍵,'</option>'}¨'/'@('.'=⊢)¨endpoints
+          endpoints←'<select id="function" name="function">',endpoints,'</select>'     
+      :EndIf
       r←endpoints{i←⍵⍳'⍠' ⋄ ((i-1)↑⍵),⍺,i↓⍵}r
     ∇
     :EndSection
