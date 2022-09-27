@@ -34,7 +34,8 @@
     :Field Public DYALOG_JARVIS_PORT←''                        ⍝ If supplied, overrides Port both default port and config file
 
    ⍝ Session settings
-    :Field Public SessionIdHeader←'Jarvis-SessionID'           ⍝ Name of the header field for the session tokem
+    :Field Public SessionIdHeader←'Jarvis-SessionID'           ⍝ Name of the header field for the session token
+    :Field Public SessionUseCookie←0                           ⍝ 0 - just use the header; 1 - use an HTTP cookie
     :Field Public SessionPollingTime←1                         ⍝ how frequently (in minutes) we should poll for timed out sessions
     :Field Public SessionTimeout←0                             ⍝ 0 = do not use sessions, ¯1 = no timeout , 0< session timeout time (in minutes)
     :Field Public SessionCleanupTime←60                        ⍝ how frequently (in minutes) do we clean up timed out session info from _sessionsInfo
@@ -100,13 +101,13 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.11.0' '2022-09-14'
+      r←'Jarvis' '1.11.1' '2022-09-26'
     ∇
 
     ∇ r←Config
     ⍝ returns current configuration
       :Access public
-      r←↑{⍵(⍎⍵)}¨⎕THIS⍎'⎕NL ¯2.2'
+      r←↑{⍵(⍎⍵)}¨⎕THIS⍎'⎕NL ¯2.2 ¯2.1'
     ∇
 
     ∇ r←{value}DebugLevel level
@@ -194,12 +195,12 @@
 
     ∇ MakeCommon
       :Trap 11
-          JSONin←{⎕JSON⍠('Dialect' 'JSON5')('Format'JSONInputFormat)⊢⍵} ⋄ {}JSONin 1
-          JSONout←⎕JSON⍠'HighRank' 'Split' ⋄ {}JSONout 1
-          JSONread←⎕JSON⍠'Dialect' 'JSON5' ⍝ for reading configuration files
+          JSONin←{##.##.⎕JSON⍠('Dialect' 'JSON5')('Format'JSONInputFormat)⊢⍵} ⋄ {}JSONin 1
+          JSONout←##.##.⎕JSON⍠'HighRank' 'Split' ⋄ {}JSONout 1
+          JSONread←##.##.⎕JSON⍠'Dialect' 'JSON5' ⍝ for reading configuration files
       :Else
-          JSONin←{⎕JSON⍠('Format'JSONInputFormat)⊢⍵}
-          JSONread←JSONout←⎕JSON
+          JSONin←{##.##.⎕JSON⍠('Format'JSONInputFormat)⊢⍵}
+          JSONread←JSONout←##.##.⎕JSON
       :EndTrap
     ∇
 
@@ -401,7 +402,7 @@
               config←value
           :EndIf
      Load:
-          public←⎕THIS⍎'⎕NL ¯2.2' ⍝ find all the public fields in this class
+          public←⎕THIS⍎'⎕NL ¯2.2 ¯2.1' ⍝ find all the public fields in this class
           :If ~0∊⍴set←public{⍵/⍨⍵∊⍺}config.⎕NL ¯2 ¯9
               config{⍎⍵,'←⍺⍎⍵'}¨set
           :EndIf
@@ -1112,7 +1113,7 @@
     ∇ r←CheckFunctionName fn
     ⍝ checks the requested function name and returns
     ⍝    0 if the function is allowed
-    ⍝  404 (not found) either the function name does not exist, is not in IncludeFns (if defined), is in ExcludeFns (if defined) 
+    ⍝  404 (not found) either the function name does not exist, is not in IncludeFns (if defined), is in ExcludeFns (if defined)
       :Access public
       r←0
       :If 1<|≡fn
@@ -1411,7 +1412,7 @@
     ∇
 
     ∇ CreateSession req;ref;now;id;ts;rc
-    ⍝ called in response to SessionStartEndpoint request, e.g. http://mysite.com/CreateSession
+    ⍝ called in response to SessionStartEndpoint request, e.g. http://mysite.com/Login
       id←MakeSessionId''
       now←Now
       :Hold 'Sessions'
@@ -1439,7 +1440,11 @@
               →0⊣('Session initialization function "',SessionInitFn,'" not found')req.Fail 500
           :EndIf
       :EndIf
-      SessionIdHeader req.SetHeader id
+      :If SessionUseCookie
+          'set-cookie'req.SetHeader SessionIdHeader,'=',id
+      :Else
+          SessionIdHeader req.SetHeader id
+      :EndIf
       req.SetStatus 204
     ∇
 
@@ -1466,13 +1471,23 @@
     ⍝ check for valid session (only called if SessionTimeout≠0)
       r←0
       :Hold 'Sessions'
-          ind←_sessionsInfo[;1]⍳⊂id←req.GetHeader SessionIdHeader
+          :If SessionUseCookie
+              id←req.GetCookie SessionIdHeader
+          :Else
+              id←req.GetHeader SessionIdHeader
+          :EndIf
+          ind←_sessionsInfo[;1]⍳⊂id
           →0 If'Invalid session ID'req.Fail 403×ind>≢_sessionsInfo
           :If 0∊⍴session←⊃_sessionsInfo[ind;5] ⍝ already timed out (session was already removed from _sessions)
           :OrIf SessionTimeout IsExpired _sessionsInfo[ind;4] ⍝ newly expired
               req TimeoutSession ind
+              :If SessionUseCookie
+                  'set-cookie'req.SetHeader SessionIdHeader,'=expired; Max-Age=0'
+              :EndIf
           :EndIf
-          SessionIdHeader req.SetHeader id
+          :If ~SessionUseCookie
+              SessionIdHeader req.SetHeader id
+          :EndIf
           _sessionsInfo[ind;4]←Now
           req.Session←session
           r←1
@@ -1715,7 +1730,7 @@
 ⍝      if (this.status == 200) {
 ⍝        var resp = "<pre><code>" + this.responseText + "</code></pre>";
 ⍝      } else {
-⍝        var resp = "<span style='color:red;'>" + this.statusText + "</span>";
+⍝        var resp = "<span style='color:red;'>" + this.statusText + "</span> <pre><code>" + this.responseText + "</code></pre>";
 ⍝      }
 ⍝      document.getElementById("result").innerHTML = resp;
 ⍝    }
@@ -1731,7 +1746,7 @@
           endpoints←'<b>No Endpoints Found</b>'
       :Else
           endpoints←∊{'<option value="',⍵,'">',⍵,'</option>'}¨'/'@('.'=⊢)¨endpoints
-          endpoints←'<select id="function" name="function">',endpoints,'</select>'     
+          endpoints←'<select id="function" name="function">',endpoints,'</select>'
       :EndIf
       r←endpoints{i←⍵⍳'⍠' ⋄ ((i-1)↑⍵),⍺,i↓⍵}r
     ∇
