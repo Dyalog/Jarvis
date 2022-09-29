@@ -101,7 +101,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.11.1' '2022-09-26'
+      r←'Jarvis' '1.11.2' '2022-09-27'
     ∇
 
     ∇ r←Config
@@ -266,9 +266,9 @@
      
           →0 If(rc msg)←LoadConfiguration JarvisConfig
           →0 If(rc msg)←CheckPort
-          →0 If(rc msg)←LoadConga
           →0 If(rc msg)←CheckCodeLocation
           →0 If(rc msg)←Setup
+          →0 If(rc msg)←LoadConga
      
           homePage←1 ⍝ default is to use built-in home page
           :Select ⊃HTMLInterface
@@ -1346,6 +1346,12 @@
           Response.Headers⍪←name value
         ∇
 
+        ∇ name SetCookie cookie
+          :Access public instance
+        ⍝ cookie is the cookie value followed by any ;-delimited attributes
+          'set-cookie'SetHeader name,'=',cookie
+        ∇
+
         ∇ {status}←{statusText}SetStatus status
           :Access public instance
           :If status≠0
@@ -1441,7 +1447,7 @@
           :EndIf
       :EndIf
       :If SessionUseCookie
-          'set-cookie'req.SetHeader SessionIdHeader,'=',id
+          SessionIdHeader req.SetCookie id
       :Else
           SessionIdHeader req.SetHeader id
       :EndIf
@@ -1482,7 +1488,7 @@
           :OrIf SessionTimeout IsExpired _sessionsInfo[ind;4] ⍝ newly expired
               req TimeoutSession ind
               :If SessionUseCookie
-                  'set-cookie'req.SetHeader SessionIdHeader,'=expired; Max-Age=0'
+                  SessionIdHeader req.SetCookie'expired; Max-Age=0'
               :EndIf
           :EndIf
           :If ~SessionUseCookie
