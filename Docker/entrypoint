@@ -27,6 +27,9 @@ export LOAD=$JARVIS/Source
 
 export SESSION_FILE="${SESSION_FILE-$DYALOG/default.dse}"
 
+## if either CodeLocation or JarvisConfig are set, use them
+if [ -z "${CodeLocation}" ] && [ -z "${JarvisConfig}" ]; then
+
 if [ $(ls /app | grep "jarvis.json" 2>/dev/null | wc -l) -eq 1 ]; then
     echo "Application config found in /app/jarvis.json"    
     export JarvisConfig=/app/$(ls /app | grep "jarvis.json")
@@ -38,6 +41,8 @@ else
     CODEL=$JARVIS/Samples/JSON
 fi
 export CodeLocation=${CodeLocation-$CODEL}
+
+fi
 
 cd /app
 
