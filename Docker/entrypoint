@@ -29,20 +29,21 @@ export SESSION_FILE="${SESSION_FILE-$DYALOG/default.dse}"
 
 ## if either CodeLocation or JarvisConfig are set, use them
 if [ -z "${CodeLocation}" ] && [ -z "${JarvisConfig}" ]; then
-
-if [ $(ls /app | grep "jarvis.json" 2>/dev/null | wc -l) -eq 1 ]; then
-    echo "Application config found in /app/jarvis.json"    
-    export JarvisConfig=/app/$(ls /app | grep "jarvis.json")
-elif [ $(ls /app 2>/dev/null | wc -l) -gt 0 ]; then
-    echo "Application code found in /app."
-    CODEL=/app    
-else
-    echo "No application found in /app. Running with sample app"
-    CODEL=$JARVIS/Samples/JSON
+  if [ $(ls /app | grep "jarvis.json" 2>/dev/null | wc -l) -eq 1 ]; then
+      echo "Application config found in /app/jarvis.json"    
+      export JarvisConfig=/app/$(ls /app | grep "jarvis.json")
+  elif [ $(ls /app 2>/dev/null | wc -l) -gt 0 ]; then
+      echo "Application code found in /app."
+      CODEL=/app    
+  else
+      echo "No application found in /app. Running with sample app"
+      CODEL=$JARVIS/Samples/JSON
+  fi
+  export CodeLocation=${CodeLocation-$CODEL}
 fi
-export CodeLocation=${CodeLocation-$CODEL}
 
-fi
+echo "CodeLocation:" $CodeLocation
+echo "JarvisConfig:" $JarvisConfig
 
 cd /app
 
