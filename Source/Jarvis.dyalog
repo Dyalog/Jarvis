@@ -260,8 +260,15 @@
               →0 If(rc msg)←¯1 'Server is in the process of stopping'
           :EndIf
      
-          :If 'CLEAR WS'≡⎕WSID ⋄ _rootFolder←⊃1 ⎕NPARTS SourceFile
-          :Else ⋄ _rootFolder←⊃1 ⎕NPARTS ⎕WSID
+          :If 'CLEAR WS'≡⎕WSID
+              :If ⎕NEXISTS JarvisConfig
+              :AndIf 2=⊃1 ⎕NINFO JarvisConfig
+                  _rootFolder←⊃1 ⎕NPARTS JarvisConfig
+              :Else
+                  _rootFolder←⊃1 ⎕NPARTS SourceFile
+              :EndIf
+          :Else
+              _rootFolder←⊃1 ⎕NPARTS ⎕WSID
           :EndIf
      
           →0 If(rc msg)←LoadConfiguration JarvisConfig
