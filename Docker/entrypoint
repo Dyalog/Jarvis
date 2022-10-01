@@ -42,9 +42,6 @@ if [ -z "${CodeLocation}" ] && [ -z "${JarvisConfig}" ]; then
   export CodeLocation=${CodeLocation-$CODEL}
 fi
 
-echo "CodeLocation:" $CodeLocation
-echo "JarvisConfig:" $JarvisConfig
-
 cd /app
 
 if [ -n "$RIDE_INIT" ]; then
