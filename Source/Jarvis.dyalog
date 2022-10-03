@@ -39,9 +39,7 @@
     :Field Public SessionPollingTime←1                         ⍝ how frequently (in minutes) we should poll for timed out sessions
     :Field Public SessionTimeout←0                             ⍝ 0 = do not use sessions, ¯1 = no timeout , 0< session timeout time (in minutes)
     :Field Public SessionCleanupTime←60                        ⍝ how frequently (in minutes) do we clean up timed out session info from _sessionsInfo
-    :Field Public SessionStartEndpoint←'Login'                 ⍝ name of endpoint to start session if using sessioning
-    :Field Public SessionStopEndpoint←'Logout'                 ⍝ name of endpoint to close session if using sessioning
-
+   
    ⍝ JSON mode settings
     :Field Public AllowFormData←0                              ⍝ do we allow POST form data in JSON paradigm?
     :Field Public HTMLInterface←¯1                             ⍝ ¯1=unassigned, 0/1=dis/allow the HTML interface, or Path to HTML[/home-page]
@@ -101,7 +99,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.11.2' '2022-09-27'
+      r←'Jarvis' '1.11.5' '2022-10-02'
     ∇
 
     ∇ r←Config
@@ -870,11 +868,7 @@
      
               fn←1↓'.'@('/'∘=)ns.Req.Endpoint
      
-            ⍝ Are we sessioned and requesting logout
-              →handle↓⍨(0≠SessionTimeout)∧fn≡SessionStopEndpoint
-              →resp⊣KillSession⍣(~ns.Req.Fail 400×0∊⍴r)⊢ns.Req.GetHeader SessionIdHeader
-     
-     handle:  fn RequestHandler ns ⍝ RequestHandler is either HandleJSONRequest or HandleRESTRequest
+              fn RequestHandler ns ⍝ RequestHandler is either HandleJSONRequest or HandleRESTRequest
      
      resp:    obj Respond ns.Req
      
@@ -933,7 +927,7 @@
           :EndTrap
       :EndSelect
      
-      →0 If~fn CheckAuthentication ns.Req
+      →0 If CheckAuthentication ns.Req
      
       →0 If('Invalid function "',fn,'"')ns.Req.Fail CheckFunctionName fn
       →0 If('Invalid function "',fn,'"')ns.Req.Fail 404×3≠⌊|{0::0 ⋄ CodeLocation.⎕NC⊂⍵}fn  ⍝ is it a function?
@@ -988,7 +982,7 @@
 
     ∇ fn HandleRESTRequest ns;ind;exec;valence;ct;resp
       →0 If HandleCORSRequest ns.Req
-      →0 If~fn CheckAuthentication ns.Req
+      →0 If CheckAuthentication ns.Req
      
       :If ParsePayload
           :Trap 0 DebugLevel 1
@@ -1050,33 +1044,23 @@
       :EndTrap
     ∇
 
-    ∇ r←fn CheckAuthentication req
+    ∇ r←CheckAuthentication req
     ⍝ Check request authentication
-    ⍝ r is 1 if request processing can continue (0 is returned if new session is created)
-      r←0
-      :If 0=SessionTimeout ⍝ not using sessions
-          r←0=DoAuthentication req ⍝ might still want to do some authentication
-      :Else
-          :If 0∊⍴req.GetHeader SessionIdHeader ⍝ no session ID?
-              :If SessionStartEndpoint≡fn ⍝ is this a session start request?
-                  :If 0=DoAuthentication req ⍝ do we require authentication?
-                      CreateSession req
-                      r←0 ⍝ new session created
-                  :EndIf
-              :Else ⍝ no session ID and this is not the SessionStartEndpoint
-                  'Unauthorized'req.Fail 401
-                  :If HTTPAuthentication match'basic'
-                      'WWW-Authenticate'req.SetHeader'Basic realm="Jarvis", charset="UTF-8"'
-                  :EndIf
+    ⍝ r is 0 if request processing can continue
+      r←1
+      :If 0=DoAuthentication req ⍝ might still want to do some authentication
+          :If 0≠SessionTimeout ⍝ using sessions?
+              :If 0≠CheckSession req ⍝ session is still valid?
+                  CreateSession req
               :EndIf
-          :Else ⍝ check session id
-              r←CheckSession req
           :EndIf
+          r←0
       :EndIf
     ∇
 
     ∇ rc←DoAuthentication req;debug;old
     ⍝ rc is 0 if either no authentication is required or authentication succeeds
+    ⍝
       rc←0
       :Trap 0 DebugLevel 1
           stopIf DebugLevel 2×~0∊⍴AuthenticateFn
@@ -1089,7 +1073,7 @@
           :EndIf
       :Else ⍝ Authenticate errored
           (⎕DMX.EM,' occured during authentication')req.Fail 500
-          r←0
+          rc←1
       :EndTrap
     ∇
 
@@ -1142,6 +1126,7 @@
         :Field Public Instance Charset←''        ⍝ content charset (defaults to 'utf-8' if content-type is application/json)
         :Field Public Instance Complete←0        ⍝ do we have a complete request?
         :Field Public Instance ContentType←''    ⍝ content-type header value
+        :Field Public Instance Cookies←0 2⍴⊂''   ⍝ cookie name/value pairs
         :Field Public Instance Input←''
         :Field Public Instance Headers←0 2⍴⊂''   ⍝ HTTPRequest header fields (plus any supplied from HTTPTrailer event)
         :Field Public Instance Method←''         ⍝ HTTP method (GET, POST, PUT, etc)
@@ -1210,6 +1195,8 @@
               Boundary←value
           :EndSelect
          
+          Cookies←ParseCookies Headers
+         
           makeResponse
          
           (Endpoint query)←'?'split Input
@@ -1267,6 +1254,18 @@
               r←Server.Hostname
           :EndIf
         ∇
+
+        ∇ cookies←ParseCookies headers;cookieHeader;cookie
+          :Access public shared
+          cookies←0 2⍴⊂''
+          :For cookieHeader :In (headers[;1]≡¨⊂'cookie')/headers[;2]
+              :For cookie :In (({⍵↓⍨+/∧\' '=⍵}⌽)⍣2)¨';'(≠⊆⊢)cookieHeader
+                  cookies⍪←2↑('='(≠⊆⊢)cookie),⊂''
+              :EndFor
+          :EndFor
+          cookies←(⌽≠⌽cookies[;1])⌿cookies
+        ∇
+
         ∇ r←URLDecode r;rgx;rgxu;i;j;z;t;m;⎕IO;lens;fill
           :Access public shared
         ⍝ Decode a Percent Encoded string https://en.wikipedia.org/wiki/Percent-encoding
@@ -1355,8 +1354,15 @@
 
         ∇ name SetCookie cookie
           :Access public instance
+        ⍝ create a response "set-cookie" header
         ⍝ cookie is the cookie value followed by any ;-delimited attributes
           'set-cookie'SetHeader name,'=',cookie
+        ∇
+
+        ∇ value←GetCookie name
+          :Access public instance
+        ⍝ retrieve a request cookie
+          value←(Cookies[;1]⍳⊆,name)⊃Cookies[;2],⊂''
         ∇
 
         ∇ {status}←{statusText}SetStatus status
@@ -1425,7 +1431,6 @@
     ∇
 
     ∇ CreateSession req;ref;now;id;ts;rc
-    ⍝ called in response to SessionStartEndpoint request, e.g. http://mysite.com/Login
       id←MakeSessionId''
       now←Now
       :Hold 'Sessions'
@@ -1454,11 +1459,11 @@
           :EndIf
       :EndIf
       :If SessionUseCookie
-          SessionIdHeader req.SetCookie id
+          SessionIdHeader req.SetCookie id,(SessionTimeout>0)/'; Max-Age=',⍕⌈60×SessionTimeout
       :Else
           SessionIdHeader req.SetHeader id
       :EndIf
-      req.SetStatus 204
+    ⍝???  req.SetStatus 204
     ∇
 
     ∇ r←KillSession id;ind
@@ -1477,33 +1482,38 @@
     ⍝ removes session from _sessions and marks it as time out in _sessionsInfo
       _sessions~←_sessionsInfo[ind;5]
       _sessionsInfo⌿←ind≠⍳≢_sessionsInfo
-      'Session timed out'req.Fail 408
+    ∇
+
+    ∇ id←GetSessionId req
+      :If SessionUseCookie
+          id←req.GetCookie SessionIdHeader
+      :Else
+          id←req.GetHeader SessionIdHeader
+      :EndIf
     ∇
 
     ∇ r←CheckSession req;ind;session;timedOut;id
     ⍝ check for valid session (only called if SessionTimeout≠0)
-      r←0
+      r←1
       :Hold 'Sessions'
-          :If SessionUseCookie
-              id←req.GetCookie SessionIdHeader
-          :Else
-              id←req.GetHeader SessionIdHeader
-          :EndIf
+          id←GetSessionId req
           ind←_sessionsInfo[;1]⍳⊂id
-          →0 If'Invalid session ID'req.Fail 403×ind>≢_sessionsInfo
+          →0⍴⍨ind>≢_sessionsInfo
+     
           :If 0∊⍴session←⊃_sessionsInfo[ind;5] ⍝ already timed out (session was already removed from _sessions)
           :OrIf SessionTimeout IsExpired _sessionsInfo[ind;4] ⍝ newly expired
               req TimeoutSession ind
-              :If SessionUseCookie
-                  SessionIdHeader req.SetCookie'expired; Max-Age=0'
-              :EndIf
+              →0
           :EndIf
-          :If ~SessionUseCookie
+    ⍝ we have a valid session, refresh the cookie or set the header
+          :If SessionUseCookie
+              SessionIdHeader req.SetCookie id,(SessionTimeout>0)/'; Max-Age=',⍕⌈60×SessionTimeout
+          :ElseIf
               SessionIdHeader req.SetHeader id
           :EndIf
           _sessionsInfo[ind;4]←Now
           req.Session←session
-          r←1
+          r←0
       :EndHold
     ∇
 
@@ -1511,7 +1521,7 @@
 
     :Section Utilities
 
-    If←((0∘≠⊃)⊢)⍴⊣
+    If←((0∘≠⊃)⊢)⍴⊣ ⍝ test for 0 return
     isChar←{0 2∊⍨10|⎕DR ⍵}
     stripQuotes←{'""'≡2↑¯1⌽⍵:¯1↓1↓⍵ ⋄ ⍵} ⍝ strip leading and ending "
     deb←{{1↓¯1↓⍵/⍨~'  '⍷⍵}' ',⍵,' '} ⍝ delete extraneous blanks
