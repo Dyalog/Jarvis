@@ -1,9 +1,10 @@
+This documentation is very much a work in progress. Expected completion is November 2022.
 # Introduction
 ***Jarvis*** is an HTTP server that makes it easy to create a web service to provide access to your APL code from the web or a local network.
 
 Any client program written in any language on any platform that can process HTTP requests can access  a Jarvis-based web service. This vastly increases the potential audience for your application - the client can be a standard web browser, a phone app, a browser-based app, or a custom client written in a language like Python or C# and yes, even APL.
 
-The name ***Jarvis*** is a pseudo-acronym for **J**SON **a**nd **R**EST Serv**ice** (the "ice" becomes "is") and was also inspired by J.A.R.V.I.S. (Just A Rather Very Intelligent System) from the [Marvel Cinematic Universe](https://en.wikipedia.org/wiki/J.A.R.V.I.S.). 
+The name ***Jarvis*** is a pseudo-acronym for **J**SON **a**nd **R**EST Ser**vice** ("vice" becomes "vis") and was also inspired by J.A.R.V.I.S. (Just A Rather Very Intelligent System) from the [Marvel Cinematic Universe](https://en.wikipedia.org/wiki/J.A.R.V.I.S.). 
 
 ## Design Goals
 ***Jarvis*** is designed to make it very easy for an APLer to create web services without requiring in-depth knowledge of web service frameworks. In designing ***Jarvis*** we've attempted to
@@ -32,7 +33,7 @@ If you know how to write a monadic, result-returning APL function, you're ready 
 
 1. You can now run your web service running on port 8080 and serving code from the # (root) namespace.  
 
-              (server rc)←Jarvis.Start 8080 #
+              (server rc)←Jarvis.Run 8080 #
 	    2021/11/22 @ 15:12:06 - Conga copied from C:\Program Files\Dyalog\Dyalog APL-64 18.2 Unicode/ws/conga
         2021/11/22 @ 15:12:06 - Local Conga reference is #.Jarvis.[LIB]
         2021/11/22 @ 15:12:06 - Jarvis started in "JSON" mode on port 8080

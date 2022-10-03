@@ -4,13 +4,24 @@ repo_name: Dyalog/Jarvis
 dev_addr: 127.0.0.1:22361
 copyright: Copyright &copy; 2019-2022 <strong><a href="https://dyalog.com">Dyalog, LTD</a></strong>
 nav:
-    - Introduction: 'index.md'
-    - 'User Guide': 
+    - Overview: 'index.md'
+    - Usage: 
       - 'Concepts': 'concepts.md'
-      - 'User Guide': 'userguide.md'
+      - 'Organizing Your Code': 'organizing.md'
+      - 'JSON Paradigm': 'json.md'
+      - 'REST Paradigm': 'rest.md'
     - Reference:
+      - 'Settings':
+        - 'Operational Settings': 'settings-operational.md'
+        - 'Container Settings': 'settings-container.md'
+        - 'Session Settings': 'settings-session.md'
+        - 'JSON Settings': 'settings-json.md'
+        - 'REST Settings': 'settings-rest.md'
       - 'Reference Guide': 'reference.md'
       - 'Configuration Settings': 'configuration.md'
+    - Advanced Topics:
+      - 'Security' : 'security.md'
+      - 'Using Sessions' : 'sessions.md'
     - About: 
       - License: 'LICENSE.md'
       - 'Release Notes': 'release-notes.md'
@@ -31,10 +42,29 @@ extra_css:
 
 plugins:
   - search
+  - print-site:
+      add_to_navigation: true
+      print_page_title: 'Print'
+      add_print_site_banner: false
+      # Table of contents
+      add_table_of_contents: false
+      toc_title: 'Table of Contents'
+      toc_depth: 6
+      # Content-related
+      add_full_urls: false
+      enumerate_headings: false
+      enumerate_figures: false
+      add_cover_page: true
+      cover_page_template: ""
+      path_to_pdf: ""
+      include_css: true
+      enabled: true
+      exclude:  
 
 markdown_extensions:
   - admonition
   - abbr 
   - footnotes
+  - attr_list
   - toc:
       title: On this page
