@@ -99,7 +99,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.11.5' '2022-10-02'
+      r←'Jarvis' '1.11.6' '2022-10-03'
     ∇
 
     ∇ r←Config
@@ -1709,10 +1709,11 @@
 ⍝   legend {font-size:1.1em;}
 ⍝   select {font-size:1.1em;}
 ⍝   label  {display:inline-block;margin-bottom:7px;}
-⍝   div {padding:5px;}
+⍝   div {padding:5px;}       
 ⍝   label input textarea button #result {display:flex;}
 ⍝   textarea {width:100%;font-size:18px;}
 ⍝   #result {font-size:18px;}
+⍝   #result code {white-space:pre-line;word-wrap:break-word;}
 ⍝ </style>
 ⍝</head>
 ⍝<body>
