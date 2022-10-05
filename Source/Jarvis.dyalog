@@ -39,7 +39,7 @@
     :Field Public SessionPollingTime←1                         ⍝ how frequently (in minutes) we should poll for timed out sessions
     :Field Public SessionTimeout←0                             ⍝ 0 = do not use sessions, ¯1 = no timeout , 0< session timeout time (in minutes)
     :Field Public SessionCleanupTime←60                        ⍝ how frequently (in minutes) do we clean up timed out session info from _sessionsInfo
-   
+
    ⍝ JSON mode settings
     :Field Public AllowFormData←0                              ⍝ do we allow POST form data in JSON paradigm?
     :Field Public HTMLInterface←¯1                             ⍝ ¯1=unassigned, 0/1=dis/allow the HTML interface, or Path to HTML[/home-page]
@@ -99,7 +99,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.11.6' '2022-10-03'
+      r←'Jarvis' '1.11.7' '2022-10-04'
     ∇
 
     ∇ r←Config
@@ -1344,7 +1344,11 @@
         ∇
 
         ∇ r←ErrorInfo
-          r←⍕ErrorInfoLevel↑⎕DMX.(EM({⍵↑⍨⍵⍳']'}2⊃DM))
+          :Trap 0
+              r←⍕ErrorInfoLevel↑⎕DMX.(EM({⍵↑⍨⍵⍳']'}2⊃DM))
+          :Else
+              r←''
+          :EndIf
         ∇
 
         ∇ name SetHeader value
@@ -1709,7 +1713,7 @@
 ⍝   legend {font-size:1.1em;}
 ⍝   select {font-size:1.1em;}
 ⍝   label  {display:inline-block;margin-bottom:7px;}
-⍝   div {padding:5px;}       
+⍝   div {padding:5px;}
 ⍝   label input textarea button #result {display:flex;}
 ⍝   textarea {width:100%;font-size:18px;}
 ⍝   #result {font-size:18px;}
