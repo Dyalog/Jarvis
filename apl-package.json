@@ -9,5 +9,5 @@
     name: "Jarvis",
     source: "source/Jarvis.dyalog",
     tags: "mac-os,windows,linux,http,webservice,json,rest",
-    version: "1.11.7",
+    version: "1.11.8",
 }

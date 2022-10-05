@@ -99,7 +99,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.11.7' '2022-10-04'
+      r←'Jarvis' '1.11.8' '2022-10-04'
     ∇
 
     ∇ r←Config
@@ -1348,7 +1348,7 @@
               r←⍕ErrorInfoLevel↑⎕DMX.(EM({⍵↑⍨⍵⍳']'}2⊃DM))
           :Else
               r←''
-          :EndIf
+          :EndTrap
         ∇
 
         ∇ name SetHeader value
