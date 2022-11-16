@@ -876,13 +876,13 @@
       :EndHold
     ∇
 
-    ∇ fn HandleJSONRequest ns;payload;resp;valence;nc;debug;ind;file
+    ∇ fn HandleJSONRequest ns;payload;resp;valence;nc;debug;file
       →handle If'get'≢ns.Req.Method
       →0 If('Request method should be POST')ns.Req.Fail 405×~_htmlEnabled
       →handleHtml If~0∊⍴_htmlFolder
-      ind←'' 'favicon.ico'⍳⊂fn
-      →0 If(ind=2)∨'(Bad URI)'ns.Req.Fail 400×ind=3 ⍝ either fail with a bad URI or exit if favicon.ico (no-op)
       ns.Req.Response.Headers←1 2⍴'Content-Type' 'text/html; charset=utf-8'
+      ns.Req.Response.Payload←'<!DOCTYPE html><html><head><meta content="text/html; charset=utf-8" http-equiv="Content-Type"><link rel="icon" href="data:,"></head><body><h2>400 Bad Request</h2></body></html>'
+      →0 If'(Bad URI)'ns.Req.Fail 400×~0∊⍴fn ⍝ either fail with a bad URI or exit if favicon.ico (no-op)
       ns.Req.Response.Payload←HtmlPage
       →0
      
@@ -1706,6 +1706,7 @@
 ⍝<html>
 ⍝<head>
 ⍝<meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+⍝<link rel="icon" href="data:,">
 ⍝<title>Jarvis</title>
 ⍝ <style>
 ⍝   body {color:#000000;background-color:white;font-family:Verdana;margin-left:0px;margin-top:0px;}
