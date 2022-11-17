@@ -17,11 +17,9 @@
     :Field Public Debug←0                                      ⍝ 0 = all errors are trapped, 1 = stop on an error, 2 = stop on intentional error before processing request, 4 = Jarvis framework debugging
     :Field Public DefaultContentType←'application/json; charset=utf-8'
     :Field Public ErrorInfoLevel←1                             ⍝ level of information to provide if an APL error occurs, 0=none, 1=⎕EM, 2=⎕SI
-    :Field Public ExcludeFns←''                                ⍝ vector of vectors for function names to be excluded (can use regex or ? and * as wildcards)
     :Field Public Folder←''                                    ⍝ folder that user supplied in CodeLocation from which to load code
     :Field Public Hostname←''                                  ⍝ external-facing host name
     :Field Public HTTPAuthentication←'basic'                   ⍝ valid settings are currently 'basic' or ''
-    :Field Public IncludeFns←''                                ⍝ vector of vectors for function names to be included (can use regex or ? and * as wildcards)
     :Field Public JarvisConfig←''                              ⍝ configuration file path (if any). This parameter was formerly named ConfigFile
     :Field Public LoadableFiles←'*.apl?,*.dyalog'              ⍝ file patterns that can be loaded if loading from folder
     :Field Public Logging←1                                    ⍝ turn logging on/off
@@ -77,6 +75,23 @@
     :Field Public Shared CongaRef←''                           ⍝ user-supplied reference to Conga library instance
     :Field CongaVersion←''                                     ⍝ Conga version
 
+
+  ⍝ IncludeFns/ExclueFns Properties
+    :Property IncludeFns, ExcludeFns
+    :Access Public
+        ∇ r←get ipa
+          r←⍎'_',ipa.Name
+        ∇
+        ∇ set ipa
+          :Select ipa.Name
+          :Case 'IncludeFns'
+              _includeRegex←makeRegEx¨(⊂'')~⍨∪,⊆_IncludeFns←ipa.NewValue
+          :Case 'ExcludeFns'
+              _excludeRegex←makeRegEx¨(⊂'')~⍨∪,⊆_ExcludeFns←ipa.NewValue
+          :EndSelect
+        ∇
+    :EndProperty
+
   ⍝↓↓↓ some of these private fields are also set in ∇init so that a server can be stopped, updated, and restarted
     :Field _rootFolder←''                ⍝ root folder for relative file paths
     :Field _configLoaded←0               ⍝ indicates whether config was already loaded by Autostart
@@ -92,6 +107,8 @@
     :Field _taskThreads←⍬                ⍝ vector of thread handling requests
     :Field _sessions←⍬                   ⍝ vector of session namespaces
     :Field _sessionsInfo←0 5⍴'' '' 0 0 0 ⍝ [;1] id [;2] ip addr [;3] creation time [;4] last active time [;5] ref to session
+    :Field _IncludeFns←''                ⍝ private IncludeFns specification as types
+    :Field _ExcludeFns←''                ⍝ private compiled regex from ExcludeFns
     :Field _includeRegex←''              ⍝ private compiled regex from IncludeFns
     :Field _excludeRegex←''              ⍝ private compiled regex from ExcludeFns
     :Field _connections                  ⍝ namespace containing open connections
@@ -210,17 +227,6 @@
     ∇ Close
       :Implements destructor
       {0:: ⋄ {}LDRC.Close ServerName}⍬
-    ∇
-
-    ∇ UpdateRegex arg;t
-    ⍝ updates the regular expression for inclusion/exclusion of functions whenever IncludeFns or ExcludeFns is changed
-      :Implements Trigger IncludeFns, ExcludeFns
-      t←makeRegEx¨(⊂'')~⍨∪,⊆arg.NewValue
-      :If arg.Name≡'IncludeFns'
-          _includeRegex←t
-      :Else
-          _excludeRegex←t
-      :EndIf
     ∇
 
     ∇ r←Run args;msg;rc
