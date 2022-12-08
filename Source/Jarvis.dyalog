@@ -1,4 +1,4 @@
-:Class Jarvis
+﻿:Class Jarvis
 ⍝ Dyalog Web Service Server
 ⍝ See https://github.com/dyalog/jarvis/wiki for documentation
 
@@ -1701,7 +1701,7 @@
       :If 0=⎕NC'path' ⋄ path←''
       :Else ⋄ path,←'.'
       :EndIf
-      r←path∘,¨ref.⎕NL ¯3
+      r←path∘,¨{(⊂'')~⍨⍵.{⍵/⍨1 1 0≡×|⊃⎕AT ⍵}¨⍵.⎕NL ¯3}ref ⍝ limit to result-returning monadic/dyadic/ambivalent functions
       :For ns :In ref.⎕NL ¯9.1
           r,←(path,ns)EndPoints ref⍎ns
       :EndFor
@@ -1786,6 +1786,7 @@
           endpoints←'<select id="function" name="function">',endpoints,'</select>'
       :EndIf
       r←endpoints{i←⍵⍳'⍠' ⋄ ((i-1)↑⍵),⍺,i↓⍵}r
+      r←⎕UCS'UTF-8'⎕UCS r
     ∇
     :EndSection
 
