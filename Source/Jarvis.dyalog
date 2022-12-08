@@ -17,11 +17,9 @@
     :Field Public Debug←0                                      ⍝ 0 = all errors are trapped, 1 = stop on an error, 2 = stop on intentional error before processing request, 4 = Jarvis framework debugging
     :Field Public DefaultContentType←'application/json; charset=utf-8'
     :Field Public ErrorInfoLevel←1                             ⍝ level of information to provide if an APL error occurs, 0=none, 1=⎕EM, 2=⎕SI
-    :Field Public ExcludeFns←''                                ⍝ vector of vectors for function names to be excluded (can use regex or ? and * as wildcards)
     :Field Public Folder←''                                    ⍝ folder that user supplied in CodeLocation from which to load code
     :Field Public Hostname←''                                  ⍝ external-facing host name
     :Field Public HTTPAuthentication←'basic'                   ⍝ valid settings are currently 'basic' or ''
-    :Field Public IncludeFns←''                                ⍝ vector of vectors for function names to be included (can use regex or ? and * as wildcards)
     :Field Public JarvisConfig←''                              ⍝ configuration file path (if any). This parameter was formerly named ConfigFile
     :Field Public LoadableFiles←'*.apl?,*.dyalog'              ⍝ file patterns that can be loaded if loading from folder
     :Field Public Logging←1                                    ⍝ turn logging on/off
@@ -77,6 +75,25 @@
     :Field Public Shared CongaRef←''                           ⍝ user-supplied reference to Conga library instance
     :Field CongaVersion←''                                     ⍝ Conga version
 
+
+  ⍝ IncludeFns/ExclueFns Properties
+    :Property IncludeFns, ExcludeFns
+    ⍝ IncludeFns and ExcludeFns are vectors the defined endpoint (function) names to expose or hide respectively
+    ⍝ They can be function names, simple wildcarded patterns (e.g. 'Foo*'), or regex
+    :Access Public
+        ∇ r←get ipa
+          r←⍎'_',ipa.Name
+        ∇
+        ∇ set ipa
+          :Select ipa.Name
+          :Case 'IncludeFns'
+              _includeRegex←makeRegEx¨(⊂'')~⍨∪,⊆_IncludeFns←ipa.NewValue
+          :Case 'ExcludeFns'
+              _excludeRegex←makeRegEx¨(⊂'')~⍨∪,⊆_ExcludeFns←ipa.NewValue
+          :EndSelect
+        ∇
+    :EndProperty
+
   ⍝↓↓↓ some of these private fields are also set in ∇init so that a server can be stopped, updated, and restarted
     :Field _rootFolder←''                ⍝ root folder for relative file paths
     :Field _configLoaded←0               ⍝ indicates whether config was already loaded by Autostart
@@ -92,14 +109,16 @@
     :Field _taskThreads←⍬                ⍝ vector of thread handling requests
     :Field _sessions←⍬                   ⍝ vector of session namespaces
     :Field _sessionsInfo←0 5⍴'' '' 0 0 0 ⍝ [;1] id [;2] ip addr [;3] creation time [;4] last active time [;5] ref to session
-    :Field _includeRegex←''              ⍝ private compiled regex from IncludeFns
-    :Field _excludeRegex←''              ⍝ private compiled regex from ExcludeFns
+    :Field _IncludeFns←''                ⍝ private IncludeFns
+    :Field _ExcludeFns←''                ⍝ private ExcludeFns
+    :Field _includeRegex←''              ⍝ private compiled regex from _IncludeFns
+    :Field _excludeRegex←''              ⍝ private compiled regex from _ExcludeFns
     :Field _connections                  ⍝ namespace containing open connections
     :Field _conxRef                      ⍝ reference to _connections⍎ServerName
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.11.8' '2022-10-04'
+      r←'Jarvis' '1.11.9' '2022-11-17'
     ∇
 
     ∇ r←Config
@@ -210,17 +229,6 @@
     ∇ Close
       :Implements destructor
       {0:: ⋄ {}LDRC.Close ServerName}⍬
-    ∇
-
-    ∇ UpdateRegex arg;t
-    ⍝ updates the regular expression for inclusion/exclusion of functions whenever IncludeFns or ExcludeFns is changed
-      :Implements Trigger IncludeFns, ExcludeFns
-      t←makeRegEx¨(⊂'')~⍨∪,⊆arg.NewValue
-      :If arg.Name≡'IncludeFns'
-          _includeRegex←t
-      :Else
-          _excludeRegex←t
-      :EndIf
     ∇
 
     ∇ r←Run args;msg;rc
@@ -876,13 +884,13 @@
       :EndHold
     ∇
 
-    ∇ fn HandleJSONRequest ns;payload;resp;valence;nc;debug;ind;file
+    ∇ fn HandleJSONRequest ns;payload;resp;valence;nc;debug;file
       →handle If'get'≢ns.Req.Method
       →0 If('Request method should be POST')ns.Req.Fail 405×~_htmlEnabled
       →handleHtml If~0∊⍴_htmlFolder
-      ind←'' 'favicon.ico'⍳⊂fn
-      →0 If(ind=2)∨'(Bad URI)'ns.Req.Fail 400×ind=3 ⍝ either fail with a bad URI or exit if favicon.ico (no-op)
       ns.Req.Response.Headers←1 2⍴'Content-Type' 'text/html; charset=utf-8'
+      ns.Req.Response.Payload←'<!DOCTYPE html><html><head><meta content="text/html; charset=utf-8" http-equiv="Content-Type"><link rel="icon" href="data:,"></head><body><h2>400 Bad Request</h2></body></html>'
+      →0 If'(Bad URI)'ns.Req.Fail 400×~0∊⍴fn ⍝ either fail with a bad URI or exit if favicon.ico (no-op)
       ns.Req.Response.Payload←HtmlPage
       →0
      
@@ -1693,7 +1701,7 @@
       :If 0=⎕NC'path' ⋄ path←''
       :Else ⋄ path,←'.'
       :EndIf
-      r←path∘,¨ref.⎕NL ¯3
+      r←path∘,¨{(⊂'')~⍨⍵.{⍵/⍨1 1 0≡×|⊃⎕AT ⍵}¨⍵.⎕NL ¯3}ref ⍝ limit to result-returning monadic/dyadic/ambivalent functions
       :For ns :In ref.⎕NL ¯9.1
           r,←(path,ns)EndPoints ref⍎ns
       :EndFor
@@ -1706,6 +1714,7 @@
 ⍝<html>
 ⍝<head>
 ⍝<meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+⍝<link rel="icon" href="data:,">
 ⍝<title>Jarvis</title>
 ⍝ <style>
 ⍝   body {color:#000000;background-color:white;font-family:Verdana;margin-left:0px;margin-top:0px;}
@@ -1777,6 +1786,7 @@
           endpoints←'<select id="function" name="function">',endpoints,'</select>'
       :EndIf
       r←endpoints{i←⍵⍳'⍠' ⋄ ((i-1)↑⍵),⍺,i↓⍵}r
+      r←⎕UCS'UTF-8'⎕UCS r
     ∇
     :EndSection
 
