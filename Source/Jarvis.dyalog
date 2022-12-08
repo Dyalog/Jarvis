@@ -1,4 +1,4 @@
-﻿:Class Jarvis
+:Class Jarvis
 ⍝ Dyalog Web Service Server
 ⍝ See https://github.com/dyalog/jarvis/wiki for documentation
 
@@ -78,6 +78,8 @@
 
   ⍝ IncludeFns/ExclueFns Properties
     :Property IncludeFns, ExcludeFns
+    ⍝ IncludeFns and ExcludeFns are vectors the defined endpoint (function) names to expose or hide respectively
+    ⍝ They can be function names, simple wildcarded patterns (e.g. 'Foo*'), or regex
     :Access Public
         ∇ r←get ipa
           r←⍎'_',ipa.Name
@@ -107,16 +109,16 @@
     :Field _taskThreads←⍬                ⍝ vector of thread handling requests
     :Field _sessions←⍬                   ⍝ vector of session namespaces
     :Field _sessionsInfo←0 5⍴'' '' 0 0 0 ⍝ [;1] id [;2] ip addr [;3] creation time [;4] last active time [;5] ref to session
-    :Field _IncludeFns←''                ⍝ private IncludeFns specification as types
-    :Field _ExcludeFns←''                ⍝ private compiled regex from ExcludeFns
-    :Field _includeRegex←''              ⍝ private compiled regex from IncludeFns
-    :Field _excludeRegex←''              ⍝ private compiled regex from ExcludeFns
+    :Field _IncludeFns←''                ⍝ private IncludeFns
+    :Field _ExcludeFns←''                ⍝ private ExcludeFns
+    :Field _includeRegex←''              ⍝ private compiled regex from _IncludeFns
+    :Field _excludeRegex←''              ⍝ private compiled regex from _ExcludeFns
     :Field _connections                  ⍝ namespace containing open connections
     :Field _conxRef                      ⍝ reference to _connections⍎ServerName
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.11.8' '2022-10-04'
+      r←'Jarvis' '1.11.9' '2022-11-17'
     ∇
 
     ∇ r←Config
