@@ -118,7 +118,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.11.9' '2022-11-17'
+      r←'Jarvis' '1.11.10' '2022-12-21'
     ∇
 
     ∇ r←Config
@@ -1701,7 +1701,7 @@
       :If 0=⎕NC'path' ⋄ path←''
       :Else ⋄ path,←'.'
       :EndIf
-      r←path∘,¨{(⊂'')~⍨⍵.{⍵/⍨1 1 0≡×|⊃⎕AT ⍵}¨⍵.⎕NL ¯3}ref ⍝ limit to result-returning monadic/dyadic/ambivalent functions
+      r←path∘,¨{(⊂'')~⍨⍵.{⍵/⍨1 1 0≡×|⎕IO⊃⎕AT ⍵}¨⍵.⎕NL ¯3}ref ⍝ limit to result-returning monadic/dyadic/ambivalent functions
       :For ns :In ref.⎕NL ¯9.1
           r,←(path,ns)EndPoints ref⍎ns
       :EndFor

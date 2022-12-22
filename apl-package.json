@@ -4,11 +4,11 @@
     description: "JSON and REST Web Service Framework",
     group: "dyalog",
     documentation: "https://dyalog.github.io/Jarvis",
-    info_url: "https://github.com/Dyalog/Jarvis",
+    project_url: "https://github.com/Dyalog/Jarvis",
     io: 1,
     ml: 1,
     name: "Jarvis",
     source: "source/Jarvis.dyalog",
     tags: "mac-os,windows,linux,http,webservice,json,rest",
-    version: "1.11.9",
+    version: "1.11.10",
 }
