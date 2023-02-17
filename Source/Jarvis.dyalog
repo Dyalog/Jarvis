@@ -12,7 +12,7 @@
     :Field Public ValidateRequestFn←''                         ⍝ name of the request validation function
 
    ⍝ Operational settings
-    :Field Public CodeLocation←''                              ⍝ reference to application code location, if the user specifies a folder, that value is saved in Folder
+    :Field Public CodeLocation←'#'                             ⍝ reference to application code location, if the user specifies a folder, that value is saved in Folder
     :Field Public ConnectionTimeout←30                         ⍝ HTTP/1.1 connection timeout in seconds
     :Field Public Debug←0                                      ⍝ 0 = all errors are trapped, 1 = stop on an error, 2 = stop on intentional error before processing request, 4 = Jarvis framework debugging
     :Field Public DefaultContentType←'application/json; charset=utf-8'
@@ -40,7 +40,8 @@
 
    ⍝ JSON mode settings
     :Field Public AllowFormData←0                              ⍝ do we allow POST form data in JSON paradigm?
-    :Field Public HTMLInterface←¯1                             ⍝ ¯1=unassigned, 0/1=dis/allow the HTML interface, or Path to HTML[/home-page]
+    :Field Public AllowGETs←0                                  ⍝ do we allow calling endpoints with HTTP GETs?
+    :Field Public HTMLInterface←¯1                             ⍝ ¯1=unassigned, 0/1=dis/allow the HTML interface, 'Path to HTML[/home-page]', or '' 'fn'
     :Field Public JSONInputFormat←'D'                          ⍝ set this to 'M' to have Jarvis convert JSON request payloads to the ⎕JSON matrix format
 
    ⍝ REST mode settings
@@ -100,6 +101,7 @@
     :Field _htmlFolder←''                ⍝ folder containing HTML interface files, if any
     :Field _htmlDefaultPage←'index.html' ⍝ default page name if HTMLInterface is set to serve from a folder
     :Field _htmlEnabled←0                ⍝ is the HTML interface enabled?
+    :Field _htmlRootFn←''                ⍝ function name if serving HTML root from a function rather than file
     :Field _stop←0                       ⍝ set to 1 to stop server
     :Field _started←0                    ⍝ is the server started
     :Field _stopped←1                    ⍝ is the server stopped
@@ -118,7 +120,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.11.10' '2022-12-21'
+      r←'Jarvis' '1.12.0' '2022-02-16'
     ∇
 
     ∇ r←Config
@@ -248,7 +250,7 @@
       r←(r(rc msg))
     ∇
 
-    ∇ (rc msg)←Start;html;homePage
+    ∇ (rc msg)←Start;html;homePage;t
       :Access public
       :Trap 0 DebugLevel 1
           Log'Starting ',⍕2↑Version
@@ -293,19 +295,29 @@
               :Else
                   _htmlEnabled←1
               :EndIf
-          :Case ¯1
+          :Case ¯1 ⍝ turn on if JSON paradigm
               _htmlEnabled←Paradigm≡'JSON' ⍝ if not specified, HTML interface is enabled for JSON paradigm
           :Else
-              _htmlEnabled←1
-              html←1 ⎕NPARTS((isRelPath HTMLInterface)/_rootFolder),HTMLInterface
-              :If isDir∊html
-                  _htmlFolder←{⍵,('/'=⊢/⍵)↓'/'}∊html
-              :Else
-                  _htmlFolder←1⊃html
-                  _htmlDefaultPage←∊1↓html
+              :If 1<|≡HTMLInterface ⍝ is it '' 'function'?
+                  t←2⊃HTMLInterface
+                  :If 1 1 0≡⊃CodeLocation.⎕AT t
+                      _htmlRootFn←t
+                      _htmlEnabled←1
+                  :Else
+                      →0 If(rc msg)←¯1('HTML root function "',(⍕CodeLocation),'.',t,'" is not a monadic, result-returning function.')
+                  :EndIf
+              :Else ⍝  otherwise it's 'file/folder'
+                  _htmlEnabled←1
+                  html←1 ⎕NPARTS((isRelPath HTMLInterface)/_rootFolder),HTMLInterface
+                  :If isDir∊html
+                      _htmlFolder←{⍵,('/'=⊢/⍵)↓'/'}∊html
+                  :Else
+                      _htmlFolder←1⊃html
+                      _htmlDefaultPage←∊1↓html
+                  :EndIf
+                  homePage←⎕NEXISTS html←_htmlFolder,_htmlDefaultPage
+                  Log(~homePage)/'HTML home page file "',(∊html),'" not found.'
               :EndIf
-              homePage←⎕NEXISTS html←_htmlFolder,_htmlDefaultPage
-              Log(~homePage)/'HTML home page file "',(∊html),'" not found.'
           :EndSelect
      
           :If EnableCORS ⍝ if we've enabled CORS
@@ -884,14 +896,27 @@
       :EndHold
     ∇
 
-    ∇ fn HandleJSONRequest ns;payload;resp;valence;nc;debug;file
-      →handle If'get'≢ns.Req.Method
-      →0 If('Request method should be POST')ns.Req.Fail 405×~_htmlEnabled
+    ∇ fn HandleJSONRequest ns;payload;resp;valence;nc;debug;file;isGET
+    
+      →handle If~isGET←'get'≡ns.Req.Method
+     
+      :If AllowGETs ⍝ if we allow GETs
+      :AndIf ~'.'∊ns.Req.Endpoint ⍝ and the endpoint doesn't have a '.' (file extension)
+          →handle If 3=⌊|{0::0 ⋄ CodeLocation.⎕NC⊂⍵}fn ⍝ handle it if there's a matching function for the endpoint
+      :EndIf
+     
+      →0 If'Request method should be POST'ns/Req.Fail 405×~_htmlEnabled
+     
       →handleHtml If~0∊⍴_htmlFolder
       ns.Req.Response.Headers←1 2⍴'Content-Type' 'text/html; charset=utf-8'
       ns.Req.Response.Payload←'<!DOCTYPE html><html><head><meta content="text/html; charset=utf-8" http-equiv="Content-Type"><link rel="icon" href="data:,"></head><body><h2>400 Bad Request</h2></body></html>'
-      →0 If'(Bad URI)'ns.Req.Fail 400×~0∊⍴fn ⍝ either fail with a bad URI or exit if favicon.ico (no-op)
-      ns.Req.Response.Payload←HtmlPage
+      →0 If'Bad URI'ns.Req.Fail 400×~0∊⍴fn ⍝ either fail with a bad URI or exit if favicon.ico (no-op)
+     
+      :If 0∊⍴_htmlRootFn
+          ns.Req.Response.Payload←HtmlPage
+      :Else
+          ns.Req.Response.Payload←{1 CodeLocation.(85⌶)_htmlRootFn,' ⍵'}ns.Req
+      :EndIf
       →0
      
      handleHtml:
@@ -915,24 +940,43 @@
      
      handle:
       →0 If HandleCORSRequest ns.Req
-      →0 If('No function specified')ns.Req.Fail 400×0∊⍴fn
-      →0 If('Unsupported request method')ns.Req.Fail 405×ns.Req.Method≢'post'
-      →0 If('(Content-Type should be application/json',AllowFormData/' or multipart/form-data')ns.Req.Fail 400×(0∊⍴ns.Req.Body)⍱(⊂ns.Req.ContentType)∊(~AllowFormData)↓'multipart/form-data' 'application/json'
-      →0 If'(Cannot accept query parameters)'ns.Req.Fail 400×~0∊⍴ns.Req.QueryParams
+      →0 If'No function specified'ns.Req.Fail 400×0∊⍴fn
+      →0 If'Unsupported request method'ns.Req.Fail 405×(⊂ns.Req.Method)(~∊)(~AllowGETs)↓'get' 'post'
+      →0 If'Cannot accept query parameters'ns.Req.Fail 400×AllowGETs⍱0∊⍴ns.Req.QueryParams
      
       :Select ns.Req.ContentType
+     
       :Case 'application/json'
           :Trap 0 DebugLevel 1
               ns.Req.Payload←{0∊⍴⍵:⍵ ⋄ 0 JSONin ⍵}ns.Req.Body
           :Else
               →0⊣'Could not parse payload as JSON'ns.Req.Fail 400
           :EndTrap
+     
       :Case 'multipart/form-data'
+          →0 If'Content-Type should be "application/json"'ns.Req.Fail 400×~AllowFormData
           :Trap 0 DebugLevel 1
               ns.Req.Payload←ParseMultipartForm ns.Req
           :Else
-              →0⊣'Could not parse payload as multipart/form-data'ns.Req.Fail 400
+              →0⊣'Could not parse payload as "multipart/form-data"'ns.Req.Fail 400
           :EndTrap
+     
+      :Case ''
+          →0 If'No Content-Type specified'ns.Req.Fail 400×~isGET∧AllowGETs
+          :Trap 0 DebugLevel 1
+              :If 0∊⍴ns.Req.QueryParams
+                  ns.Req.Payload←''
+              :ElseIf 1=≢⍴ns.Req.QueryParams ⍝ name/value pairs
+                  ns.Req.Payload←0 JSONin ns.Req.QueryParams
+              :Else
+                  ns.Req.Payload←{0 JSONin{1⌽'}{',¯1↓∊'"',¨⍵[;,1],¨'":'∘,¨⍵[;,2],¨','}⍵}ns.Req.QueryParams
+              :EndIf
+          :Else
+              →0⊣'Could not parse query string as JSON'ns.Req.Fail 400
+          :EndTrap
+     
+      :Else
+          →0⊣('Content-Type should be "application/json"',AllowFormData/' or "multipart/form-data"')ns.Req.Fail 400
       :EndSelect
      
       →0 If CheckAuthentication ns.Req
@@ -1006,9 +1050,9 @@
       :EndIf
      
       ind←RESTMethods[;1](⍳nocase)⊂ns.Req.Method
-      →0 If'Method not allowed'ns.Req.Fail 405×(≢RESTMethods)<ind
+      →0 If ns.Req.Fail 405×(≢RESTMethods)<ind
       exec←⊃RESTMethods[ind;2]
-      →0 If'Not implemented'ns.Req.Fail 501×0∊⍴exec
+      →0 If ns.Req.Fail 501×0∊⍴exec
      
       resp←''
       :Trap 0 DebugLevel 1
@@ -1074,7 +1118,7 @@
           stopIf DebugLevel 2×~0∊⍴AuthenticateFn
           rc←Authenticate req ⍝ intentional stop for application-level debugging
           :If rc≠0
-              'Unauthorized'req.Fail 401
+              req.Fail 401
               :If HTTPAuthentication match'basic'
                   'WWW-Authenticate'req.SetHeader'Basic realm="Jarvis", charset="UTF-8"'
               :EndIf
@@ -1211,7 +1255,7 @@
          
           :Trap 11 ⍝ trap domain error on possible bad UTF-8 sequence
               Endpoint←URLDecode Endpoint
-              QueryParams←URLDecode¨2↑[2]↑'='(≠⊆⊢)¨'&'(≠⊆⊢)query
+              QueryParams←ParseQueryString query
               :If 'basic '≡lc 6↑auth←GetHeader'authorization'
                   (UserID Password)←':'split Base64Decode 6↓auth
               :EndIf
@@ -1260,6 +1304,16 @@
               r←'http',(~Server.Secure)↓'s://',h
           :Else
               r←Server.Hostname
+          :EndIf
+        ∇
+
+        ∇ params←ParseQueryString query
+          params←0 2⍴⊂''
+          →0⍴⍨0∊⍴query
+          :If '='∊query ⍝ contains name=value?
+              params←URLDecode¨2↑[2]↑'='(≠⊆⊢)¨'&'(≠⊆⊢)query
+          :Else
+              params←URLDecode query
           :EndIf
         ∇
 
@@ -1380,10 +1434,9 @@
         ∇ {status}←{statusText}SetStatus status
           :Access public instance
           :If status≠0
-              :If 0=⎕NC'statusText'
-              :OrIf 0∊⍴statusText
-                  statusText←(HttpStatus[;1]⍳status)⊃HttpStatus[;2],⊂''
-              :EndIf
+              :If 0=⎕NC'statusText' ⋄ statusText←'' ⋄ :EndIf
+              statusText←{0∊⍴⍵:⍵ ⋄ '('=⊣/⍵:⍵ ⋄ '(',⍵,')'}statusText
+              statusText←deb((HttpStatus[;1]⍳status)⊃HttpStatus[;2],⊂''),' ',statusText
               Response.(Status StatusText)←status statusText
           :EndIf
         ∇
@@ -1475,7 +1528,6 @@
       :Else
           SessionIdHeader req.SetHeader id
       :EndIf
-    ⍝???  req.SetStatus 204
     ∇
 
     ∇ r←KillSession id;ind
