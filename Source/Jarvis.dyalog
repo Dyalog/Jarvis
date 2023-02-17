@@ -905,7 +905,7 @@
           →handle If 3=⌊|{0::0 ⋄ CodeLocation.⎕NC⊂⍵}fn ⍝ handle it if there's a matching function for the endpoint
       :EndIf
      
-      →0 If'Request method should be POST'ns/Req.Fail 405×~_htmlEnabled
+      →0 If'Request method should be POST'ns.Req.Fail 405×~_htmlEnabled
      
       →handleHtml If~0∊⍴_htmlFolder
       ns.Req.Response.Headers←1 2⍴'Content-Type' 'text/html; charset=utf-8'
