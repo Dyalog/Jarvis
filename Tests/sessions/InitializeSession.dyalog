@@ -1,3 +1,3 @@
- InitializeSession session
-  ⍝ initializes the session
- session.Sum←0
+ InitializeSession req
+  ⍝ initializes the session 
+ req.Session.Sum←0

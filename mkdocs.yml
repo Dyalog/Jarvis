@@ -2,12 +2,12 @@ site_name: Jarvis
 repo_url: https://github.com/dyalog/Jarvis
 repo_name: Dyalog/Jarvis
 dev_addr: 127.0.0.1:22361
-copyright: Copyright &copy; 2019-2022 <strong><a href="https://dyalog.com">Dyalog, LTD</a></strong>
+copyright: Copyright &copy; 2019-2023 <strong><a href="https://dyalog.com">Dyalog, LTD</a></strong>
 nav:
-    - Overview: 'index.md'
+    - Overview: 'index.md' # complete
     - Usage: 
-      - 'Concepts': 'concepts.md'
-      - 'Organizing Your Code': 'organizing.md'
+      - 'Concepts': 'concepts.md' # complete
+      - 'Using Jarvis': 'using.md' 
       - 'JSON Paradigm': 'json.md'
       - 'REST Paradigm': 'rest.md'
     - Reference:
@@ -17,11 +17,19 @@ nav:
         - 'Session Settings': 'settings-session.md'
         - 'JSON Settings': 'settings-json.md'
         - 'REST Settings': 'settings-rest.md'
+        - 'User Hooks Settings' : 'settings-hooks.md'
+        - 'Conga-Related Settings': 'settings-conga.md'
+      - 'Methods':
+        - 'Shared Methods': 'methods-shared.md'
+        - 'Instance Methods': 'methods-instance.md'
       - 'Reference Guide': 'reference.md'
       - 'Configuration Settings': 'configuration.md'
     - Advanced Topics:
       - 'Security' : 'security.md'
       - 'Using Sessions' : 'sessions.md'
+      - 'Docker Integration' : 'docker.md'
+      - 'Running as a Windows Service' : 'winservice.md'
+      - 'Into the Cloud' : 'cloud.md'
     - About: 
       - License: 'LICENSE.md'
       - 'Release Notes': 'release-notes.md'
