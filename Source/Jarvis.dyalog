@@ -1741,123 +1741,120 @@
     ∇
 
     ∇ {r}←{larg}(ref ⍙FIX)rarg;isArrayNotation;t;f;p
-      ⍝ ⎕FIX cover that accommodates Array Notation and .apla files
-      ⍝ revert to using ⎕FIX when it supports them
+    ⍝ ⎕FIX cover that accommodates Array Notation and .apla files
+    ⍝ revert to using ⎕FIX when it supports them
       larg←{6::⍵ ⋄ larg}1
       isArrayNotation←{~0 2∊⍨10|⎕DR ⍵:0 ⋄ {(⊃⍵)∊d←'[''¯.⊂⎕⍬',⎕D:1 ⋄ (2⊃2↑⍵)∊d,'( '}(∊⍵)~⎕UCS 9 32}
-      :If 2=larg
-      :AndIf 1=≡rarg
-      :AndIf 'file://'≡7↑rarg
-      :AndIf '.apla'≡⎕C⊃⌽p←⎕NPARTS f←7↓rarg
-          :Trap 0
-              r←ref⍎(2⊃p),'←',0 Deserialise⊃⎕NGET f
-          :Else
-              ⎕SIGNAL⊂t,⍪⎕DMX⍎∊⍕t←'EN' 'EM' 'Message'
-          :EndTrap
-      :Else
-          :If isArrayNotation rarg
+      :Trap 0
+          :If 1=≡rarg
+          :AndIf 'file://'≡7↑rarg
+          :AndIf '.apla'≡⎕C⊃⌽p←⎕NPARTS f←7↓rarg
+              :If larg=2
+                  r←ref⍎(2⊃p),'←',0 Deserialise⊃⎕NGET f
+              :Else
+                  r←ref⍎0 Deserialise⊃⎕NGET f
+              :EndIf
+          :ElseIf isArrayNotation 1↓∊(⎕UCS 13),¨⊆rarg
               r←ref⍎0 Deserialise rarg
           :Else
-              :Trap 0
-                  r←larg ref.⎕FIX rarg
-              :Else
-                  ⎕SIGNAL⊂t,⍪⎕DMX⍎∊⍕t←'EN' 'EM' 'Message'
-              :EndTrap
+              r←larg ref.⎕FIX rarg
           :EndIf
-      :EndIf
+      :Else
+          ⎕SIGNAL⊂t,⍪⎕DMX⍎1⌽')(',∊⍕t←'EN' 'EM' 'Message'
+      :EndTrap
     ∇
 
-Deserialise←{ 
-⍝ copied (and modified to work here) from 
+      Deserialise←{
+⍝ copied (and modified to work here) from
 ⍝   https://github.com/Dyalog/qSE/tree/db88297980476d81e0122624ecaa246c94149555
-
+     
 ⍝ Convert text to array
-     ⍺←⍬ ⍝ 1=execute expression; 0=return expression
-     ⎕IO←0
-     Char←0 2∊⍨10|⎕DR
-     Num←2|⎕DR
-     Null←∧/⎕NULL≡¨⊢  ⍝ can't use ∧.= because = is pervasive on deep arrays
-     Ptr←6=10|⎕DR
-     Basic←Char∨Num∨Null
-     FirstNum←Num¨⊃⍤/⊢
-     FirstNs←{9∊⎕NC'⍵'}¨⊃⍤/⊢
-
-     sysVars←'⎕CT' '⎕DIV' '⎕IO' '⎕ML' '⎕PP' '⎕RL' '⎕RTL' '⎕WX' '⎕USING' '⎕AVU' '⎕DCT' '⎕FR'
-     L←⎕C
-
-     execute←FirstNum ⍺,1
-     caller←FirstNs ⍺,⊃⎕RSI
-     q←''''
-     SEP←'⋄',⎕UCS 10 13
-     Unquot←{(⍺⍺ ⍵)×~≠\q=⍵}
-     SepMask←∊∘SEP Unquot
-     ParenLev←+\(×¯3+7|¯3+'([{)]}'∘⍳)Unquot
-     Paren←1⌽')(',⊢
-     Split←{1↓¨⍺⍺⊂Over(1∘,)⍵}
-     Over←{(⍵⍵ ⍺)⍺⍺(⍵⍵ ⍵)}
-     EachIfAny←{0=≢⍵:⍵ ⋄ ⍺ ⍺⍺¨⍵}
-     EachNonempty←{⍺ ⍺⍺ EachIfAny Over((×≢¨⍵~¨' ')/⊢)⍵}
-     Parse←{
-         0=≢⍵:''
-         bot←0=⍺
-         (2≤≢⍵)>∨/¯1↓bot:⍺ SubParse ⍵
-         p←bot×SepMask ⍵
-         ∨/p:∊{1=≢⍵:',⊂',⍵ ⋄ ⍵}⍺(Paren ∇)EachNonempty Over(p Split)⍵
-         p←2(1,>/∨¯1↓0,</)bot
-         ∨/1↓p:∊(p⊂⍺)∇¨p⊂⍵
-         ⍵
-     }
-     ErrIfEmpty←{⍵⊣'Array doesn''t have a prototype'⎕SIGNAL 11/⍨(0=≢⍵)}
-     SubParse←{
-         ('})]'⍳⊃⌽⍵)≠('{(['⍳⊃⍵):'Bad bracketing'⎕SIGNAL 2
-         (a w)←(1↓¯1∘↓)¨(⍺-1)⍵
-         '['=⊃⍵:Paren'{⎕ML←1⋄↑⍵}1/¨',Paren ErrIfEmpty a Parse w ⍝ high-rank
-         ':'∊⍵/⍨(1=⍺)×~≠\q=⍵:a Namespace w ⍝ ns
-         '('=⊃⍵:Paren{⍵,'⎕NS⍬'/⍨0=≢⍵}a Parse w ⍝ vector/empty ns
-         ⍵ ⍝ dfn
-     }
-     SysVar←(L sysVars)∊⍨' '~¨⍨L∘⊆
-     ParseLine←{
-         c←⍵⍳':'
-         1≥≢(c↓⍵)~' ':'Missing value'⎕SIGNAL 6
-         name←c↑⍵
-         (SysVar⍱¯1≠⎕NC)name:'Invalid name'⎕SIGNAL 2
-         name(name,'←',⍺ Parse Over((c+1)↓⊢)⍵)
-     }
-     Namespace←{
-         p←(0=⍺)×SepMask ⍵
-         (names assns)←↓⍉↑⍺ ParseLine EachNonempty Over(p Split)⍵
-         quadMask←SysVar names
-         quadAssns←'{⍵.(⍵',(∊'⊣',¨quadMask/assns),')}'
-         names/⍨←~quadMask
-         assns/⍨←~quadMask
-         ∊'({'(assns,¨'⋄')quadAssns'⎕NS'('(, '∘,¨q,¨names,¨⊂q')')'}⍬)'
-     }
-     Execute←{   ⍝ overcome LIMIT ERROR on more than 4096 parenthesised expressions
-         ExecuteEach←{         ⍝ split at level-1 parentheses and execute each
-             l←(t=¯1)++\t←{1 ¯1 0['()'⍳⍵]}Unquot ⍵ ⍝ parenthesis type and level
-             (h x t l)←(1 0 0 0=⊂∧\l=0)/¨⍵ ⍵ t l   ⍝ extract header before first opening parenthesis
-             ⍺{0::0 ⋄ r←⍺⍎⍵ ⋄ ~(⊃⎕NC'r')∊3 4}h:⍺⍎⍵ ⍝ header must be an functional expression
-             H←⍺{⍺⍺⍎⍵⍵,'⍵'}h                       ⍝ function to apply header to array
-             ' '∨.≠(l=0)/x:⍺⍎⍵                     ⍝ something outside level-1 parentheses - must fall back to ⍎
-             x←(((l>0)∧(l≠1)∨(t=0))×+\(t=1)∧(l=1))⊆x   ⍝ cut expression within level-1 parentheses
-             1=≢x:H ⍺ ∇⊃x                          ⍝ single expression : don't enclose with ¨
-             DEBUG∧1<⌈/l:H ⍺ ∇¨x                    ⍝ force going through the hard code
-             10::H ⍺ ∇¨x ⋄ H ⍺⍎¨x                  ⍝ attempt to ⍎¨ with a single guard - otherwise dig each
-         }
-         DEBUG:⍺ ExecuteEach ⍵           ⍝ force going through the hard code
-         10::⍺ ExecuteEach ⍵ ⋄ ⍺⍎⍵       ⍝ attempt simple ⍎ and catch LIMIT ERROR
-     }
+          ⍺←⍬ ⍝ 1=execute expression; 0=return expression
+          ⎕IO←0
+          Char←0 2∊⍨10|⎕DR
+          Num←2|⎕DR
+          Null←∧/⎕NULL≡¨⊢  ⍝ can't use ∧.= because = is pervasive on deep arrays
+          Ptr←6=10|⎕DR
+          Basic←Char∨Num∨Null
+          FirstNum←Num¨⊃⍤/⊢
+          FirstNs←{9∊⎕NC'⍵'}¨⊃⍤/⊢
+     
+          sysVars←'⎕CT' '⎕DIV' '⎕IO' '⎕ML' '⎕PP' '⎕RL' '⎕RTL' '⎕WX' '⎕USING' '⎕AVU' '⎕DCT' '⎕FR'
+          L←⎕C
+     
+          execute←FirstNum ⍺,1
+          caller←FirstNs ⍺,⊃⎕RSI
+          q←''''
+          SEP←'⋄',⎕UCS 10 13
+          Unquot←{(⍺⍺ ⍵)×~≠\q=⍵}
+          SepMask←∊∘SEP Unquot
+          ParenLev←+\(×¯3+7|¯3+'([{)]}'∘⍳)Unquot
+          Paren←1⌽')(',⊢
+          Split←{1↓¨⍺⍺⊂Over(1∘,)⍵}
+          Over←{(⍵⍵ ⍺)⍺⍺(⍵⍵ ⍵)}
+          EachIfAny←{0=≢⍵:⍵ ⋄ ⍺ ⍺⍺¨⍵}
+          EachNonempty←{⍺ ⍺⍺ EachIfAny Over((×≢¨⍵~¨' ')/⊢)⍵}
+          Parse←{
+              0=≢⍵:''
+              bot←0=⍺
+              (2≤≢⍵)>∨/¯1↓bot:⍺ SubParse ⍵
+              p←bot×SepMask ⍵
+              ∨/p:∊{1=≢⍵:',⊂',⍵ ⋄ ⍵}⍺(Paren ∇)EachNonempty Over(p Split)⍵
+              p←2(1,>/∨¯1↓0,</)bot
+              ∨/1↓p:∊(p⊂⍺)∇¨p⊂⍵
+              ⍵
+          }
+          ErrIfEmpty←{⍵⊣'Array doesn''t have a prototype'⎕SIGNAL 11/⍨(0=≢⍵)}
+          SubParse←{
+              ('})]'⍳⊃⌽⍵)≠('{(['⍳⊃⍵):'Bad bracketing'⎕SIGNAL 2
+              (a w)←(1↓¯1∘↓)¨(⍺-1)⍵
+              '['=⊃⍵:Paren'{⎕ML←1⋄↑⍵}1/¨',Paren ErrIfEmpty a Parse w ⍝ high-rank
+              ':'∊⍵/⍨(1=⍺)×~≠\q=⍵:a Namespace w ⍝ ns
+              '('=⊃⍵:Paren{⍵,'⎕NS⍬'/⍨0=≢⍵}a Parse w ⍝ vector/empty ns
+              ⍵ ⍝ dfn
+          }
+          SysVar←(L sysVars)∊⍨' '~¨⍨L∘⊆
+          ParseLine←{
+              c←⍵⍳':'
+              1≥≢(c↓⍵)~' ':'Missing value'⎕SIGNAL 6
+              name←c↑⍵
+              (SysVar⍱¯1≠⎕NC)name:'Invalid name'⎕SIGNAL 2
+              name(name,'←',⍺ Parse Over((c+1)↓⊢)⍵)
+          }
+          Namespace←{
+              p←(0=⍺)×SepMask ⍵
+              (names assns)←↓⍉↑⍺ ParseLine EachNonempty Over(p Split)⍵
+              quadMask←SysVar names
+              quadAssns←'{⍵.(⍵',(∊'⊣',¨quadMask/assns),')}'
+              names/⍨←~quadMask
+              assns/⍨←~quadMask
+              ∊'({'(assns,¨'⋄')quadAssns'⎕NS'('(, '∘,¨q,¨names,¨⊂q')')'}⍬)'
+          }
+          Execute←{   ⍝ overcome LIMIT ERROR on more than 4096 parenthesised expressions
+              ExecuteEach←{         ⍝ split at level-1 parentheses and execute each
+                  l←(t=¯1)++\t←{1 ¯1 0['()'⍳⍵]}Unquot ⍵ ⍝ parenthesis type and level
+                  (h x t l)←(1 0 0 0=⊂∧\l=0)/¨⍵ ⍵ t l   ⍝ extract header before first opening parenthesis
+                  ⍺{0::0 ⋄ r←⍺⍎⍵ ⋄ ~(⊃⎕NC'r')∊3 4}h:⍺⍎⍵ ⍝ header must be an functional expression
+                  H←⍺{⍺⍺⍎⍵⍵,'⍵'}h                       ⍝ function to apply header to array
+                  ' '∨.≠(l=0)/x:⍺⍎⍵                     ⍝ something outside level-1 parentheses - must fall back to ⍎
+                  x←(((l>0)∧(l≠1)∨(t=0))×+\(t=1)∧(l=1))⊆x   ⍝ cut expression within level-1 parentheses
+                  1=≢x:H ⍺ ∇⊃x                          ⍝ single expression : don't enclose with ¨
+                  DEBUG∧1<⌈/l:H ⍺ ∇¨x                    ⍝ force going through the hard code
+                  10::H ⍺ ∇¨x ⋄ H ⍺⍎¨x                  ⍝ attempt to ⍎¨ with a single guard - otherwise dig each
+              }
+              DEBUG:⍺ ExecuteEach ⍵           ⍝ force going through the hard code
+              10::⍺ ExecuteEach ⍵ ⋄ ⍺⍎⍵       ⍝ attempt simple ⍎ and catch LIMIT ERROR
+          }
        ⍝ Make normalised simple vector:
-     w←↓⍣(2=≢⍴⍵)⊢⍵                  ⍝ if mat, make nested
-     w←{¯1↓∊⍵,¨⎕UCS 13}⍣(2=|≡w)⊢w   ⍝ if nested, make simple
-     w←'''[^'']*''' '⍝.*'⎕R'&' ''⊢w ⍝ strip comments
-     w/⍨←{(∨\⍵)∧⌽∨\⌽⍵}33≤⎕UCS w     ⍝ strip leading/trailing non-printables
-     pl←ParenLev w
-     (0≠⊢/pl)∨(∨/0>pl):'Unmatched brackets'⎕SIGNAL 2
-     ∨/(pl=0)×SepMask w:'Multi-line input'⎕SIGNAL 11
-     (⊃⎕RSI)Execute⍣execute⊢pl Parse w    ⍝ materialise namespace as child of calling namespace
- }
+          w←↓⍣(2=≢⍴⍵)⊢⍵                  ⍝ if mat, make nested
+          w←{¯1↓∊⍵,¨⎕UCS 13}⍣(2=|≡w)⊢w   ⍝ if nested, make simple
+          w←'''[^'']*''' '⍝.*'⎕R'&' ''⊢w ⍝ strip comments
+          w/⍨←{(∨\⍵)∧⌽∨\⌽⍵}33≤⎕UCS w     ⍝ strip leading/trailing non-printables
+          pl←ParenLev w
+          (0≠⊢/pl)∨(∨/0>pl):'Unmatched brackets'⎕SIGNAL 2
+          ∨/(pl=0)×SepMask w:'Multi-line input'⎕SIGNAL 11
+          (⊃⎕RSI)Execute⍣execute⊢pl Parse w    ⍝ materialise namespace as child of calling namespace
+      }
 
     :EndSection
 
