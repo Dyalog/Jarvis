@@ -1716,7 +1716,7 @@
           :Trap 11
               2(root ⍙FIX)'file://',file
           :Else
-              msg,←'Unable to ⎕FIX ',file,⎕UCS 13
+              msg,←'Unable to load file: ',file,⎕UCS 13
           :EndTrap
       :EndFor
       :For folder :In folders
