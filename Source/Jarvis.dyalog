@@ -116,11 +116,10 @@
     :Field _includeRegex←''              ⍝ private compiled regex from _IncludeFns
     :Field _excludeRegex←''              ⍝ private compiled regex from _ExcludeFns
     :Field _connections                  ⍝ namespace containing open connections
-    :Field _conxRef                      ⍝ reference to _connections⍎ServerName
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.12.0' '2022-02-16'
+      r←'Jarvis' '1.13.0' '2022-04-18'
     ∇
 
     ∇ r←Config
@@ -674,13 +673,11 @@
       :EndIf
      
       _connections←⎕NS''
-      _connections.index←2 0⍴'' 0
+      _connections.index←2 0⍴'' 0  ⍝ row-oriented for faster lookup
       _connections.lastCheck←0
      
       :If 0=rc←1⊃r←LDRC.Srv ServerName''Port'http'BufferSize,secureParams,accept,deny,options
           ServerName←2⊃r
-          ServerName _connections.⎕NS''
-          _conxRef←_connections⍎ServerName
           :If 3.3>CongaVersion
               {}LDRC.SetProp ServerName'FIFOMode' 0 ⍝ deprecated in Conga v3.2
               {}LDRC.SetProp ServerName'DecodeBuffers' 15 ⍝ 15 ⍝ decode all buffers
@@ -721,13 +718,14 @@
       :EndSelect
     ∇
 
-    ∇ {r}←Server arg;wres;rc;obj;evt;data;ref;ip;msg;tmp
+    ∇ {r}←Server arg;wres;rc;obj;evt;data;ref;ip;msg;tmp;conx
       (_started _stopped)←1 0
       :While ~_stop
           :Trap 0 DebugLevel 1
               wres←LDRC.Wait ServerName WaitTimeout ⍝ Wait for WaitTimeout before timing out
           ⍝ wres: (return code) (object name) (command) (data)
               (rc obj evt data)←4↑wres
+              conx←obj(⍳↓⊣)'.'
               :Select rc
               :Case 0
                   :Select evt
@@ -736,23 +734,23 @@
                       :If 0≠4⊃wres
                           Log'Server: DRC.Wait reported error ',(⍕4⊃wres),' on ',(2⊃wres),GetIP obj
                       :EndIf
-                      RemoveConnection obj ⍝ Conga closes object on an Error event
+                      RemoveConnection conx ⍝ Conga closes object on an Error event
      
                   :Case 'Connect'
-                      AddConnection obj
+                      AddConnection conx
      
                   :CaseList 'HTTPHeader' 'HTTPTrailer' 'HTTPChunk' 'HTTPBody'
-                      :If 0≠_connections.⎕NC obj
-                          ref←_connections⍎obj
+                      :If 0≠_connections.⎕NC conx
+                          ref←_connections⍎conx
                           _taskThreads←⎕TNUMS∩_taskThreads,ref{⍺ HandleRequest ⍵}&wres
                           ref.Time←⎕AI[3]
                       :Else
-                          Log'Server: Object ''_connections.',obj,''' was not found.'
+                          Log'Server: Object ''_connections.',conx,''' was not found.'
                           {}{0:: ⋄ LDRC.Close ⍵}obj
                       :EndIf
      
                   :Case 'Closed'
-                      RemoveConnection obj
+                      RemoveConnection conx
      
                   :Case 'Timeout'
      
@@ -793,18 +791,18 @@
       (_stop _started _stopped)←0 0 1
     ∇
 
-    ∇ AddConnection name
+    ∇ AddConnection conx
       :Hold '_connections'
-          name _connections.⎕NS''
-          _connections.index,←(name(⍳↓⊣)'.')(⎕AI[3])
-          (_connections⍎name).IP←2⊃2⊃LDRC.GetProp obj'PeerAddr'
+          conx _connections.⎕NS''
+          _connections.index,←conx(⎕AI[3])
+          (_connections⍎conx).IP←2⊃2⊃LDRC.GetProp obj'PeerAddr'
       :EndHold
     ∇
 
-    ∇ RemoveConnection name
+    ∇ RemoveConnection conx
       :Hold '_connections'
-          _connections.⎕EX name
-          _connections.index/⍨←_connections.index[1;]≢¨⊂name(⍳↓⊣)'.'
+          _connections.⎕EX conx
+          _connections.index/⍨←_connections.index[1;]≢¨⊂conx
       :EndHold
     ∇
 
@@ -812,15 +810,23 @@
       :If _connections.lastCheck<⎕AI[3]-ConnectionTimeout×1000
           :Hold '_connections'
               connecting←connected←⍬
-              :If ~0∊⍴kids←2 2⊃LDRC.Tree ServerName
+              :If ~0∊⍴kids←2 2⊃LDRC.Tree ServerName ⍝ retrieve children of server
+              ⍝ LDRC.Tree
+              ⍝ connecting → status 3 1 - incoming connection
+              ⍝ connected  → status 3 4 - connected connection
                   (connecting connected)←2↑{((2 2⍴3 1 3 4)⍪⍵[;2 3]){⊂1↓⍵}⌸'' '',⍵[;1]}↑⊃¨kids
               :EndIf
               conxNames←_connections.index[1;]~connecting
               timedOut←_connections.index[1;]/⍨ConnectionTimeout<0.001×⎕AI[3]-_connections.index[2;]
-              :If ∨/~0∘∊∘⍴¨connected conxNames
-                  {0∊⍴⍵: ⋄ {}LDRC.Close ServerName,'.',⍵}¨dead←(connected~conxNames),timedOut
-                  _conxRef.⎕EX(conxNames~connected~dead),timedOut
-                  _connections.index/⍨←_connections.index[1;]∊_conxRef.⎕NL ¯9
+              :If ∨/{~0∊⍴⍵}¨connected conxNames
+                  :If ~0∊⍴timedOut
+                      timedOut/⍨←{6::1 ⋄ 0=(_connections⍎⍵).⎕NC⊂'Req'}¨timedOut
+                  :EndIf
+                  dead←(connected~conxNames),timedOut ⍝ (connections not in the index), timed out
+                  {0∊⍴⍵: ⋄ {}LDRC.Close ServerName,'.',⍵}¨dead ⍝ attempt to close them
+               ⍝ remove timed out, or connections that are
+                  _connections.⎕EX(conxNames~connected~dead),timedOut
+                  _connections.index/⍨←_connections.index[1;]∊_connections.⎕NL ¯9
               :EndIf
               _connections.lastCheck←⎕AI[3]
           :EndHold
@@ -839,7 +845,6 @@
       :EndIf
       req.(Server ErrorInfoLevel)←⎕THIS ErrorInfoLevel
     ∇
-
 
     ∇ ns HandleRequest req;data;evt;obj;rc;cert;fn
       (rc obj evt data)←req ⍝ from Conga.Wait
@@ -890,7 +895,7 @@
      
               fn RequestHandler ns ⍝ RequestHandler is either HandleJSONRequest or HandleRESTRequest
      
-     resp:    obj Respond ns.Req
+     resp:    obj Respond ns
      
           :EndIf
       :EndHold
@@ -905,19 +910,19 @@
           →handle If 3=⌊|{0::0 ⋄ CodeLocation.⎕NC⊂⍵}fn ⍝ handle it if there's a matching function for the endpoint
       :EndIf
      
-      →0 If'Request method should be POST'ns.Req.Fail 405×~_htmlEnabled
+      →End If'Request method should be POST'ns.Req.Fail 405×~_htmlEnabled
      
       →handleHtml If~0∊⍴_htmlFolder
       ns.Req.Response.Headers←1 2⍴'Content-Type' 'text/html; charset=utf-8'
       ns.Req.Response.Payload←'<!DOCTYPE html><html><head><meta content="text/html; charset=utf-8" http-equiv="Content-Type"><link rel="icon" href="data:,"></head><body><h2>400 Bad Request</h2></body></html>'
-      →0 If'Bad URI'ns.Req.Fail 400×~0∊⍴fn ⍝ either fail with a bad URI or exit if favicon.ico (no-op)
+      →End If'Bad URI'ns.Req.Fail 400×~0∊⍴fn ⍝ either fail with a bad URI or exit if favicon.ico (no-op)
      
       :If 0∊⍴_htmlRootFn
           ns.Req.Response.Payload←HtmlPage
       :Else
           ns.Req.Response.Payload←{1 CodeLocation.(85⌶)_htmlRootFn,' ⍵'}ns.Req
       :EndIf
-      →0
+      →End
      
      handleHtml:
       :If (,'/')≡ns.Req.Endpoint
@@ -927,22 +932,22 @@
       :EndIf
       file←∊1 ⎕NPARTS file
       file,←(isDir file)/'/',_htmlDefaultPage
-      →0 If ns.Req.Fail 400×~_htmlFolder begins file
+      →End If ns.Req.Fail 400×~_htmlFolder begins file
       :If 0≠ns.Req.Fail 404×~⎕NEXISTS file
-          →0 If 0=Report404InHTML
+          →End If 0=Report404InHTML
           ns.Req.Response.Headers←1 2⍴'Content-Type' 'text/html; charset=utf-8'
           ns.Req.Response.Payload←'<h3>Not found: ',(file↓⍨≢_htmlFolder),'</h3>'
-          →0
+          →End
       :EndIf
       ns.Req.Response.Payload←''file
       'Content-Type'ns.Req.DefaultHeader ns.Req.ContentTypeForFile file
-      →0
+      →End
      
      handle:
-      →0 If HandleCORSRequest ns.Req
-      →0 If'No function specified'ns.Req.Fail 400×0∊⍴fn
-      →0 If'Unsupported request method'ns.Req.Fail 405×(⊂ns.Req.Method)(~∊)(~AllowGETs)↓'get' 'post'
-      →0 If'Cannot accept query parameters'ns.Req.Fail 400×AllowGETs⍱0∊⍴ns.Req.QueryParams
+      →End If HandleCORSRequest ns.Req
+      →End If'No function specified'ns.Req.Fail 400×0∊⍴fn
+      →End If'Unsupported request method'ns.Req.Fail 405×(⊂ns.Req.Method)(~∊)(~AllowGETs)↓'get' 'post'
+      →End If'Cannot accept query parameters'ns.Req.Fail 400×AllowGETs⍱0∊⍴ns.Req.QueryParams
      
       :Select ns.Req.ContentType
      
@@ -950,19 +955,19 @@
           :Trap 0 DebugLevel 1
               ns.Req.Payload←{0∊⍴⍵:⍵ ⋄ 0 JSONin ⍵}ns.Req.Body
           :Else
-              →0⊣'Could not parse payload as JSON'ns.Req.Fail 400
+              →End⊣'Could not parse payload as JSON'ns.Req.Fail 400
           :EndTrap
      
       :Case 'multipart/form-data'
-          →0 If'Content-Type should be "application/json"'ns.Req.Fail 400×~AllowFormData
+          →End If'Content-Type should be "application/json"'ns.Req.Fail 400×~AllowFormData
           :Trap 0 DebugLevel 1
               ns.Req.Payload←ParseMultipartForm ns.Req
           :Else
-              →0⊣'Could not parse payload as "multipart/form-data"'ns.Req.Fail 400
+              →End⊣'Could not parse payload as "multipart/form-data"'ns.Req.Fail 400
           :EndTrap
      
       :Case ''
-          →0 If'No Content-Type specified'ns.Req.Fail 400×~isGET∧AllowGETs
+          →End If'No Content-Type specified'ns.Req.Fail 400×~isGET∧AllowGETs
           :Trap 0 DebugLevel 1
               :If 0∊⍴ns.Req.QueryParams
                   ns.Req.Payload←''
@@ -979,34 +984,37 @@
           →0⊣('Content-Type should be "application/json"',AllowFormData/' or "multipart/form-data"')ns.Req.Fail 400
       :EndSelect
      
-      →0 If CheckAuthentication ns.Req
+      →End If CheckAuthentication ns.Req
      
-      →0 If('Invalid function "',fn,'"')ns.Req.Fail CheckFunctionName fn
-      →0 If('Invalid function "',fn,'"')ns.Req.Fail 404×3≠⌊|{0::0 ⋄ CodeLocation.⎕NC⊂⍵}fn  ⍝ is it a function?
+      →End If('Invalid function "',fn,'"')ns.Req.Fail CheckFunctionName fn
+      →End If('Invalid function "',fn,'"')ns.Req.Fail 404×3≠⌊|{0::0 ⋄ CodeLocation.⎕NC⊂⍵}fn  ⍝ is it a function?
       valence←|⊃CodeLocation.⎕AT fn
       nc←CodeLocation.⎕NC⊂fn
-      →0 If('"',fn,'" is not a monadic result-returning function')ns.Req.Fail 400×(1 1 0≢×valence)>(0∧.=valence)∧3.3=nc
+      →End If('"',fn,'" is not a monadic result-returning function')ns.Req.Fail 400×(1 1 0≢×valence)>(0∧.=valence)∧3.3=nc
      
       resp←''
       :Trap 0 DebugLevel 1
           :Trap 85
               :If (2=valence[2])>3.3=nc ⍝ dyadic and not tacit
                   stopIf DebugLevel 2
-                  resp←ns.Req{1 CodeLocation.(85⌶)'⍺ ',fn,' ⍵'}ns.Req.Payload ⍝ intentional stop for application-level debugging
+                  resp←ns.Req{0 CodeLocation.(85⌶)'⍺ ',fn,' ⍵'}ns.Req.Payload ⍝ intentional stop for application-level debugging
               :Else
                   stopIf DebugLevel 2
-                  resp←{1 CodeLocation.(85⌶)fn,' ⍵'}ns.Req.Payload ⍝ intentional stop for application-level debugging
+                  resp←{0 CodeLocation.(85⌶)fn,' ⍵'}ns.Req.Payload ⍝ intentional stop for application-level debugging
               :EndIf
+          :Else
+              →End⊣ns.Req.Fail 204 ⍝ no content
           :EndTrap
       :Else
-          →0⊣ns.Req.Fail 500
+          →End⊣ns.Req.Fail 500
       :EndTrap
     ⍝ ↓↓↓ removed this next line because a non-2XX response might still have a payload
     ⍝ →0 If 2≠⌊0.01×ns.Req.Response.Status ⍝ exit if not a successful HTTP code
-      →0 If 0∊⍴resp ⍝ exit if there's no response payload
+      →End If 0∊⍴resp ⍝ exit if there's no response payload
       'content-type'ns.Req.DefaultHeader'application/json; charset=utf-8' ⍝ set the header if not set
-      →0 If~'application/json'⍷ns.Req.(Response.Headers GetHeader'content-type') ⍝ if the response is JSON
+      →End If~'application/json'⍷ns.Req.(Response.Headers GetHeader'content-type') ⍝ if the response is JSON
       ns.Req.Response ToJSON resp ⍝ convert it
+     End:
     ∇
 
     ∇ formData←ParseMultipartForm req;boundary;body;part;headers;payload;disposition;type;name;filename;tmp
@@ -1129,13 +1137,13 @@
       :EndTrap
     ∇
 
-    ∇ obj Respond req;status;z;res;close;conx
-      res←req.Response
-      status←(⊂req.HTTPVersion),res.((⍕Status)StatusText)
+    ∇ obj Respond ns;status;z;res;close;conx
+      res←ns.Req.Response
+      status←(⊂ns.Req.HTTPVersion),res.((⍕Status)StatusText)
       res.Headers⍪←'Server'(deb⍕2↑Version)
       res.Headers⍪←'Date'(2⊃LDRC.GetProp'.' 'HttpDate')
-      conx←lc req.GetHeader'connection'
-      close←(('HTTP/1.0'≡req.HTTPVersion)>'keep-alive'≡conx)∨'close'≡conx
+      conx←lc ns.Req.GetHeader'connection'
+      close←(('HTTP/1.0'≡ns.Req.HTTPVersion)>'keep-alive'≡conx)∨'close'≡conx
       close∨←2≠⌊0.01×res.Status ⍝ close the connection on non-2XX status
       :Select 1⊃z←LDRC.Send obj(status,res.Headers res.Payload)close
       :Case 0 ⍝ everything okay, nothing to do
@@ -1145,6 +1153,7 @@
           Log'Respond: Conga error when sending response',GetIP obj
           Log⍕z
       :EndSelect
+     ⍝ ns.⎕EX'Req'
     ∇
 
     :EndSection ⍝ Request Handling
@@ -1599,6 +1608,7 @@
     match←{⍺ (≡nocase) ⍵} ⍝ case insensitive ≡
     sins←{0∊⍴⍺:⍵ ⋄ ⍺} ⍝ set if not set
     stopIf←{1∊⍵:-⎕TRAP←0 'C' '⎕←''Stopped for debugging... (Press Ctrl-Enter)''' ⋄ shy←0} ⍝ faster alternative to setting ⎕STOP
+    show←{(2⊃⎕SI),'[',(⍕2⊃⎕LC),'] ',⍵} ⍝ debugging utility
 
     ∇ r←DyalogRoot
       r←{⍵,('/\'∊⍨⊢/⍵)↓'/'}{0∊⍴t←2 ⎕NQ'.' 'GetEnvironment' 'DYALOG':⊃1 ⎕NPARTS⊃2 ⎕NQ'.' 'GetCommandLineArgs' ⋄ t}''
