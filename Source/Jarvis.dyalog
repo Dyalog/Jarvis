@@ -4,6 +4,11 @@
 
     (⎕ML ⎕IO)←1 1
 
+    ∇ r←Version
+      :Access public shared
+      r←'Jarvis' '1.13.1' '2022-04-21'
+    ∇
+
   ⍝ User hooks settings
     :Field Public AppCloseFn←''                                ⍝ name of the function to run on application (server) shutdown
     :Field Public AppInitFn←''                                 ⍝ name of the application "bootstrap" function
@@ -116,11 +121,6 @@
     :Field _includeRegex←''              ⍝ private compiled regex from _IncludeFns
     :Field _excludeRegex←''              ⍝ private compiled regex from _ExcludeFns
     :Field _connections                  ⍝ namespace containing open connections
-
-    ∇ r←Version
-      :Access public shared
-      r←'Jarvis' '1.13.0' '2022-04-18'
-    ∇
 
     ∇ r←Config
     ⍝ returns current configuration
@@ -515,7 +515,7 @@
      ∆EXIT:
     ∇
 
-    ∇ (rc msg secureParams)←CreateSecureParams;cert;certs;msg;mask;matchID
+    ∇ (rc msg secureParams)←CreateSecureParams;cert;certs;msg;inds
     ⍝ return Conga parameters for running HTTPS, if Secure is set to 1
      
       LDRC.X509Cert.LDRC←LDRC ⍝ make sure the X509 instance points to the right LDRC
@@ -539,14 +539,13 @@
               :If 0∊⍴certs
                   →∆EXIT⊣(rc msg)←8 'No certificates found in Microsoft Certificate Store'
               :Else
-                  matchID←{'id=(.*);'⎕S'\1'⍠'Greedy' 0⊢2⊃¨z.CertOrigin}2⊃¨certs.CertOrigin
-                  mask←ServerCertSKI{∨/¨(⊂⍺)⍷¨2⊃¨⍵}certs.CertOrigin
-                  :If 1≠+/mask
+                  inds←1+('id=',ServerCertSKI,';')⎕S{⍵.BlockNum}⍠'Greedy' 0⊢2⊃¨certs.CertOrigin
+                  :If 1≠≢inds
                       rc←9
-                      msg←(0 2⍸+/mask)⊃('Certificate with id "',ServerCertSKI,'" was not found in the Microsoft Certificate Store')('There is more than one certificate with Subject Key Identifier "',ServerCertSKI,'" in the Microsoft Certificate Store')
+                      msg←(0 2⍸≢inds)⊃('Certificate with id "',ServerCertSKI,'" was not found in the Microsoft Certificate Store')('There is more than one certificate with Subject Key Identifier "',ServerCertSKI,'" in the Microsoft Certificate Store')
                       →∆EXIT
                   :EndIf
-                  cert←certs[⊃⍸mask]
+                  cert←certs[⊃inds]
               :EndIf
           :Else ⍝ ServerCertSKI is defined, but we're not running Windows
               →∆EXIT⊣(rc msg)←10 'ServerCertSKI is currently valid only under Windows'
@@ -835,6 +834,14 @@
 
     :Section RequestHandling
 
+    ∇ r←ErrorInfo
+      :Trap 0
+          r←⍕ErrorInfoLevel↑⎕DMX.(EM({⍵↑⍨⍵⍳']'}2⊃DM))
+      :Else
+          r←''
+      :EndTrap
+    ∇
+
     ∇ req←MakeRequest args
     ⍝ create a request, use MakeRequest '' for interactive debugging
       :Access public
@@ -1006,7 +1013,7 @@
               →End⊣ns.Req.Fail 204 ⍝ no content
           :EndTrap
       :Else
-          →End⊣ns.Req.Fail 500
+          →End⊣ErrorInfo ns.Req.Fail 500
       :EndTrap
     ⍝ ↓↓↓ removed this next line because a non-2XX response might still have a payload
     ⍝ →0 If 2≠⌊0.01×ns.Req.Response.Status ⍝ exit if not a successful HTTP code
@@ -1197,7 +1204,7 @@
         :Field Public Instance PeerAddr←'unknown'⍝ client IP address
         :Field Public Instance PeerCert←0 0⍴⊂''  ⍝ client certificate
         :Field Public Instance HTTPVersion←''
-        :Field Public Instance ErrorInfoLevel←2
+        :Field Public Instance ErrorInfoLevel←1
         :Field Public Instance Response
         :Field Public Instance Server
         :Field Public Instance Session←⍬
