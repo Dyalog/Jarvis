@@ -1,13 +1,12 @@
 ﻿:Class JarvisService :Jarvis
-⍝∇:require =Jarvis
-⍝∇:require =SysLog  
+
 ⍝    JarvisService is based on the Jarvis class and require that:
 ⍝       Config is in a namespace #.Config
 ⍝       Code is in a namespace #.Code
-⍝  
-⍝     Workspace ID will be used as both name of the service to install and the event viewer source   
 ⍝
-⍝     Running the configured JarvisService.StartService from an non service environment will suggest commandlines on how to initalize eventviewer and install the service 
+⍝     Workspace ID will be used as both name of the service to install and the event viewer source
+⍝
+⍝     Running the configured JarvisService.StartService from an non service environment will suggest commandlines on how to initalize eventviewer and install the service
 ⍝
 ⍝     TO start Service call JarvisService.StartService '#.MyService.MainFunctio&0'
 ⍝

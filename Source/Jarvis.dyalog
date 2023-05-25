@@ -6,7 +6,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.13.1' '2022-04-21'
+      r←'Jarvis' '1.13.5' '2022-05-24'
     ∇
 
   ⍝ User hooks settings
@@ -17,12 +17,11 @@
     :Field Public ValidateRequestFn←''                         ⍝ name of the request validation function
 
    ⍝ Operational settings
-    :Field Public CodeLocation←'#'                             ⍝ reference to application code location, if the user specifies a folder, that value is saved in Folder
+    :Field Public CodeLocation←'#'                             ⍝ reference to application code location, if the user specifies a folder or file, that value is saved in CodeSource
     :Field Public ConnectionTimeout←30                         ⍝ HTTP/1.1 connection timeout in seconds
     :Field Public Debug←0                                      ⍝ 0 = all errors are trapped, 1 = stop on an error, 2 = stop on intentional error before processing request, 4 = Jarvis framework debugging
     :Field Public DefaultContentType←'application/json; charset=utf-8'
     :Field Public ErrorInfoLevel←1                             ⍝ level of information to provide if an APL error occurs, 0=none, 1=⎕EM, 2=⎕SI
-    :Field Public Folder←''                                    ⍝ folder that user supplied in CodeLocation from which to load code
     :Field Public Hostname←''                                  ⍝ external-facing host name
     :Field Public HTTPAuthentication←'basic'                   ⍝ valid settings are currently 'basic' or ''
     :Field Public JarvisConfig←''                              ⍝ configuration file path (if any). This parameter was formerly named ConfigFile
@@ -81,8 +80,14 @@
     :Field Public Shared CongaRef←''                           ⍝ user-supplied reference to Conga library instance
     :Field CongaVersion←''                                     ⍝ Conga version
 
+    :Property CodeSource
+    :Access Public
+        ∇ r←get
+          r←_codeSource
+        ∇
+    :EndProperty
 
-  ⍝ IncludeFns/ExclueFns Properties
+  ⍝ IncludeFns/ExcludeFns Properties
     :Property IncludeFns, ExcludeFns
     ⍝ IncludeFns and ExcludeFns are vectors the defined endpoint (function) names to expose or hide respectively
     ⍝ They can be function names, simple wildcarded patterns (e.g. 'Foo*'), or regex
@@ -102,6 +107,7 @@
 
   ⍝↓↓↓ some of these private fields are also set in ∇init so that a server can be stopped, updated, and restarted
     :Field _rootFolder←''                ⍝ root folder for relative file paths
+    :Field _codeSource←''                ⍝ file or folder that code was loaded from, if applicable
     :Field _configLoaded←0               ⍝ indicates whether config was already loaded by Autostart
     :Field _htmlFolder←''                ⍝ folder containing HTML interface files, if any
     :Field _htmlDefaultPage←'index.html' ⍝ default page name if HTMLInterface is set to serve from a folder
@@ -125,7 +131,7 @@
     ∇ r←Config
     ⍝ returns current configuration
       :Access public
-      r←↑{⍵(⍎⍵)}¨⎕THIS⍎'⎕NL ¯2.2 ¯2.1'
+      r←↑{⍵(⍎⍵)}¨⎕THIS⍎'⎕NL ¯2.2 ¯2.1 ¯2.3'
     ∇
 
     ∇ r←{value}DebugLevel level
@@ -133,7 +139,6 @@
     ⍝    example: stopIf DebugLevel 2  ⍝ sets a stop if Debug contains 2
     ⍝  dyadic:  return value unless level is within Debug (powers of 2)
     ⍝    example: :Trap 0 DebugLevel 5 ⍝ set Trap 0 unless Debug contains 1 or 4 in its
-      :Access public
       r←∨/(2 2 2⊤⊃Debug)∨.∧2 2 2⊤level
       :If 0≠⎕NC'value'
           r←value/⍨~r
@@ -333,7 +338,7 @@
           →0 If(rc msg)←StartServer
      
           Log'Jarvis starting in "',Paradigm,'" mode on port ',⍕Port
-          Log'Serving code in ',(⍕CodeLocation),(Folder≢'')/' (populated with code from "',Folder,'")'
+          Log'Serving code in ',(⍕CodeLocation),(CodeSource≢'')/' (populated with code from "',CodeSource,'")'
           Log(_htmlEnabled∧homePage)/'Click http',(~Secure)↓'s://',MyAddr,':',(⍕Port),' to access web interface'
      
       :Else ⍝ :Trap
@@ -352,7 +357,7 @@
       ts←⎕AI[3]
       _stop←1
       Log'Stopping server...'
-      {0:: ⋄ LDRC.Close 2⊃LDRC.Clt'' ''Port'http'}''
+      {0:: ⋄ {}LDRC.Close 2⊃LDRC.Clt'' ''Port'http'}''
       :While ~_stopped
           :If WaitTimeout<⎕AI[3]-ts
               →0⊣(rc msg)←¯1 'Server seems stuck'
@@ -361,16 +366,11 @@
       (rc msg)←0 'Server stopped'
     ∇
 
-    ∇ (rc msg)←Pause;ts
+    ∇ (rc msg)←Pause
       :Access public
-      :If 0 2≡2⊃LDRC.GetProp ServerName'Pause'
-          →0⊣(rc msg)←¯1 'Server is already paused'
-      :EndIf
-      :If ~_started
-          →0⊣(rc msg)←¯1 'Server is not running'
-      :EndIf
-      ts←⎕AI[3]
-      LDRC.SetProp ServerName'Pause' 2
+      →0 If~_started⊣(rc msg)←¯1 'Server is not running'
+      →0 If 2=⊃2⊃LDRC.GetProp ServerName'Pause'⊣(rc msg)←¯2 Error'Server is already paused'
+      →0 If 0≠rc←⊃LDRC.SetProp ServerName'Pause' 2⊣msg←'Error attempting to pause server'
       Log'Pausing server...'
       (rc msg)←0 'Server paused'
     ∇
@@ -386,7 +386,7 @@
 
     ∇ r←Running
       :Access public
-      r←~_stop
+      r←~_stopped
     ∇
 
     ∇ (rc msg)←CheckPort;p
@@ -426,8 +426,8 @@
               config←value
           :EndIf
      Load:
-          public←⎕THIS⍎'⎕NL ¯2.2 ¯2.1' ⍝ find all the public fields in this class
-          :If ~0∊⍴set←public{⍵/⍨⍵∊⍺}config.⎕NL ¯2 ¯9
+          public←⎕THIS⍎'⎕NL ¯2.2 ¯2.1 ¯2.3' ⍝ find all the public fields in this class
+          :If ~0∊⍴set←public∩config.⎕NL ¯2 ¯9
               config{⍎⍵,'←⍺⍎⍵'}¨set
           :EndIf
           _configLoaded←1
@@ -578,12 +578,15 @@
               :Trap 0 DebugLevel 1
                   :If 1=t←1 ⎕NINFO path ⍝ folder?
                       CodeLocation←⍎'CodeLocation'#.⎕NS''
-                      →0 If(rc msg)←CodeLocation LoadFromFolder Folder←path
+                      _codeSource←path
+                      →0 If(rc msg)←CodeLocation LoadFromFolder path
                   :ElseIf 2=t ⍝ file?
                       CodeLocation←#.⎕FIX'file://',path
+                      _codeSource←path
                   :Else
                       →0⊣(rc msg)←5('CodeLocation "',(∊⍕CodeLocation),'" is not a folder or script file.')
                   :EndIf
+     
               :Case 22 ⍝ file name error
                   →0⊣(rc msg)←6('CodeLocation "',(∊⍕CodeLocation),'" was not found.')
               :Else    ⍝ anything else
@@ -667,8 +670,16 @@
       {}LDRC.SetProp'.' 'EventMode' 1 ⍝ report Close/Timeout as events
      
       options←''
+     
       :If 3.3≤CongaVersion ⍝ can we set DecodeBuffers at server creation?
           options←⊂'Options' 5 ⍝ DecodeBuffers + WSAutoAccept
+      :EndIf
+     
+      :If 3.4≤CongaVersion ⍝ DOSLimit support started with v3.4
+      :AndIf DOSLimit≠¯1  ⍝ not using Conga's default value
+          :If 0≠⊃LDRC.SetProp'.' 'DOSLimit'DOSLimit
+              →∆EXIT⊣(rc msg)←¯1 'Invalid DOSLimit setting: ',∊⍕DOSLimit
+          :EndIf
       :EndIf
      
       _connections←⎕NS''
@@ -844,7 +855,7 @@
 
     ∇ req←MakeRequest args
     ⍝ create a request, use MakeRequest '' for interactive debugging
-      :Access public
+    ⍝ :Access public ⍝ uncomment for debugging
       :If 0∊⍴args
           req←⎕NEW Request
       :Else
@@ -1015,12 +1026,16 @@
       :Else
           →End⊣ErrorInfo ns.Req.Fail 500
       :EndTrap
-    ⍝ ↓↓↓ removed this next line because a non-2XX response might still have a payload
-    ⍝ →0 If 2≠⌊0.01×ns.Req.Response.Status ⍝ exit if not a successful HTTP code
-      →End If 0∊⍴resp ⍝ exit if there's no response payload
-      'content-type'ns.Req.DefaultHeader'application/json; charset=utf-8' ⍝ set the header if not set
-      →End If~'application/json'⍷ns.Req.(Response.Headers GetHeader'content-type') ⍝ if the response is JSON
-      ns.Req.Response ToJSON resp ⍝ convert it
+     
+      'Content-Type'ns.Req.DefaultHeader DefaultContentType ⍝ set the header if not set
+      :If ∨/'application/json'⍷ns.Req.(Response.Headers GetHeader'content-type') ⍝ if the response is JSON
+          ns.Req.Response ToJSON resp ⍝ convert it
+      :Else
+          ns.Req.Response.Payload←resp
+      :EndIf
+      :If 0∊⍴ns.Req.Response.Payload
+          'Content-Length'ns.Req.DefaultHeader 0
+      :EndIf
      End:
     ∇
 
@@ -1105,7 +1120,7 @@
     ∇ response ToJSON data
     ⍝ convert APL response payload to JSON
       :Trap 0 DebugLevel 1
-          ns.Req.Response.Payload←⎕UCS'UTF-8'⎕UCS 1 JSONout resp
+          response.Payload←⎕UCS'UTF-8'⎕UCS 1 JSONout resp
       :Else
           'Could not format result payload as JSON'ns.Req.Fail 500
       :EndTrap
@@ -1160,7 +1175,7 @@
           Log'Respond: Conga error when sending response',GetIP obj
           Log⍕z
       :EndSelect
-     ⍝ ns.⎕EX'Req'
+      ns.⎕EX'Req'
     ∇
 
     :EndSection ⍝ Request Handling
@@ -1431,7 +1446,7 @@
 
         ∇ name SetHeader value
           :Access Public Instance
-          Response.Headers⍪←name value
+          Response.Headers⍪←name(∊⍕value)
         ∇
 
         ∇ name SetCookie cookie
@@ -1765,7 +1780,7 @@
       :Trap 0
           :If 1=≡rarg
           :AndIf 'file://'≡7↑rarg
-          :AndIf '.apla'≡⎕C⊃⌽p←⎕NPARTS f←7↓rarg
+          :AndIf '.apla'≡lc⊃⌽p←⎕NPARTS f←7↓rarg
               :If larg=2
                   r←ref⍎(2⊃p),'←',0 Deserialise⊃⎕NGET f
               :Else
@@ -1797,7 +1812,7 @@
           FirstNs←{9∊⎕NC'⍵'}¨⊃⍤/⊢
      
           sysVars←'⎕CT' '⎕DIV' '⎕IO' '⎕ML' '⎕PP' '⎕RL' '⎕RTL' '⎕WX' '⎕USING' '⎕AVU' '⎕DCT' '⎕FR'
-          L←⎕C
+          L←lc
      
           execute←FirstNum ⍺,1
           caller←FirstNs ⍺,⊃⎕RSI
