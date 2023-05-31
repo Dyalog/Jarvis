@@ -1,12 +1,17 @@
 ﻿:Class Jarvis
 ⍝ Dyalog Web Service Server
-⍝ See https://github.com/dyalog/jarvis/wiki for documentation
+⍝ See https://dyalog.github.io/Jarvis for documentation
 
     (⎕ML ⎕IO)←1 1
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.13.5' '2022-05-24'
+      r←'Jarvis' '1.13.6' '2022-05-31'
+    ∇
+
+    ∇ Documentation
+      :Access public shared
+      ⎕←'See https://dyalog.github.io/Jarvis'
     ∇
 
   ⍝ User hooks settings
@@ -247,7 +252,7 @@
     ⍝   [3] paradigm to use ('JSON' or 'REST')
       :Access shared public
       :Trap 0
-          (rc msg)←(r←⎕NEW ⎕THIS args).Start
+          (rc msg)←(r←New args).Start
       :Else
           (r rc msg)←'' ¯1 ⎕DMX.EM
       :EndTrap
@@ -1416,6 +1421,7 @@
         ∇ r←{table}GetHeader name
           :Access Public Instance
           :If 0=⎕NC'table' ⋄ table←Headers ⋄ :EndIf
+          table[;1]←lc table[;1]
           r←(lc name)GetFromTable table
         ∇
 
