@@ -6,7 +6,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.13.6' '2022-05-31'
+      r←'Jarvis' '1.14.1' '2022-06-11'
     ∇
 
     ∇ Documentation
@@ -34,6 +34,8 @@
     :Field Public Logging←1                                    ⍝ turn logging on/off
     :Field Public Paradigm←'JSON'                              ⍝ either 'JSON' or 'REST'
     :Field Public Report404InHTML←1                            ⍝ Report HTTP 404 status (not found) in HTML (only valid if HTML interface is enabled)
+    :Field Public UseZip←0                                     ⍝ Use compression if client allows it. 0-Never, ¯1-always, 0<-threshhold to zip at, if second element exists it's the compression level (default 6)
+
 
    ⍝ Container-related settings
     :Field Public DYALOG_JARVIS_THREAD←''                      ⍝ 0 = Run in thread 0, 1 = Use separate thread and ⎕TSYNC, 'DEBUG' = Use separate thread and return to immediate execution, "AUTO" = if InTerm use "DEBUG" otherwise 1
@@ -897,6 +899,15 @@
           :EndSelect
      
           :If ns.Req.Complete
+              :Select lc ns.Req.GetHeader'content-encoding' ⍝ zipped request?
+              :Case '' ⍝ no encoding, do nothing
+              :Case 'gzip'
+                  ns.Req.Body←toChar 256|¯3(219⌶)83 ⎕DR ns.Req.Body
+              :Case 'deflate' 
+                  ns.Req.Body←toChar ¯2(219⌶)120 ¯100{(2×⍺≡2↑⍵)↓⍺,⍵}83 ⎕DR ns.Req.Body ⍝ append 789C zlib header if not there
+              :Else
+                  →resp⊣'Unsupported content-encoding'ns.Req.Fail 400
+              :EndSelect
      
               :If ns.Req.Charset≡'utf-8'
                   ns.Req.Body←'UTF-8'⎕UCS ⎕UCS ns.Req.Body
@@ -1172,6 +1183,7 @@
       conx←lc ns.Req.GetHeader'connection'
       close←(('HTTP/1.0'≡ns.Req.HTTPVersion)>'keep-alive'≡conx)∨'close'≡conx
       close∨←2≠⌊0.01×res.Status ⍝ close the connection on non-2XX status
+      UseZip ContentEncode ns.Req
       :Select 1⊃z←LDRC.Send obj(status,res.Headers res.Payload)close
       :Case 0 ⍝ everything okay, nothing to do
       :Case 1008 ⍝ Wrong object class likely caused by socket being closed during the request
@@ -1181,6 +1193,57 @@
           Log⍕z
       :EndSelect
       ns.⎕EX'Req'
+    ∇
+
+    ∇ UseZip ContentEncode req;enc
+      →0 If 0=⊃UseZip ⍝ is zipping enabled?
+      →0 If 0∊⍴enc←req.AcceptEncodings ⍝ does the client accept zipped responses?
+      :If ¯1=⊃UseZip ⍝ no size threshhold
+      :OrIf (≢req.Response.Payload)≥⊃UseZip ⍝ or payload exceeds size threshhold?
+          :Select ⊃enc
+          :Case 'gzip'
+              1 gzip req
+          :Case 'deflate'
+              1 deflate req
+          :Else
+              Log'Compress: unsupported content-encoding - ',⊃enc ⍝ this should NEVER happen
+          :EndSelect
+     
+      :EndIf
+    ∇
+
+    ∇ r←switch gzip req;level
+      :Select ⊃switch
+      :Case 0 ⍝ unzip
+          req.Body←toChar 256|¯3(219⌶)83 ⎕DR req.Body
+      :Case 1 ⍝ zip
+          level←⊃1↓switch,6
+          :Trap 0
+              req.Response.Payload←2⊃3 level(219⌶)83 ⎕DR req.Response.Payload
+              'Content-Encoding'req.SetHeader'gzip'
+          :Else
+              Log'gzip content-encoding failed'
+          :EndTrap
+      :Else
+          Log'gzip: invalid switch - ',⍕switch
+      :EndSelect
+    ∇
+
+    ∇ r←switch deflate req;level
+      :Select ⊃switch
+      :Case 0 ⍝ inflate
+          req.Body←toChar ¯2(219⌶) 120 ¯100{(2×⍺≡2↑⍵)↓⍺,⍵}83 ⎕DR req.Body ⍝ append 120 156 signature because web servers strip it out due to IE
+      :Case 1 ⍝ deflate
+          level←⊃1↓switch,6
+          :Trap 0
+              req.Response.Payload←{⍵↓⍨2×120 156≡2↑⍵}2⊃2 level(219⌶)sint req.Response.Payload
+              'Content-Encoding'req.SetHeader'deflate'
+          :Else
+              Log'deflate content-encoding failed'
+          :EndTrap
+      :Else
+          Log'deflate: invalid switch - ',⍕switch
+      :EndSelect
     ∇
 
     :EndSection ⍝ Request Handling
@@ -1210,6 +1273,7 @@
     ∇
 
     :class Request
+        :Field Public Instance AcceptEncodings←''⍝ content-encodings that the client will accept
         :Field Public Instance Boundary←''       ⍝ boundary for content-type 'multipart/form-data'
         :Field Public Instance Charset←''        ⍝ content charset (defaults to 'utf-8' if content-type is application/json)
         :Field Public Instance Complete←0        ⍝ do we have a complete request?
@@ -1285,6 +1349,8 @@
          
           Cookies←ParseCookies Headers
          
+          AcceptEncodings←ParseEncodings GetHeader'accept-encoding'
+         
           makeResponse
          
           (Endpoint query)←'?'split Input
@@ -1351,6 +1417,10 @@
           :Else
               params←URLDecode query
           :EndIf
+        ∇
+
+        ∇ r←ParseEncodings encodings
+          r←⎕C(⊃¨';'(≠⊆⊢)¨','(≠⊆⊢)encodings~' ')∩'gzip' 'deflate'
         ∇
 
         ∇ cookies←ParseCookies headers;cookieHeader;cookie
@@ -1623,7 +1693,8 @@
     :Section Utilities
 
     If←((0∘≠⊃)⊢)⍴⊣ ⍝ test for 0 return
-    isChar←{0 2∊⍨10|⎕DR ⍵}
+    isChar←{0 2∊⍨10|⎕DR ⍵} 
+    toChar←{80 82[1+82=⎕DR'']⎕DR ⍵}
     stripQuotes←{'""'≡2↑¯1⌽⍵:¯1↓1↓⍵ ⋄ ⍵} ⍝ strip leading and ending "
     deb←{{1↓¯1↓⍵/⍨~'  '⍷⍵}' ',⍵,' '} ⍝ delete extraneous blanks
     dlb←{⍵↓⍨+/∧\' '=⍵} ⍝ delete leading blanks
@@ -1637,6 +1708,9 @@
     sins←{0∊⍴⍺:⍵ ⋄ ⍺} ⍝ set if not set
     stopIf←{1∊⍵:-⎕TRAP←0 'C' '⎕←''Stopped for debugging... (Press Ctrl-Enter)''' ⋄ shy←0} ⍝ faster alternative to setting ⎕STOP
     show←{(2⊃⎕SI),'[',(⍕2⊃⎕LC),'] ',⍵} ⍝ debugging utility
+    utf8←{3=10|⎕DR ⍵: 256|⍵ ⋄ 'UTF-8' ⎕UCS ⍵}
+    fromutf8←{0::(⎕AV,'?')[⎕AVU⍳⍵] ⋄ 'UTF-8'⎕UCS ⍵} ⍝ Turn raw UTF-8 input into text
+    sint←{⎕IO←0 ⋄ 83=⎕DR ⍵:⍵ ⋄ 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95 96 97 98 99 100 101 102 103 104 105 106 107 108 109 110 111 112 113 114 115 116 117 118 119 120 121 122 123 124 125 126 127 ¯128 ¯127 ¯126 ¯125 ¯124 ¯123 ¯122 ¯121 ¯120 ¯119 ¯118 ¯117 ¯116 ¯115 ¯114 ¯113 ¯112 ¯111 ¯110 ¯109 ¯108 ¯107 ¯106 ¯105 ¯104 ¯103 ¯102 ¯101 ¯100 ¯99 ¯98 ¯97 ¯96 ¯95 ¯94 ¯93 ¯92 ¯91 ¯90 ¯89 ¯88 ¯87 ¯86 ¯85 ¯84 ¯83 ¯82 ¯81 ¯80 ¯79 ¯78 ¯77 ¯76 ¯75 ¯74 ¯73 ¯72 ¯71 ¯70 ¯69 ¯68 ¯67 ¯66 ¯65 ¯64 ¯63 ¯62 ¯61 ¯60 ¯59 ¯58 ¯57 ¯56 ¯55 ¯54 ¯53 ¯52 ¯51 ¯50 ¯49 ¯48 ¯47 ¯46 ¯45 ¯44 ¯43 ¯42 ¯41 ¯40 ¯39 ¯38 ¯37 ¯36 ¯35 ¯34 ¯33 ¯32 ¯31 ¯30 ¯29 ¯28 ¯27 ¯26 ¯25 ¯24 ¯23 ¯22 ¯21 ¯20 ¯19 ¯18 ¯17 ¯16 ¯15 ¯14 ¯13 ¯12 ¯11 ¯10 ¯9 ¯8 ¯7 ¯6 ¯5 ¯4 ¯3 ¯2 ¯1[utf8 ⍵]}
 
     ∇ r←DyalogRoot
       r←{⍵,('/\'∊⍨⊢/⍵)↓'/'}{0∊⍴t←2 ⎕NQ'.' 'GetEnvironment' 'DYALOG':⊃1 ⎕NPARTS⊃2 ⎕NQ'.' 'GetCommandLineArgs' ⋄ t}''
