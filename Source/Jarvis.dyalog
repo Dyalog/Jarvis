@@ -6,7 +6,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.13.6' '2022-05-31'
+      r←'Jarvis' '1.13.7' '2022-06-20'
     ∇
 
     ∇ Documentation
@@ -529,7 +529,8 @@
           :If ~0∊⍴RootCertDir ⍝ on Windows not specifying RootCertDir will use MS certificate store
               →∆EXIT If(rc msg)←'RootCertDir'Exists RootCertDir
               →∆EXIT If(rc msg)←{(⊃⍵)'Error setting RootCertDir'}LDRC.SetProp'.' 'RootCertDir'RootCertDir
-          :ElseIf 0∊⍴ServerCertSKI
+          :EndIf
+          :If 0∊⍴ServerCertSKI
               →∆EXIT If(rc msg)←'ServerCertFile'Exists ServerCertFile
               →∆EXIT If(rc msg)←'ServerKeyFile'Exists ServerKeyFile
               :Trap 0 DebugLevel 1
