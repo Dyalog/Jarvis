@@ -529,8 +529,10 @@
           :If ~0∊⍴RootCertDir ⍝ on Windows not specifying RootCertDir will use MS certificate store
               →∆EXIT If(rc msg)←'RootCertDir'Exists RootCertDir
               →∆EXIT If(rc msg)←{(⊃⍵)'Error setting RootCertDir'}LDRC.SetProp'.' 'RootCertDir'RootCertDir
+          :ElseIf ~isWin
+              →∆EXIT⊣(rc msg)←¯1 'No RootCertDir spcified'
           :EndIf
-          :If 0∊⍴ServerCertSKI
+          :If 0∊⍴ServerCertSKI ⍝ no certificate ID specified, check for Cert and Key files
               →∆EXIT If(rc msg)←'ServerCertFile'Exists ServerCertFile
               →∆EXIT If(rc msg)←'ServerKeyFile'Exists ServerKeyFile
               :Trap 0 DebugLevel 1
@@ -540,7 +542,7 @@
                   →∆EXIT
               :EndTrap
               cert.KeyOrigin←'DER'ServerKeyFile
-          :ElseIf isWin
+          :ElseIf isWin ⍝ ServerCertSKI only on Windows
               certs←LDRC.X509Cert.ReadCertUrls
               :If 0∊⍴certs
                   →∆EXIT⊣(rc msg)←8 'No certificates found in Microsoft Certificate Store'
