@@ -529,8 +529,9 @@
           :If ~0∊⍴RootCertDir ⍝ on Windows not specifying RootCertDir will use MS certificate store
               →∆EXIT If(rc msg)←'RootCertDir'Exists RootCertDir
               →∆EXIT If(rc msg)←{(⊃⍵)'Error setting RootCertDir'}LDRC.SetProp'.' 'RootCertDir'RootCertDir
-          :ElseIf ~isWin
-              →∆EXIT⊣(rc msg)←¯1 'No RootCertDir spcified'
+⍝ The following is commented out because it seems the GnuTLS knows to use the operating system's certificate collection even on non-Windows platforms 
+⍝          :ElseIf ~isWin
+⍝              →∆EXIT⊣(rc msg)←¯1 'No RootCertDir spcified'
           :EndIf
           :If 0∊⍴ServerCertSKI ⍝ no certificate ID specified, check for Cert and Key files
               →∆EXIT If(rc msg)←'ServerCertFile'Exists ServerCertFile
