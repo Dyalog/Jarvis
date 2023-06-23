@@ -225,12 +225,13 @@
 
     ∇ MakeCommon
       :Trap 11
-          JSONin←0 ##.##.⎕JSON⍠('Dialect' 'JSON5')('Format'JSONInputFormat)⊢ ⋄ {}JSONin '1'
+          JSONin←0 ##.##.⎕JSON⍠('Dialect' 'JSON5')('Format'JSONInputFormat)⊢ ⋄ {}JSONin'1'
           JSONout←1 ##.##.⎕JSON⍠'HighRank' 'Split'⊢ ⋄ {}JSONout 1
           JSONread←0 ##.##.⎕JSON⍠'Dialect' 'JSON5'⊢ ⍝ for reading configuration files
       :Else
           JSONin←0 ##.##.⎕JSON⍠('Format'JSONInputFormat)⊢
-          JSONread←JSONout←1∘##.##.⎕JSON
+          JSONout←1 ##.##.⎕JSON⊢
+          JSONread←0 ##.##.⎕JSON⊢
       :EndTrap
     ∇
 
