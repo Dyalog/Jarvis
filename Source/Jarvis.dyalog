@@ -1409,7 +1409,7 @@
         ∇
 
         ∇ r←ParseEncodings encodings
-          r←⎕C(⊃¨';'(≠⊆⊢)¨','(≠⊆⊢)encodings~' ')∩'gzip' 'deflate'
+          r←(⎕C(⊃¨';'(≠⊆⊢)¨','(≠⊆⊢)encodings~' '))∩'gzip' 'deflate'
         ∇
 
         ∇ cookies←ParseCookies headers;cookieHeader;cookie
