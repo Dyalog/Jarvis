@@ -6,7 +6,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.13.6' '2022-05-31'
+      r←'Jarvis' '1.14.0' '2022-06-23'
     ∇
 
     ∇ Documentation
@@ -34,6 +34,8 @@
     :Field Public Logging←1                                    ⍝ turn logging on/off
     :Field Public Paradigm←'JSON'                              ⍝ either 'JSON' or 'REST'
     :Field Public Report404InHTML←1                            ⍝ Report HTTP 404 status (not found) in HTML (only valid if HTML interface is enabled)
+    :Field Public UseZip←0                                     ⍝ Use compression if client allows it, 0- don't compress, 0<- compress if UseZip≤≢payload
+    :Field Public ZipLevel←3                                   ⍝ default compression level (0-9)
 
    ⍝ Container-related settings
     :Field Public DYALOG_JARVIS_THREAD←''                      ⍝ 0 = Run in thread 0, 1 = Use separate thread and ⎕TSYNC, 'DEBUG' = Use separate thread and return to immediate execution, "AUTO" = if InTerm use "DEBUG" otherwise 1
@@ -223,12 +225,12 @@
 
     ∇ MakeCommon
       :Trap 11
-          JSONin←{##.##.⎕JSON⍠('Dialect' 'JSON5')('Format'JSONInputFormat)⊢⍵} ⋄ {}JSONin 1
-          JSONout←##.##.⎕JSON⍠'HighRank' 'Split' ⋄ {}JSONout 1
-          JSONread←##.##.⎕JSON⍠'Dialect' 'JSON5' ⍝ for reading configuration files
+          JSONin←0 ##.##.⎕JSON⍠('Dialect' 'JSON5')('Format'JSONInputFormat)⊢ ⋄ {}JSONin '1'
+          JSONout←1 ##.##.⎕JSON⍠'HighRank' 'Split'⊢ ⋄ {}JSONout 1
+          JSONread←0 ##.##.⎕JSON⍠'Dialect' 'JSON5'⊢ ⍝ for reading configuration files
       :Else
-          JSONin←{##.##.⎕JSON⍠('Format'JSONInputFormat)⊢⍵}
-          JSONread←JSONout←##.##.⎕JSON
+          JSONin←0 ##.##.⎕JSON⍠('Format'JSONInputFormat)⊢
+          JSONread←JSONout←1∘##.##.⎕JSON
       :EndTrap
     ∇
 
@@ -787,7 +789,7 @@
               CleanupConnections
      
           :Else ⍝ :Trap
-              Log'*** Server error ',msg←(JSONout⍠'Compact' 0)⎕DMX
+              Log'*** Server error ',msg←1 ⎕JSON⍠'Compact' 0⊢⎕DMX
               r←¯1 msg
               →Exit
           :EndTrap
@@ -897,10 +899,18 @@
           :EndSelect
      
           :If ns.Req.Complete
-     
-              :If ns.Req.Charset≡'utf-8'
-                  ns.Req.Body←'UTF-8'⎕UCS ⎕UCS ns.Req.Body
-              :EndIf
+              :Select lc ns.Req.GetHeader'content-encoding' ⍝ zipped request?
+              :Case '' ⍝ no encoding
+                  :If ns.Req.Charset≡'utf-8'
+                      ns.Req.Body←'UTF-8'⎕UCS ⎕UCS ns.Req.Body
+                  :EndIf
+              :Case 'gzip'
+                  ns.Req.Body←⎕UCS 256|¯3 Zipper 83 ⎕DR ns.Req.Body
+              :Case 'deflate'
+                  ns.Req.Body←⎕UCS 256|¯2 Zipper 83 ⎕DR ns.Req.Body
+              :Else
+                  →resp⊣'Unsupported content-encoding'ns.Req.Fail 400
+              :EndSelect
      
               :If _htmlEnabled∧ns.Req.Response.Status≠200
                   ns.Req.Response.Headers←1 2⍴'Content-Type' 'text/html; charset=utf-8'
@@ -976,7 +986,7 @@
      
       :Case 'application/json'
           :Trap 0 DebugLevel 1
-              ns.Req.Payload←{0∊⍴⍵:⍵ ⋄ 0 JSONin ⍵}ns.Req.Body
+              ns.Req.Payload←{0∊⍴⍵:⍵ ⋄ JSONin ⍵}ns.Req.Body
           :Else
               →End⊣'Could not parse payload as JSON'ns.Req.Fail 400
           :EndTrap
@@ -995,9 +1005,9 @@
               :If 0∊⍴ns.Req.QueryParams
                   ns.Req.Payload←''
               :ElseIf 1=≢⍴ns.Req.QueryParams ⍝ name/value pairs
-                  ns.Req.Payload←0 JSONin ns.Req.QueryParams
+                  ns.Req.Payload←JSONin ns.Req.QueryParams
               :Else
-                  ns.Req.Payload←{0 JSONin{1⌽'}{',¯1↓∊'"',¨⍵[;,1],¨'":'∘,¨⍵[;,2],¨','}⍵}ns.Req.QueryParams
+                  ns.Req.Payload←{JSONin{1⌽'}{',¯1↓∊'"',¨⍵[;,1],¨'":'∘,¨⍵[;,2],¨','}⍵}ns.Req.QueryParams
               :EndIf
           :Else
               →0⊣'Could not parse query string as JSON'ns.Req.Fail 400
@@ -1075,7 +1085,7 @@
           :Trap 0 DebugLevel 1
               :Select ns.Req.ContentType
               :Case 'application/json'
-                  ns.Req.Payload←0 JSONin ns.Req.Body
+                  ns.Req.Payload←JSONin ns.Req.Body
               :Case 'application/xml'
                   ns.Req.(Payload←⎕XML Body)
               :EndSelect
@@ -1125,10 +1135,18 @@
     ∇ response ToJSON data
     ⍝ convert APL response payload to JSON
       :Trap 0 DebugLevel 1
-          response.Payload←⎕UCS'UTF-8'⎕UCS 1 JSONout resp
+          response.Payload←⎕UCS SafeJSON JSONout data
       :Else
           'Could not format result payload as JSON'ns.Req.Fail 500
       :EndTrap
+    ∇
+
+    ∇ w←SafeJSON w;i;c;⎕IO
+    ⍝ Convert Unicode chars to \uXXXX
+      ⎕IO←0
+      →0⍴⍨0∊⍴i←⍸127<c←⎕UCS w
+      w[i]←{⊂'\u','0123456789ABCDEF'[16 16 16 16⊤⍵]}¨c[i]
+      w←∊w
     ∇
 
     ∇ r←CheckAuthentication req
@@ -1172,6 +1190,7 @@
       conx←lc ns.Req.GetHeader'connection'
       close←(('HTTP/1.0'≡ns.Req.HTTPVersion)>'keep-alive'≡conx)∨'close'≡conx
       close∨←2≠⌊0.01×res.Status ⍝ close the connection on non-2XX status
+      UseZip ContentEncode ns.Req
       :Select 1⊃z←LDRC.Send obj(status,res.Headers res.Payload)close
       :Case 0 ⍝ everything okay, nothing to do
       :Case 1008 ⍝ Wrong object class likely caused by socket being closed during the request
@@ -1181,6 +1200,34 @@
           Log⍕z
       :EndSelect
       ns.⎕EX'Req'
+    ∇
+
+    ∇ UseZip ContentEncode req;enc
+      →End If 0=UseZip ⍝ is zipping enabled?
+      →End If 0∊⍴enc←req.AcceptEncodings ⍝ does the client accept zipped responses?
+      :If UseZip≤≢req.Response.Payload ⍝ payload exceeds size threshhold?
+          :Select ⊃enc
+          :Case 'gzip'
+              :Trap 0
+                  req.Response.Payload←2⊃3 ZipLevel Zipper sint req.Response.Payload
+              :Else
+                  Log'ContentEncode: gzip content-encoding failed'
+                  →End
+              :EndTrap
+              'Content-Encoding'req.SetHeader'gzip'
+          :Case 'deflate'
+              :Trap 0
+                  req.Response.Payload←2⊃2 ZipLevel Zipper sint req.Response.Payload
+              :Else
+                  Log'ContentEncode: deflate content-encoding failed'
+                  →End
+              :EndTrap
+              'Content-Encoding'req.SetHeader'deflate'
+          :Else
+              Log'ContentEncode: unsupported content-encoding - ',⊃enc ⍝ this should NEVER happen
+          :EndSelect
+      :EndIf
+     End:
     ∇
 
     :EndSection ⍝ Request Handling
@@ -1210,6 +1257,7 @@
     ∇
 
     :class Request
+        :Field Public Instance AcceptEncodings←''⍝ content-encodings that the client will accept
         :Field Public Instance Boundary←''       ⍝ boundary for content-type 'multipart/form-data'
         :Field Public Instance Charset←''        ⍝ content charset (defaults to 'utf-8' if content-type is application/json)
         :Field Public Instance Complete←0        ⍝ do we have a complete request?
@@ -1285,6 +1333,8 @@
          
           Cookies←ParseCookies Headers
          
+          AcceptEncodings←ParseEncodings GetHeader'accept-encoding'
+         
           makeResponse
          
           (Endpoint query)←'?'split Input
@@ -1351,6 +1401,10 @@
           :Else
               params←URLDecode query
           :EndIf
+        ∇
+
+        ∇ r←ParseEncodings encodings
+          r←⎕C(⊃¨';'(≠⊆⊢)¨','(≠⊆⊢)encodings~' ')∩'gzip' 'deflate'
         ∇
 
         ∇ cookies←ParseCookies headers;cookieHeader;cookie
@@ -1622,8 +1676,9 @@
 
     :Section Utilities
 
-    If←((0∘≠⊃)⊢)⍴⊣ ⍝ test for 0 return
+    If←((0≠⊃)⊢)⍴⊣ ⍝ test for 0 return
     isChar←{0 2∊⍨10|⎕DR ⍵}
+    toChar←{(⎕DR'')⎕DR ⍵}
     stripQuotes←{'""'≡2↑¯1⌽⍵:¯1↓1↓⍵ ⋄ ⍵} ⍝ strip leading and ending "
     deb←{{1↓¯1↓⍵/⍨~'  '⍷⍵}' ',⍵,' '} ⍝ delete extraneous blanks
     dlb←{⍵↓⍨+/∧\' '=⍵} ⍝ delete leading blanks
@@ -1637,6 +1692,10 @@
     sins←{0∊⍴⍺:⍵ ⋄ ⍺} ⍝ set if not set
     stopIf←{1∊⍵:-⎕TRAP←0 'C' '⎕←''Stopped for debugging... (Press Ctrl-Enter)''' ⋄ shy←0} ⍝ faster alternative to setting ⎕STOP
     show←{(2⊃⎕SI),'[',(⍕2⊃⎕LC),'] ',⍵} ⍝ debugging utility
+    utf8←{3=10|⎕DR ⍵: 256|⍵ ⋄ 'UTF-8' ⎕UCS ⍵}
+    fromutf8←{0::(⎕AV,'?')[⎕AVU⍳⍵] ⋄ 'UTF-8'⎕UCS ⍵} ⍝ Turn raw UTF-8 input into text
+    sint←{⎕IO←0 ⋄ 83=⎕DR ⍵:⍵ ⋄ 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95 96 97 98 99 100 101 102 103 104 105 106 107 108 109 110 111 112 113 114 115 116 117 118 119 120 121 122 123 124 125 126 127 ¯128 ¯127 ¯126 ¯125 ¯124 ¯123 ¯122 ¯121 ¯120 ¯119 ¯118 ¯117 ¯116 ¯115 ¯114 ¯113 ¯112 ¯111 ¯110 ¯109 ¯108 ¯107 ¯106 ¯105 ¯104 ¯103 ¯102 ¯101 ¯100 ¯99 ¯98 ¯97 ¯96 ¯95 ¯94 ¯93 ¯92 ¯91 ¯90 ¯89 ¯88 ¯87 ¯86 ¯85 ¯84 ¯83 ¯82 ¯81 ¯80 ¯79 ¯78 ¯77 ¯76 ¯75 ¯74 ¯73 ¯72 ¯71 ¯70 ¯69 ¯68 ¯67 ¯66 ¯65 ¯64 ¯63 ¯62 ¯61 ¯60 ¯59 ¯58 ¯57 ¯56 ¯55 ¯54 ¯53 ¯52 ¯51 ¯50 ¯49 ¯48 ¯47 ¯46 ¯45 ¯44 ¯43 ¯42 ¯41 ¯40 ¯39 ¯38 ¯37 ¯36 ¯35 ¯34 ¯33 ¯32 ¯31 ¯30 ¯29 ¯28 ¯27 ¯26 ¯25 ¯24 ¯23 ¯22 ¯21 ¯20 ¯19 ¯18 ¯17 ¯16 ¯15 ¯14 ¯13 ¯12 ¯11 ¯10 ¯9 ¯8 ¯7 ¯6 ¯5 ¯4 ¯3 ¯2 ¯1[utf8 ⍵]}
+    Zipper←219⌶
 
     ∇ r←DyalogRoot
       r←{⍵,('/\'∊⍨⊢/⍵)↓'/'}{0∊⍴t←2 ⎕NQ'.' 'GetEnvironment' 'DYALOG':⊃1 ⎕NPARTS⊃2 ⎕NQ'.' 'GetCommandLineArgs' ⋄ t}''
@@ -1962,24 +2021,34 @@
 ⍝<script>
 ⍝function doit() {
 ⍝  document.getElementById("result").innerHTML = "";
-⍝  var xhttp = new XMLHttpRequest();
-⍝  var fn = document.getElementById("function").value;
-⍝  fn = (0 == fn.indexOf('/')) ? fn : '/' + fn;
+⍝  var payload = document.getElementById("payload").value;
+⍝  if (0 == payload.length) {
+⍝    document.getElementById("result").innerHTML = "<span style='color:red;'>Please enter a valid JSON payload</span>";
+⍝    } else {
+⍝    var xhttp = new XMLHttpRequest();
+⍝    var fn = document.getElementById("function").value;
+⍝    fn = (0 == fn.indexOf('/')) ? fn : '/' + fn;
 ⍝
-⍝  xhttp.open("POST", fn, true);
-⍝  xhttp.setRequestHeader("content-type", "application/json; charset=utf-8");
+⍝    xhttp.open("POST", fn, true);
+⍝    xhttp.setRequestHeader("content-type", "application/json; charset=utf-8");
 ⍝
-⍝  xhttp.onreadystatechange = function() {
-⍝    if (this.readyState == 4){
-⍝      if (this.status == 200) {
-⍝        var resp = "<pre><code>" + this.responseText + "</code></pre>";
-⍝      } else {
-⍝        var resp = "<span style='color:red;'>" + this.statusText + "</span> <pre><code>" + this.responseText + "</code></pre>";
+⍝    xhttp.onreadystatechange = function() {
+⍝      if (this.readyState == 4){
+⍝        if (this.status == 200) {
+⍝          try {
+⍝            var resp = "<pre><code>" + JSON.stringify(JSON.parse(this.responseText)) + "</code></pre>";;
+⍝          }
+⍝          catch(err) {
+⍝            var resp = "<pre><code>" + this.responseText + "</code></pre>";
+⍝          }
+⍝        } else {
+⍝          var resp = "<span style='color:red;'>" + this.statusText + "</span> <pre><code>" + this.responseText + "</code></pre>";
+⍝        }
+⍝        document.getElementById("result").innerHTML = resp;
 ⍝      }
-⍝      document.getElementById("result").innerHTML = resp;
 ⍝    }
+⍝    xhttp.send(document.getElementById("payload").value);
 ⍝  }
-⍝  xhttp.send(document.getElementById("payload").value);
 ⍝}
 ⍝</script>
 ⍝</div>
