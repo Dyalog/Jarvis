@@ -6,7 +6,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.14.0' '2022-06-23'
+      r←'Jarvis' '1.14.1' '2022-07-10'
     ∇
 
     ∇ Documentation
@@ -532,7 +532,7 @@
           :If ~0∊⍴RootCertDir ⍝ on Windows not specifying RootCertDir will use MS certificate store
               →∆EXIT If(rc msg)←'RootCertDir'Exists RootCertDir
               →∆EXIT If(rc msg)←{(⊃⍵)'Error setting RootCertDir'}LDRC.SetProp'.' 'RootCertDir'RootCertDir
-⍝ The following is commented out because it seems the GnuTLS knows to use the operating system's certificate collection even on non-Windows platforms 
+⍝ The following is commented out because it seems the GnuTLS knows to use the operating system's certificate collection even on non-Windows platforms
 ⍝          :ElseIf ~isWin
 ⍝              →∆EXIT⊣(rc msg)←¯1 'No RootCertDir spcified'
           :EndIf
@@ -637,7 +637,7 @@
      
       Validate←{0} ⍝ dummy validation function
       :If ~0∊⍴ValidateRequestFn  ⍝ Request validation function specified?
-          :If 1 1 0≡⊃CodeLocation.⎕AT ValidateRequestFn ⍝ result-returning monadic?
+          :If ∧/(⊃CodeLocation.⎕AT ValidateRequestFn)∊¨1(1 ¯2)0 ⍝ result-returning monadic or ambivalent?
               Validate←CodeLocation⍎ValidateRequestFn
           :Else
               →0⊣(rc msg)←8('"',(⍕CodeLocation),'.',ValidateRequestFn,'" is not a monadic result-returning function')
@@ -649,7 +649,7 @@
           :If 1 1 0≡⊃CodeLocation.⎕AT AuthenticateFn ⍝ result-returning monadic?
               Authenticate←CodeLocation⍎AuthenticateFn
           :Else
-              →0⊣(rc msg)←8('"',(⍕CodeLocation),'.',Authenticate,'" is not a monadic result-returning function')
+              →0⊣(rc msg)←8('"',(⍕CodeLocation),'.',AuthenticateFn,'" is not a monadic result-returning function')
           :EndIf
       :EndIf
     ∇
