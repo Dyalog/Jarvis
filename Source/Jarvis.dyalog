@@ -646,7 +646,7 @@
      
       Authenticate←{0} ⍝ dummy authentication function
       :If ~0∊⍴AuthenticateFn  ⍝ authentication function specified?
-          :If 1 1 0≡⊃CodeLocation.⎕AT AuthenticateFn ⍝ result-returning monadic?
+          :If ∧/(⊃CodeLocation.⎕AT AuthenticateFn)∊¨1(1 ¯2)0 ⍝ result-returning monadic or ambivalent?
               Authenticate←CodeLocation⍎AuthenticateFn
           :Else
               →0⊣(rc msg)←8('"',(⍕CodeLocation),'.',AuthenticateFn,'" is not a monadic result-returning function')
