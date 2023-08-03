@@ -13,12 +13,12 @@ nav:
     - Reference:
       - 'Settings':
         - 'Operational Settings': 'settings-operational.md'
-        - 'Container Settings': 'settings-container.md'
         - 'Session Settings': 'settings-session.md'
         - 'JSON Settings': 'settings-json.md'
         - 'REST Settings': 'settings-rest.md'
         - 'User Hooks Settings' : 'settings-hooks.md'
         - 'Conga-Related Settings': 'settings-conga.md'
+        - 'Container Settings': 'settings-container.md'      
       - 'Methods':
         - 'Shared Methods': 'methods-shared.md'
         - 'Instance Methods': 'methods-instance.md'
