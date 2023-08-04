@@ -6,7 +6,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.14.1' '2022-07-10'
+      r←'Jarvis' '1.14.2' '2023-08-04'
     ∇
 
     ∇ Documentation
@@ -1056,7 +1056,7 @@
      ⍝        ↓↓↓↓↓↓↓ no response from endpoint,
      ⍝ and              ↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓ endpoint did not set payload
      ⍝ and                                           ↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓ endpoint did not fail the request
-      →End If(0∊⍴resp)∧(0∊⍴ns..Req.Response.Payload)∧200≠ns.Req.Response.Status
+      →End If(0∊⍴resp)∧(0∊⍴ns.Req.Response.Payload)∧200≠ns.Req.Response.Status
      
       'Content-Type'ns.Req.DefaultHeader DefaultContentType ⍝ set the header if not set
       :If ∨/'application/json'⍷ns.Req.(Response.Headers GetHeader'content-type') ⍝ if the response is JSON
@@ -1520,16 +1520,22 @@
           :EndTrap
         ∇
 
-        ∇ name SetHeader value
+        ∇ {(name value)}←name SetHeader value
           :Access Public Instance
           Response.Headers⍪←name(∊⍕value)
         ∇
 
-        ∇ name SetCookie cookie
+        ∇ {(name cookie)}←name SetCookie cookie
           :Access public instance
         ⍝ create a response "set-cookie" header
         ⍝ cookie is the cookie value followed by any ;-delimited attributes
           'set-cookie'SetHeader name,'=',cookie
+        ∇
+
+        ∇ {(name value)}←SetContentType contentType
+          :Access public instance
+        ⍝ shortcut function to set the response content-type header
+          (name value)←'Content-Type'SetHeader contentType
         ∇
 
         ∇ value←GetCookie name
