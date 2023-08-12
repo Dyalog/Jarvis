@@ -6,7 +6,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.14.2' '2023-08-04'
+      r←'Jarvis' '1.14.3' '2023-08-12'
     ∇
 
     ∇ Documentation
@@ -505,7 +505,7 @@
      ∆TRY:
           :Trap 0 DebugLevel 1
               :If ∨/'.Conga'⍷⍕CongaRef ⋄ LDRC←CongaPath CongaRef.Init'Jarvis' ⍝ is it Conga?
-              :ElseIf 0≡⊃CongaPath CongaRef.Init'' ⋄ LDRC←CongaRef ⍝ DRC?
+              :ElseIf 0≡⊃CongaRef.Init CongaPath ⋄ LDRC←CongaRef ⍝ DRC?
               :Else ⋄ →∆EXIT⊣LDRC←''
               :End
           :Else ⍝ if Jarvis is reloaded and re-executed in rapid succession, Conga initialization may fail, so we try twice
