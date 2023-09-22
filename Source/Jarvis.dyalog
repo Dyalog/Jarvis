@@ -6,7 +6,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.14.3' '2023-08-12'
+      r←'Jarvis' '1.14.4' '2023-09-22'
     ∇
 
     ∇ Documentation
@@ -768,7 +768,7 @@
                           ref.Time←⎕AI[3]
                       :Else
                           Log'Server: Object ''_connections.',conx,''' was not found.'
-                          {}{0:: ⋄ LDRC.Close ⍵}obj
+                          {0:: ⋄ {}LDRC.Close ⍵}obj
                       :EndIf
      
                   :Case 'Closed'
