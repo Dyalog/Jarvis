@@ -6,7 +6,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.14.4' '2023-09-22'
+      r←'Jarvis' '1.14.5' '2023-10-14'
     ∇
 
     ∇ Documentation
@@ -617,14 +617,18 @@
       →0 If rc←8×~0∊⍴msg
      
       :If ~0∊⍴AppInitFn  ⍝ initialization function specified?
-          :If 1 0 0≡⊃CodeLocation.⎕AT AppInitFn ⍝ result-returning niladic?
+          :Select ⊃CodeLocation.⎕AT AppInitFn
+          :Case 1 0 0 ⍝ result-returning niladic?
               stopIf DebugLevel 2
               res←CodeLocation⍎AppInitFn        ⍝ run it
-              :If 0≠⊃res
-                  →0⊣(rc msg)←2↑res,(≢res)↓¯1('"',(⍕CodeLocation),'.',AppInitFn,'" did not return a 0 return code')
-              :EndIf
+          :Case 1 1 0 ⍝ result-returning monadic?
+              stopIf DebugLevel 2
+              res←(CodeLocation⍎AppInitFn)⎕THIS ⍝ run it
           :Else
-              →0⊣(rc msg)←8('"',(⍕CodeLocation),'.',AppInitFn,'" is not a niladic result-returning function')
+              →0⊣(rc msg)←8('"',(⍕CodeLocation),'.',AppInitFn,'" is not a niladic or monadic result-returning function')
+          :EndSelect
+          :If 0≠⊃res
+              →0⊣(rc msg)←2↑res,(≢res)↓¯1('"',(⍕CodeLocation),'.',AppInitFn,'" did not return a 0 return code')
           :EndIf
       :EndIf
      
