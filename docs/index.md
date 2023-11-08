@@ -67,6 +67,6 @@ We can use the cURL command to call the web service.
     C:\> curl -H "content-type: application/json" -X POST -d [1,3,5] http://localhost:8080/addemup
     9
 
-To stop the service, simply type `server.stop`
+To stop the service, simply type `server.Stop`
 
 Interested?  Read on...
