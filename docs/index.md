@@ -28,7 +28,7 @@ If you know how to write a monadic, result-returning APL function, you're ready 
 
 2. Next, download a copy of Jarvis. Note, the following statement simply downloads the latest, perhaps pre-release, version of the Jarvis class for this quick demonstration. For a production environment, you should use a [released version of Jarvis](https://github.com/Dyalog/Jarvis/releases). `HttpCommand.Fix` both downloads and runs `⎕FIX` on an APL code file from the web.
 
-		      HttpCommand.Fix 'https://raw.githubusercontent.com/Dyalog/Jarvis/master/Source/Jarvis.dyalog
+		      HttpCommand.Fix 'https://raw.githubusercontent.com/Dyalog/Jarvis/master/Source/Jarvis.dyalog'
 
 1. Write one or more monadic, result-returning APL functions. For instance:
  
