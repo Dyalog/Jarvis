@@ -6,7 +6,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.14.5' '2023-10-14'
+      r←'Jarvis' '1.15.0' '2023-11-15'
     ∇
 
     ∇ Documentation
@@ -150,6 +150,12 @@
       :If 0≠⎕NC'value'
           r←value/⍨~r
       :EndIf
+    ∇
+
+    ∇ r←Thread
+    ⍝ return the thread that the server is running in
+      :Access public
+      r←_serverThread
     ∇
 
     ∇ {r}←{level}Log msg;ts
@@ -731,6 +737,7 @@
       :EndIf
       :Select thread
       :Case ,'0' ⍝ Run in thread 0
+          _serverThread←0
           (rc msg)←Server''
           QuadOFF
       :Case ,'1' ⍝ Run in non-0 thread, use ⎕TSYNC
@@ -825,8 +832,13 @@
       :EndHold
     ∇
 
-    ∇ RemoveConnection conx
+    ∇ RemoveConnection conx;ref
       :Hold '_connections'
+          ref←_connections⍎conx
+          :If 9=|⌊ref.⎕NC⊂'Req'
+          :AndIf ref.Req.KillOnDisconnect
+              ⎕TKILL ref.Req.Thread
+          :EndIf
           _connections.⎕EX conx
           _connections.index/⍨←_connections.index[1;]≢¨⊂conx
       :EndHold
@@ -886,6 +898,7 @@
           :Select evt
           :Case 'HTTPHeader'
               ns.Req←MakeRequest data
+              ns.Req.Thread←⎕TID
               ns.Req.PeerCert←''
               ns.Req.PeerAddr←2⊃2⊃LDRC.GetProp obj'PeerAddr'
               ns.Req.Server←⎕THIS
@@ -900,12 +913,17 @@
               :EndIf
      
           :Case 'HTTPBody'
+              ns.Req.Thread←⎕TID
               ns.Req.ProcessBody data
           :Case 'HTTPChunk'
+              ns.Req.Thread←⎕TID
               ns.Req.ProcessChunk data
           :Case 'HTTPTrailer'
+              ns.Req.Thread←⎕TID
               ns.Req.ProcessTrailer data
           :EndSelect
+     
+          ns.Req.Thread←⎕TID
      
           :If ns.Req.Complete
               :Select lc ns.Req.GetHeader'content-encoding' ⍝ zipped request?
@@ -1287,6 +1305,8 @@
         :Field Public Instance Headers←0 2⍴⊂''   ⍝ HTTPRequest header fields (plus any supplied from HTTPTrailer event)
         :Field Public Instance Method←''         ⍝ HTTP method (GET, POST, PUT, etc)
         :Field Public Instance Endpoint←''       ⍝ Requested URI
+        :Field Public Instance KillOnDisconnect←0⍝ Kill request thread on disconnect
+        :Field Public Instance Thread←¯1         ⍝ Thread number handling this request
         :Field Public Instance Body←''           ⍝ body of the request
         :Field Public Instance Payload←''        ⍝ parsed (if JSON or XML) payload
         :Field Public Instance PeerAddr←'unknown'⍝ client IP address
@@ -1663,6 +1683,13 @@
     ⍝ removes session from _sessions and marks it as time out in _sessionsInfo
       _sessions~←_sessionsInfo[ind;5]
       _sessionsInfo⌿←ind≠⍳≢_sessionsInfo
+    ∇
+
+    ∇ ref←GetSession req;id
+      :Access public
+      ref←''
+      →0⍴⍨0∊⍴id←GetSessionId req
+      ref←(_sessionsInfo[;1]⍳⊂id)⊃(_sessionsInfo[;5],⊂'')
     ∇
 
     ∇ id←GetSessionId req
