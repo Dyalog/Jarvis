@@ -152,6 +152,12 @@
       :EndIf
     ∇
 
+    ∇ r←Thread
+    ⍝ return the thread that the server is running in
+      :Access public
+      r←_serverThread
+    ∇
+
     ∇ {r}←{level}Log msg;ts
       :Access public overridable
       :If Logging>0∊⍴msg
@@ -731,6 +737,7 @@
       :EndIf
       :Select thread
       :Case ,'0' ⍝ Run in thread 0
+          _serverThread←0
           (rc msg)←Server''
           QuadOFF
       :Case ,'1' ⍝ Run in non-0 thread, use ⎕TSYNC
