@@ -6,7 +6,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.15.0' '2023-11-15'
+      r←'Jarvis' '1.16.0' '2023-12-12'
     ∇
 
     ∇ Documentation
@@ -24,7 +24,7 @@
    ⍝ Operational settings
     :Field Public CodeLocation←'#'                             ⍝ reference to application code location, if the user specifies a folder or file, that value is saved in CodeSource
     :Field Public ConnectionTimeout←30                         ⍝ HTTP/1.1 connection timeout in seconds
-    :Field Public Debug←0                                      ⍝ 0 = all errors are trapped, 1 = stop on an error, 2 = stop on intentional error before processing request, 4 = Jarvis framework debugging
+    :Field Public Debug←0                                      ⍝ 0 = all errors are trapped, 1 = stop on an error, 2 = stop on intentional error before processing request, 4 = Jarvis framework debugging, 8 = Conga event logging
     :Field Public DefaultContentType←'application/json; charset=utf-8'
     :Field Public ErrorInfoLevel←1                             ⍝ level of information to provide if an APL error occurs, 0=none, 1=⎕EM, 2=⎕SI
     :Field Public Hostname←''                                  ⍝ external-facing host name
@@ -146,7 +146,7 @@
     ⍝    example: stopIf DebugLevel 2  ⍝ sets a stop if Debug contains 2
     ⍝  dyadic:  return value unless level is within Debug (powers of 2)
     ⍝    example: :Trap 0 DebugLevel 5 ⍝ set Trap 0 unless Debug contains 1 or 4 in its
-      r←∨/(2 2 2⊤⊃Debug)∨.∧2 2 2⊤level
+      r←∨/(2 2 2 2⊤⊃Debug)∨.∧2 2 2 2⊤level
       :If 0≠⎕NC'value'
           r←value/⍨~r
       :EndIf
@@ -494,7 +494,7 @@
           :EndIf
           CongaVersion←0.1⊥2↑LDRC.Version
           LDRC.X509Cert.LDRC←LDRC ⍝ reset X509Cert.LDRC reference
-          Log'Local Conga reference is ',⍕LDRC
+          Log'Local Conga v',(⍕CongaVersion),' reference is ',⍕LDRC
           rc←0
      ∆END:
       :EndHold
@@ -758,6 +758,10 @@
               wres←LDRC.Wait ServerName WaitTimeout ⍝ Wait for WaitTimeout before timing out
           ⍝ wres: (return code) (object name) (command) (data)
               (rc obj evt data)←4↑wres
+              :If DebugLevel 8
+              :AndIf evt≢'Timeout'
+                  Log'Server: ',∊⍕rc obj evt
+              :EndIf
               conx←obj(⍳↓⊣)'.'
               :Select rc
               :Case 0
