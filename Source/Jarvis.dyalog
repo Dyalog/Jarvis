@@ -6,7 +6,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.16.0' '2023-12-12'
+      r←'Jarvis' '1.16.1' '2023-12-13'
     ∇
 
     ∇ Documentation
@@ -777,6 +777,9 @@
                       AddConnection conx
      
                   :CaseList 'HTTPHeader' 'HTTPTrailer' 'HTTPChunk' 'HTTPBody'
+                      :If (DebugLevel 8)∧evt≡'HTTPHeader'
+                          Log'Server: HTTPHeader Method/URL: ',∊⍕2↑4⊃wres
+                      :EndIf
                       :If 0≠_connections.⎕NC conx
                           ref←_connections⍎conx
                           _taskThreads←⎕TNUMS∩_taskThreads,ref{⍺ HandleRequest ⍵}&wres
