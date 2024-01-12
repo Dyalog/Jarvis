@@ -6,7 +6,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.16.2' '2024-01-11'
+      r←'Jarvis' '1.16.3' '2024-01-12'
     ∇
 
     ∇ Documentation
@@ -871,8 +871,9 @@
                   :If ~0∊⍴timedOut
                       timedOut/⍨←{6::1 ⋄ 0=(_connections⍎⍵).⎕NC⊂'Req'}¨timedOut
                   :EndIf
-                  dead←(connected~conxNames),timedOut ⍝ (connections not in the index), timed out
-                  {0∊⍴⍵: ⋄ {}LDRC.Close ServerName,'.',⍵}¨dead ⍝ attempt to close them
+                  :If ~0∊⍴dead←(connected~conxNames),timedOut ⍝ (connections not in the index), timed out
+                      {0∊⍴⍵: ⋄ {}LDRC.Close ServerName,'.',⍵}¨dead ⍝ attempt to close them
+                  :EndIf
                ⍝ remove timed out, or connections that are
                   _connections.⎕EX(conxNames~connected~dead),timedOut
                   _connections.index/⍨←_connections.index[1;]∊_connections.⎕NL ¯9
