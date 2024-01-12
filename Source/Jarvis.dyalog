@@ -6,7 +6,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.16.1' '2023-12-13'
+      r←'Jarvis' '1.16.2' '2024-01-11'
     ∇
 
     ∇ Documentation
@@ -158,17 +158,17 @@
       r←_serverThread
     ∇
 
-    ∇ {r}←{level}Log msg;ts
+    ∇ {msg}←{level}Log msg;ts;fmsg
       :Access public overridable
       :If Logging>0∊⍴msg
-          ts←fmtTS ⎕TS
-          :If 1=≢⍴msg←⍕msg
-          :OrIf 1=⊃⍴msg
-              r←ts,' - ',msg
+          ts←(2⊃⎕SI),'[',(⍕2⊃⎕LC),'] ',fmtTS ⎕TS
+          :If 1=≢⍴fmsg←⍕msg
+          :OrIf 1=⊃⍴fmsg
+              fmsg←ts,' - ',fmsg
           :Else
-              r←ts,∊(⎕UCS 13),msg
+              fmsg←ts,∊(⎕UCS 13),fmsg
           :EndIf
-          ⎕←r
+          ⎕←fmsg
       :EndIf
     ∇
 
@@ -841,10 +841,14 @@
 
     ∇ RemoveConnection conx;ref
       :Hold '_connections'
-          ref←_connections⍎conx
-          :If 9=|⌊ref.⎕NC⊂'Req'
-          :AndIf ref.Req.KillOnDisconnect
-              ⎕TKILL ref.Req.Thread
+          :If 0=_connections.⎕NC conx
+              Log'Attempt to remove non-existent connection ',⍕conx
+          :Else
+              ref←_connections⍎conx
+              :If 9=|⌊ref.⎕NC⊂'Req'
+              :AndIf ref.Req.KillOnDisconnect
+                  ⎕TKILL ref.Req.Thread
+              :EndIf
           :EndIf
           _connections.⎕EX conx
           _connections.index/⍨←_connections.index[1;]≢¨⊂conx
@@ -1792,7 +1796,7 @@
     ∇
 
     ∇ r←fmtTS ts
-      r←,'G⊂9999/99/99 @ 99:99:99⊃'⎕FMT 100⊥6↑ts
+      r←∊'YYYY-MM-DD @ hh.mm.ss.fff'(1200⌶)1 ⎕DT⊂⎕TS
     ∇
 
     ∇ r←a splitOn w
