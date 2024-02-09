@@ -6,7 +6,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.16.3' '2024-01-12'
+      r←'Jarvis' '1.17.0' '2024-02-09'
     ∇
 
     ∇ Documentation
@@ -71,6 +71,7 @@
     :Field Public BufferSize←10000                             ⍝ Conga: buffer size
     :Field Public DenyFrom←⍬                                   ⍝ Conga: IP addresses to refuse requests from - empty means deny none
     :Field Public DOSLimit←¯1                                  ⍝ Conga: DOSLimit, ¯1 means use default
+    :Field Public FIFO←1                                       ⍝ Conga: Use FIFO mode?
     :Field Public Port←8080                                    ⍝ Conga: Default port to listen on
     :Field Public RootCertDir←''                               ⍝ Conga: Root CA certificate folder
     :field Public Priority←'NORMAL:!CTYPE-OPENPGP'             ⍝ Conga: Priorities for GnuTLS when negotiation connection
@@ -161,7 +162,7 @@
     ∇ {msg}←{level}Log msg;ts;fmsg
       :Access public overridable
       :If Logging>0∊⍴msg
-          ts←(2⊃⎕SI),'[',(⍕2⊃⎕LC),'] ',fmtTS ⎕TS
+          ts←((ErrorInfoLevel=2)/(2⊃⎕SI),'[',(⍕2⊃⎕LC),'] '),fmtTS ⎕TS
           :If 1=≢⍴fmsg←⍕msg
           :OrIf 1=⊃⍴fmsg
               fmsg←ts,' - ',fmsg
@@ -694,7 +695,7 @@
       options←''
      
       :If 3.3≤CongaVersion ⍝ can we set DecodeBuffers at server creation?
-          options←⊂'Options' 5 ⍝ DecodeBuffers + WSAutoAccept
+          options←⊂'Options'(5+32×FIFO) ⍝ WSAutoAccept (1) + DecodeBuffers (4) + EnableFifo (32)
       :EndIf
      
       :If 3.4≤CongaVersion ⍝ DOSLimit support started with v3.4
@@ -711,7 +712,7 @@
       :If 0=rc←1⊃r←LDRC.Srv ServerName''Port'http'BufferSize,secureParams,accept,deny,options
           ServerName←2⊃r
           :If 3.3>CongaVersion
-              {}LDRC.SetProp ServerName'FIFOMode' 0 ⍝ deprecated in Conga v3.2
+              {}LDRC.SetProp ServerName'FIFOMode'FIFO ⍝ deprecated in Conga v3.2
               {}LDRC.SetProp ServerName'DecodeBuffers' 15 ⍝ 15 ⍝ decode all buffers
               {}LDRC.SetProp ServerName'WSFeatures' 1 ⍝ auto accept WS requests
           :EndIf
@@ -774,7 +775,7 @@
                       RemoveConnection conx ⍝ Conga closes object on an Error event
      
                   :Case 'Connect'
-                      AddConnection conx
+                      obj AddConnection conx
      
                   :CaseList 'HTTPHeader' 'HTTPTrailer' 'HTTPChunk' 'HTTPBody'
                       :If (DebugLevel 8)∧evt≡'HTTPHeader'
@@ -831,11 +832,17 @@
       (_stop _started _stopped)←0 0 1
     ∇
 
-    ∇ AddConnection conx
+    ∇ obj AddConnection conx;IP;res
       :Hold '_connections'
           conx _connections.⎕NS''
           _connections.index,←conx(⎕AI[3])
-          (_connections⍎conx).IP←2⊃2⊃LDRC.GetProp obj'PeerAddr'
+          IP←''
+          :Trap 0 DebugLevel 1
+              :If 0=⊃res←LDRC.GetProp obj'PeerAddr'
+                  IP←2⊃2⊃res
+              :EndIf
+          :EndTrap
+          (_connections⍎conx).IP←IP
       :EndHold
     ∇
 
@@ -1362,7 +1369,7 @@
           makeResponse
         ∇
 
-        ∇ make1 args;query;origin;length;param;value;type
+        ∇ make1 args;query;origin;length;param;value;type;noLength;len
         ⍝ args is the result of Conga HTTPHeader event
           :Access public
           :Implements constructor
@@ -1403,9 +1410,11 @@
               →0
           :EndTrap
          
-          length←GetHeader'content-length'
-          Complete←('get'≡Method)∧0=⊃⊃(//)⎕VFI length ⍝ we're a GET and there's no content-length or content-length=0
-          Complete∨←(0∊⍴length)>∨/'chunked'⍷GetHeader'transfer-encoding' ⍝ or no length supplied and we're not chunked
+          noLength←0∊⍴length←GetHeader'content-length'
+          len←⊃⊃(//)⎕VFI length
+          Complete←('get'≡Method)∧noLength∨0=len ⍝ we're a GET and there's no content-length or content-length=0
+          Complete∨←noLength>∨/'chunked'⍷GetHeader'transfer-encoding' ⍝ or no length supplied and we're not chunked
+          Complete∨←noLength<0=len ⍝ or if content-length=0
         ∇
 
         ∇ makeResponse
