@@ -6,7 +6,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.17.0' '2024-02-09'
+      r←'Jarvis' '1.17.1' '2024-06-09'
     ∇
 
     ∇ Documentation
@@ -493,7 +493,7 @@
                   :EndIf
               :EndIf
           :EndIf
-          CongaVersion←0.1⊥2↑LDRC.Version
+          CongaVersion←1 0.1+.×2↑LDRC.Version
           LDRC.X509Cert.LDRC←LDRC ⍝ reset X509Cert.LDRC reference
           Log'Local Conga v',(⍕CongaVersion),' reference is ',⍕LDRC
           rc←0
