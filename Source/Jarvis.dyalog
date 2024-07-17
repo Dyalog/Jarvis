@@ -939,7 +939,7 @@
           (rc obj evt data)←⊃⎕TGET conn ⍝ from Conga.Wait
           :Select evt
           :Case 'HTTPHeader'
-              ns.Req←MakeRequest ⎕←data
+              ns.Req←MakeRequest data
               ns.Req.Thread←⎕TID
               ns.Req.PeerCert←''
               ns.Req.PeerAddr←2⊃2⊃LDRC.GetProp obj'PeerAddr'
