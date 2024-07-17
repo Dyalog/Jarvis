@@ -6,7 +6,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.17.1' '2024-06-09'
+      r←'Jarvis' '1.17.2' '2024-07-17'
     ∇
 
     ∇ Documentation
@@ -36,6 +36,8 @@
     :Field Public Report404InHTML←1                            ⍝ Report HTTP 404 status (not found) in HTML (only valid if HTML interface is enabled)
     :Field Public UseZip←0                                     ⍝ Use compression if client allows it, 0- don't compress, 0<- compress if UseZip≤≢payload
     :Field Public ZipLevel←3                                   ⍝ default compression level (0-9)
+    :Field APLVersion                                          ⍝ Dyalog APL major.minor version number
+    :Field TokenBase←0                                         ⍝ base for tokens (possibly updated in Start if ⎕TALLOC is available)
 
    ⍝ Container-related settings
     :Field Public DYALOG_JARVIS_THREAD←''                      ⍝ 0 = Run in thread 0, 1 = Use separate thread and ⎕TSYNC, 'DEBUG' = Use separate thread and return to immediate execution, "AUTO" = if InTerm use "DEBUG" otherwise 1
@@ -231,6 +233,7 @@
     ∇
 
     ∇ MakeCommon
+      APLVersion←⊃⊃(//)⎕VFI{⍵/⍨2>+\'.'=⍵}2⊃#.⎕WG'APLVersion'
       :Trap 11
           JSONin←0 ##.##.⎕JSON⍠('Dialect' 'JSON5')('Format'JSONInputFormat)⊢ ⋄ {}JSONin'1'
           JSONout←1 ##.##.⎕JSON⍠'HighRank' 'Split'⊢ ⋄ {}JSONout 1
@@ -304,6 +307,10 @@
           →0 If(rc msg)←Setup
           →0 If(rc msg)←LoadConga
      
+          :If 19≤APLVersion ⍝ ⎕TALLOC appeared in v19.0
+              TokenBase←⎕TALLOC 1 'Jarvis'
+          :EndIf
+     
           homePage←1 ⍝ default is to use built-in home page
           :Select ⊃HTMLInterface
           :Case 0 ⍝ explicitly no HTML interface, carry on
@@ -361,7 +368,7 @@
       :EndTrap
     ∇
 
-    ∇ (rc msg)←Stop;ts
+    ∇ (rc msg)←Stop;ts;tokens
       :Access public
       :If _stop
           →0⊣(rc msg)←¯1 'Server is already stopping'
@@ -378,6 +385,12 @@
               →0⊣(rc msg)←¯1 'Server seems stuck'
           :EndIf
       :EndWhile
+      :If 0≠TokenBase
+          :If ~0∊⍴tokens←TokenBase ⎕TALLOC 2 ⍝ any lingering tokens?
+              {}⎕TGET tokens ⍝ remove them
+          :EndIf
+          TokenBase ⎕TALLOC ¯1 ⍝ remove token pool
+      :EndIf
       (rc msg)←0 'Server stopped'
     ∇
 
@@ -752,7 +765,7 @@
       :EndSelect
     ∇
 
-    ∇ {r}←Server arg;wres;rc;obj;evt;data;ref;ip;msg;tmp;conx
+    ∇ {r}←Server arg;wres;rc;obj;evt;data;ref;ip;msg;tmp;conx;conn
       (_started _stopped)←1 0
       :While ~_stop
           :Trap 0 DebugLevel 1
@@ -764,6 +777,7 @@
                   Log'Server: ',∊⍕rc obj evt
               :EndIf
               conx←obj(⍳↓⊣)'.'
+              conn←TokenForConnection⍣(~0∊⍴conx)⊢conx ⍝ connection (token) number - need to add 1 because connections start at 0
               :Select rc
               :Case 0
                   :Select evt
@@ -783,7 +797,8 @@
                       :EndIf
                       :If 0≠_connections.⎕NC conx
                           ref←_connections⍎conx
-                          _taskThreads←⎕TNUMS∩_taskThreads,ref{⍺ HandleRequest ⍵}&wres
+                          wres ⎕TPUT conn
+                          _taskThreads←⎕TNUMS∩_taskThreads,ref{⍺ HandleRequest ⍵}&(obj conn)
                           ref.Time←⎕AI[3]
                       :Else
                           Log'Server: Object ''_connections.',conx,''' was not found.'
@@ -830,6 +845,14 @@
       Close
       ⎕TKILL _sessionThread
       (_stop _started _stopped)←0 0 1
+    ∇
+
+    ∇ r←TokenForConnection conx
+    ⍝ return token for connection name (CONnnnnnnnn)
+      r←1+⊃⊃(//)⎕VFI conx∩⎕D
+      :If 0≠TokenBase ⍝ if ⎕TALLOC is available...
+          r←⍎,('<',(⍕TokenBase),'.>,ZI8')⎕FMT r
+      :EndIf
     ∇
 
     ∇ obj AddConnection conx;IP;res
@@ -911,12 +934,12 @@
       req.(Server ErrorInfoLevel)←⎕THIS ErrorInfoLevel
     ∇
 
-    ∇ ns HandleRequest req;data;evt;obj;rc;cert;fn
-      (rc obj evt data)←req ⍝ from Conga.Wait
+    ∇ ns HandleRequest(obj conn);data;evt;obj;rc;cert;fn
       :Hold obj
+          (rc obj evt data)←⊃⎕TGET conn ⍝ from Conga.Wait
           :Select evt
           :Case 'HTTPHeader'
-              ns.Req←MakeRequest data
+              ns.Req←MakeRequest ⎕←data
               ns.Req.Thread←⎕TID
               ns.Req.PeerCert←''
               ns.Req.PeerAddr←2⊃2⊃LDRC.GetProp obj'PeerAddr'
