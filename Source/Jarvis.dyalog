@@ -390,6 +390,8 @@
               {}⎕TGET tokens ⍝ remove them
           :EndIf
           TokenBase ⎕TALLOC ¯1 ⍝ remove token pool
+      :Else
+          {}⎕TGET{⍵/⍨1=1 100000000⍸⍵}⎕TPOOL ⍝ remove tokens in the Conga connection number range
       :EndIf
       (rc msg)←0 'Server stopped'
     ∇
@@ -883,10 +885,12 @@
           _connections.⎕EX conx
           _connections.index/⍨←_connections.index[1;]≢¨⊂conx
       :EndHold
+      CleanupTokens conx
     ∇
 
-    ∇ CleanupConnections;conxNames;timedOut;dead;kids;connecting;connected
+    ∇ CleanupConnections;conxNames;timedOut;dead;kids;connecting;connected;killed
       :If _connections.lastCheck<⎕AI[3]-ConnectionTimeout×1000
+          killed←⍬
           :Hold '_connections'
               connecting←connected←⍬
               :If ~0∊⍴kids←2 2⊃LDRC.Tree ServerName ⍝ retrieve children of server
@@ -905,11 +909,20 @@
                       {0∊⍴⍵: ⋄ {}LDRC.Close ServerName,'.',⍵}¨dead ⍝ attempt to close them
                   :EndIf
                ⍝ remove timed out, or connections that are
-                  _connections.⎕EX(conxNames~connected~dead),timedOut
+                  _connections.⎕EX killed←(conxNames~connected~dead),timedOut
                   _connections.index/⍨←_connections.index[1;]∊_connections.⎕NL ¯9
               :EndIf
               _connections.lastCheck←⎕AI[3]
           :EndHold
+          CleanupTokens killed
+      :EndIf
+    ∇
+
+    ∇ CleanupTokens conx
+    ⍝ remove any lingering tokens from dead/removed connections
+      :If ~0∊⍴conx
+          conx←,⊆conx
+          {}⎕TGET ⎕TPOOL∩TokenForConnection¨{⊃¯1↑⍵(≠⊆⊣)'.'}¨conx
       :EndIf
     ∇
 
