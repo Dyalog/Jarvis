@@ -6,7 +6,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.17.2' '2024-07-17'
+      r←'Jarvis' '1.17.3' '2024-07-19'
     ∇
 
     ∇ Documentation
@@ -1971,36 +1971,50 @@
       :EndTrap
     ∇
 
-      Deserialise←{
-⍝ copied (and modified to work here) from
-⍝   https://github.com/Dyalog/qSE/tree/db88297980476d81e0122624ecaa246c94149555
+    ∇ r←a Deserialise w;DEBUG;sysVars;Num;FirstNum;FirstNs
+      :Access public shared
+    ⍝ attempt to use the installed Deserialise
+      :If 3=⎕SE.⎕NC'Dyalog.Array.Deserialise'
+          r←a ⎕SE.Dyalog.Array.Deserialise w
+          →0
+      :EndIf
+    ⍝ If Deserialise is not available in ⎕SE, the code below was lifted from the qSE repository commit 67a9ca1
+    ⍝ Rather than embed the entirety of the Array namespace, just use Deserialise and the bits it depends on
+      DEBUG←0
+      sysVars←'⎕CT' '⎕DIV' '⎕IO' '⎕ML' '⎕PP' '⎕RL' '⎕RTL' '⎕WX' '⎕USING' '⎕AVU' '⎕DCT' '⎕FR'
+      Num←2|⎕DR
+      FirstNum←Num¨⊃⍤/⊢
+      FirstNs←{9∊⎕NC'⍵'}¨⊃⍤/⊢
      
-⍝ Convert text to array
-          ⍺←⍬ ⍝ 1=execute expression; 0=return expression
-          ⎕IO←0
-          Char←0 2∊⍨10|⎕DR
-          Num←2|⎕DR
-          Null←∧/⎕NULL≡¨⊢  ⍝ can't use ∧.= because = is pervasive on deep arrays
-          Ptr←6=10|⎕DR
-          Basic←Char∨Num∨Null
-          FirstNum←Num¨⊃⍤/⊢
-          FirstNs←{9∊⎕NC'⍵'}¨⊃⍤/⊢
-     
-          sysVars←'⎕CT' '⎕DIV' '⎕IO' '⎕ML' '⎕PP' '⎕RL' '⎕RTL' '⎕WX' '⎕USING' '⎕AVU' '⎕DCT' '⎕FR'
-          L←lc
-     
-          execute←FirstNum ⍺,1
+    ⍝ Deserialise code follows
+      r←a{ ⍝ Convert text to array
+          ⍺←⍬ ⍝ 1=safe exec expr; 0=return expr; ¯1=unsafe exec expr; ¯2=force APL model
+          (model beSafe execute)←(¯2∘=,0∘⌈,1⌊|)FirstNum ⍺,1
           caller←FirstNs ⍺,⊃⎕RSI
+     
+          ⍝ Make normalised simple vector:
+          w←↓⍣(2=≢⍴⍵)⊢⍵                  ⍝ if mat, make nested
+          w←{¯1↓∊⍵,¨⎕UCS 13}⍣(2=|≡w)⊢w   ⍝ if nested, make simple
+     
+          beSafe>Safe w:⎕SIGNAL⊂('EN' 11)('Message' 'Unsafe array notation')
+                                                          ⍝ fall back to APL model on error
+          ⍝ model<execute∧'AIX'≢3↑⊃# ⎕WG'APLVersion':caller ∇{2::⍵ ⍺⍺⍨¯2,⍺ ⋄ ⍺ ∆APLAN,⍵}w
+     
           q←''''
+          ⎕IO←0
           SEP←'⋄',⎕UCS 10 13
+     
           Unquot←{(⍺⍺ ⍵)×~≠\q=⍵}
           SepMask←∊∘SEP Unquot
           ParenLev←+\(×¯3+7|¯3+'([{)]}'∘⍳)Unquot
+     
           Paren←1⌽')(',⊢
           Split←{1↓¨⍺⍺⊂Over(1∘,)⍵}
+     
           Over←{(⍵⍵ ⍺)⍺⍺(⍵⍵ ⍵)}
           EachIfAny←{0=≢⍵:⍵ ⋄ ⍺ ⍺⍺¨⍵}
           EachNonempty←{⍺ ⍺⍺ EachIfAny Over((×≢¨⍵~¨' ')/⊢)⍵}
+     
           Parse←{
               0=≢⍵:''
               bot←0=⍺
@@ -2011,7 +2025,9 @@
               ∨/1↓p:∊(p⊂⍺)∇¨p⊂⍵
               ⍵
           }
+     
           ErrIfEmpty←{⍵⊣'Array doesn''t have a prototype'⎕SIGNAL 11/⍨(0=≢⍵)}
+     
           SubParse←{
               ('})]'⍳⊃⌽⍵)≠('{(['⍳⊃⍵):'Bad bracketing'⎕SIGNAL 2
               (a w)←(1↓¯1∘↓)¨(⍺-1)⍵
@@ -2020,7 +2036,9 @@
               '('=⊃⍵:Paren{⍵,'⎕NS⍬'/⍨0=≢⍵}a Parse w ⍝ vector/empty ns
               ⍵ ⍝ dfn
           }
-          SysVar←(L sysVars)∊⍨' '~¨⍨L∘⊆
+     
+          SysVar←(⎕C sysVars)∊⍨' '~¨⍨⎕C∘⊆
+     
           ParseLine←{
               c←⍵⍳':'
               1≥≢(c↓⍵)~' ':'Missing value'⎕SIGNAL 6
@@ -2028,6 +2046,7 @@
               (SysVar⍱¯1≠⎕NC)name:'Invalid name'⎕SIGNAL 2
               name(name,'←',⍺ Parse Over((c+1)↓⊢)⍵)
           }
+     
           Namespace←{
               p←(0=⍺)×SepMask ⍵
               (names assns)←↓⍉↑⍺ ParseLine EachNonempty Over(p Split)⍵
@@ -2035,8 +2054,10 @@
               quadAssns←'{⍵.(⍵',(∊'⊣',¨quadMask/assns),')}'
               names/⍨←~quadMask
               assns/⍨←~quadMask
+              names,←(0=≢names)/⊂''
               ∊'({'(assns,¨'⋄')quadAssns'⎕NS'('(, '∘,¨q,¨names,¨⊂q')')'}⍬)'
           }
+     
           Execute←{   ⍝ overcome LIMIT ERROR on more than 4096 parenthesised expressions
               ExecuteEach←{         ⍝ split at level-1 parentheses and execute each
                   l←(t=¯1)++\t←{1 ¯1 0['()'⍳⍵]}Unquot ⍵ ⍝ parenthesis type and level
@@ -2052,16 +2073,16 @@
               DEBUG:⍺ ExecuteEach ⍵           ⍝ force going through the hard code
               10::⍺ ExecuteEach ⍵ ⋄ ⍺⍎⍵       ⍝ attempt simple ⍎ and catch LIMIT ERROR
           }
-       ⍝ Make normalised simple vector:
-          w←↓⍣(2=≢⍴⍵)⊢⍵                  ⍝ if mat, make nested
-          w←{¯1↓∊⍵,¨⎕UCS 13}⍣(2=|≡w)⊢w   ⍝ if nested, make simple
+     
           w←'''[^'']*''' '⍝.*'⎕R'&' ''⊢w ⍝ strip comments
           w/⍨←{(∨\⍵)∧⌽∨\⌽⍵}33≤⎕UCS w     ⍝ strip leading/trailing non-printables
+     
           pl←ParenLev w
           (0≠⊢/pl)∨(∨/0>pl):'Unmatched brackets'⎕SIGNAL 2
           ∨/(pl=0)×SepMask w:'Multi-line input'⎕SIGNAL 11
-          (⊃⎕RSI)Execute⍣execute⊢pl Parse w    ⍝ materialise namespace as child of calling namespace
-      }
+          caller Execute⍣execute⊢pl Parse w ⍝ materialise namespace as child of calling namespace
+      }w
+    ∇
 
     :EndSection
 
