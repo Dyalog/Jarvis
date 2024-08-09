@@ -1381,7 +1381,7 @@
 
         GetFromTable←{(⍵[;1]⍳⊂,⍺)⊃⍵[;2],⊂''}
         split←{p←(⍺⍷⍵)⍳1 ⋄ ((p-1)↑⍵)(p↓⍵)} ⍝ Split ⍵ on first occurrence of ⍺
-        lc←0∘(819⌶)
+        lc←{2::0(819⌶)⍵ ⋄ ¯3 ⎕C ⍵}
         deb←{{1↓¯1↓⍵/⍨~'  '⍷⍵}' ',⍵,' '}
 
         ∇ {r}←{message}Fail status
@@ -1681,7 +1681,7 @@
       :EndRepeat
     ∇
 
-    MakeSessionId←{⎕IO←0 ⋄((0(819⌶)⎕A),⎕A,⎕D)[(?20⍴62),5↑1↓⎕TS]}
+    MakeSessionId←{⎕IO←0 ⋄'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'[(?20⍴62),5↑1↓⎕TS]}
     IsExpired←{⍺≤0: 0 ⋄ (Now-⍵)>(⍺×60000)÷86400000}
 
     ∇ r←DateToIDNX ts
@@ -1792,8 +1792,8 @@
     stripQuotes←{'""'≡2↑¯1⌽⍵:¯1↓1↓⍵ ⋄ ⍵} ⍝ strip leading and ending "
     deb←{{1↓¯1↓⍵/⍨~'  '⍷⍵}' ',⍵,' '} ⍝ delete extraneous blanks
     dlb←{⍵↓⍨+/∧\' '=⍵} ⍝ delete leading blanks
-    lc←0∘(819⌶) ⍝ lower case
-    uc←1∘(819⌶) ⍝ upper case
+    lc←{2::0(819⌶)⍵ ⋄ ¯3 ⎕C ⍵} ⍝ lower case
+    uc←{2::1(819⌶)⍵ ⋄ 1 ⎕C ⍵} ⍝ upper case
     nameClass←{⎕NC⊂,'⍵'} ⍝ name class of argument
     nocase←{(lc ⍺)⍺⍺ lc ⍵} ⍝ case insensitive operator
     begins←{⍺≡(⍴⍺)↑⍵} ⍝ does ⍺ begin with ⍵?
