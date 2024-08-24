@@ -6,7 +6,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.17.4' '2024-08-09'
+      r←'Jarvis' '1.18.0' '2024-08-24'
     ∇
 
     ∇ Documentation
@@ -1077,6 +1077,7 @@
           →End If'Content-Type should be "application/json"'ns.Req.Fail 400×~AllowFormData
           :Trap 0 DebugLevel 1
               ns.Req.Payload←ParseMultipartForm ns.Req
+              →End If 200≠ns.Req.Response.Status ⍝ bail if parsing fails
           :Else
               →End⊣'Could not parse payload as "multipart/form-data"'ns.Req.Fail 400
           :EndTrap
@@ -1092,11 +1093,11 @@
                   ns.Req.Payload←{JSONin{1⌽'}{',¯1↓∊'"',¨⍵[;,1],¨'":'∘,¨⍵[;,2],¨','}⍵}ns.Req.QueryParams
               :EndIf
           :Else
-              →0⊣'Could not parse query string as JSON'ns.Req.Fail 400
+              →End⊣'Could not parse query string as JSON'ns.Req.Fail 400
           :EndTrap
      
       :Else
-          →0⊣('Content-Type should be "application/json"',AllowFormData/' or "multipart/form-data"')ns.Req.Fail 400
+          →End⊣('Content-Type should be "application/json"',AllowFormData/' or "multipart/form-data"')ns.Req.Fail 400
       :EndSelect
      
       →End If CheckAuthentication ns.Req
@@ -1131,9 +1132,9 @@
      
      ⍝ Exit if
      ⍝        ↓↓↓↓↓↓↓ no response from endpoint,
-     ⍝ and              ↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓ endpoint did not set payload
-     ⍝ and                                           ↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓ endpoint did not fail the request
-      →End If(0∊⍴resp)∧(0∊⍴ns.Req.Response.Payload)∧200≠ns.Req.Response.Status
+     ⍝ and              ↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓ endpoint did not set payload
+     ⍝ and                                          ↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓ endpoint did not fail the request
+      →End If(0∊⍴resp)∧(0∊⍴ns.Req.Response.Payload)∧200=ns.Req.Response.Status
      
       'Content-Type'ns.Req.DefaultHeader DefaultContentType ⍝ set the header if not set
       :If ∨/'application/json'⍷ns.Req.(Response.Headers GetHeader'content-type') ⍝ if the response is JSON
@@ -1156,11 +1157,12 @@
           (headers payload)←part splitOnFirst crlf,crlf
           (disposition type)←deb¨2↑headers splitOn crlf
           (name filename)←deb¨2↑1↓disposition splitOn';'
-          name←'"'~⍨2⊃name splitOn'='
-          tmp←⎕NS''
+          name←'"'~⍨2⊃name splitOn'='          
+          name↓⍨←¯2×'[]'≡¯2↑name ⍝ drop any trailing [] (we handle arrays automatically)
           :If {¯1=⎕NC ⍵}name
               →0⊣'Invalid form field name for Jarvis'req.Fail 400
           :EndIf
+          tmp←⎕NS''
           filename←'"'~⍨2⊃2↑filename splitOn'='
           tmp.(Name Filename)←name filename
           tmp.Content←payload
