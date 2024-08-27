@@ -6,7 +6,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.18.0' '2024-08-24'
+      r←'Jarvis' '1.18.1' '2024-08-27'
     ∇
 
     ∇ Documentation
@@ -968,6 +968,13 @@
               :EndIf
      
           :Case 'HTTPBody'
+              ⍝↓↓↓ if Req doesn't exist, it's because it was marked complete previously and removed, and we just ignore this event
+              ⍝    this can happen in the case where:
+              ⍝       - the request is a POST request
+              ⍝       - and no content-length header was provided
+              ⍝       - and transfer-encoding is not "chunked"
+              ⍝ Conga 3.5 addresses this by issuing and HTTPError event, but earlier Conga's
+              →0⍴⍨0=ns.⎕NC'Req'
               ns.Req.Thread←⎕TID
               ns.Req.ProcessBody data
           :Case 'HTTPChunk'
@@ -1157,7 +1164,7 @@
           (headers payload)←part splitOnFirst crlf,crlf
           (disposition type)←deb¨2↑headers splitOn crlf
           (name filename)←deb¨2↑1↓disposition splitOn';'
-          name←'"'~⍨2⊃name splitOn'='          
+          name←'"'~⍨2⊃name splitOn'='
           name↓⍨←¯2×'[]'≡¯2↑name ⍝ drop any trailing [] (we handle arrays automatically)
           :If {¯1=⎕NC ⍵}name
               →0⊣'Invalid form field name for Jarvis'req.Fail 400
