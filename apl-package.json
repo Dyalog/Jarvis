@@ -16,8 +16,8 @@
   os_mac: 1,
   os_win: 1,
   project_url: "https://github.com/Dyalog/Jarvis",
-  source: "source/Jarvis.dyalog",
+  source: "Source/Jarvis.dyalog",
   tags: "mac-os,windows,linux,http,webservice,json,rest",
   userCommandScript: "",
-  version: "1.16.4",
+  version: "1.18.1+1",
 }
