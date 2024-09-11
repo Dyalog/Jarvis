@@ -1145,7 +1145,7 @@
      
       'Content-Type'ns.Req.DefaultHeader DefaultContentType ⍝ set the header if not set
       :If ∨/'application/json'⍷ns.Req.(Response.Headers GetHeader'content-type') ⍝ if the response is JSON
-          ns.Req.Response ToJSON resp ⍝ convert it
+          ns.Req ToJSON resp ⍝ convert it
       :Else
           ns.Req.Response.Payload←resp
       :EndIf
@@ -1215,7 +1215,7 @@
           'content-type'ns.Req.SetHeader DefaultContentType
       :EndIf
       :If 'application/json'match⊃';'(≠⊆⊢)ns.Req.(Response.Headers GetHeader'content-type')
-          ns.Req.Response ToJSON resp
+          ns.Req ToJSON resp
       :EndIf
     ∇
 
@@ -1234,12 +1234,12 @@
       r←1
     ∇
 
-    ∇ response ToJSON data
+    ∇ req ToJSON data
     ⍝ convert APL response payload to JSON
       :Trap 0 DebugLevel 1
-          response.Payload←⎕UCS SafeJSON JSONout data
+          req.Response.Payload←⎕UCS SafeJSON JSONout data
       :Else
-          'Could not format result payload as JSON'ns.Req.Fail 500
+          'Could not format result payload as JSON'req.Fail 500
       :EndTrap
     ∇
 
