@@ -6,7 +6,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.18.2' '2024-09-11'
+      r←'Jarvis' '1.18.3' '2024-09-11'
     ∇
 
     ∇ Documentation
@@ -1140,8 +1140,8 @@
      ⍝ Exit if
      ⍝        ↓↓↓↓↓↓↓ no response from endpoint,
      ⍝ and              ↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓ endpoint did not set payload
-     ⍝ and                                          ↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓ endpoint did not fail the request
-      →End If(0∊⍴resp)∧(0∊⍴ns.Req.Response.Payload)∧200=ns.Req.Response.Status
+     ⍝ and                                          ↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓ endpoint failed the request
+      →End If(0∊⍴resp)∧(0∊⍴ns.Req.Response.Payload)∧200≠ns.Req.Response.Status
      
       'Content-Type'ns.Req.DefaultHeader DefaultContentType ⍝ set the header if not set
       :If ∨/'application/json'⍷ns.Req.(Response.Headers GetHeader'content-type') ⍝ if the response is JSON
