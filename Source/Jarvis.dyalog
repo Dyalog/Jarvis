@@ -6,7 +6,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.18.3' '2024-09-11'
+      r←'Jarvis' '1.18.4' '2024-09-11'
     ∇
 
     ∇ Documentation
@@ -631,7 +631,7 @@
           →0⊣(rc msg)←5 'CodeLocation is not valid, it should be either a namespace/class reference or a file path'
       :EndSelect
      
-      :For fn :In AppInitFn AppCloseFn ValidateRequestFn AuthenticateFn SessionInitFn~⊂''
+      :For fn :In AppInitFn AppCloseFn ValidateRequestFn AuthenticateFn SessionInitFn _htmlRootFn~⊂''
           :If 3≠CodeLocation.⎕NC fn
               msg,←(0∊⍴msg)↓',"CodeLocation.',fn,'" was not found '
           :EndIf
@@ -1348,7 +1348,7 @@
           r←CheckFunctionName¨fn
       :Else
           fn←⊆,fn
-          →0 If r←404×fn∊AppInitFn AppCloseFn ValidateRequestFn AuthenticateFn SessionInitFn
+          →0 If r←404×fn∊AppInitFn AppCloseFn ValidateRequestFn AuthenticateFn SessionInitFn _htmlRootFn
           :If ~0∊⍴_includeRegex
               →0 If r←404×0∊⍴(_includeRegex ⎕S'%')fn
           :EndIf
