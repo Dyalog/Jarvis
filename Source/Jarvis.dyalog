@@ -1,4 +1,4 @@
-﻿:Class Jarvis
+:Class Jarvis
 ⍝ Dyalog Web Service Server
 ⍝ See https://dyalog.github.io/Jarvis for documentation
 
@@ -56,6 +56,13 @@
     :Field Public AllowGETs←0                                  ⍝ do we allow calling endpoints with HTTP GETs?
     :Field Public HTMLInterface←¯1                             ⍝ ¯1=unassigned, 0/1=dis/allow the HTML interface, 'Path to HTML[/home-page]', or '' 'fn'
     :Field Public JSONInputFormat←'D'                          ⍝ set this to 'M' to have Jarvis convert JSON request payloads to the ⎕JSON matrix format
+
+   ⍝ WebSocket settings
+    :Field Public EnableWebSockets←0                           ⍝ 1 = enable WebSockets
+    :Field Public OnWsUpgradeFn←''
+    :Field Public OnWsReceiveFn←''
+    :Field Public OnWsCloseFn←''
+    :Field Public OnWsErrorFn←''
 
    ⍝ REST mode settings
     :Field Public ParsePayload←1                               ⍝ 1=parse request payload based on content-type header (REST only)
@@ -137,6 +144,7 @@
     :Field _includeRegex←''              ⍝ private compiled regex from _IncludeFns
     :Field _excludeRegex←''              ⍝ private compiled regex from _ExcludeFns
     :Field _connections                  ⍝ namespace containing open connections
+    :Field _userHookFns                  ⍝ list of user hook functions, set in CheckCodeLocation
 
     ∇ r←Config
     ⍝ returns current configuration
@@ -631,52 +639,39 @@
           →0⊣(rc msg)←5 'CodeLocation is not valid, it should be either a namespace/class reference or a file path'
       :EndSelect
      
-      :For fn :In AppInitFn AppCloseFn ValidateRequestFn AuthenticateFn SessionInitFn _htmlRootFn~⊂''
+      _userHookFns←AppInitFn AppCloseFn ValidateRequestFn AuthenticateFn SessionInitFn _htmlRootFn OnWsUpgradeFn OnWsReceiveFn OnWsCloseFn OnWsErrorFn
+     
+      :For fn :In _userHookFns~⊂''
           :If 3≠CodeLocation.⎕NC fn
               msg,←(0∊⍴msg)↓',"CodeLocation.',fn,'" was not found '
           :EndIf
       :EndFor
       →0 If rc←8×~0∊⍴msg
      
-      :If ~0∊⍴AppInitFn  ⍝ initialization function specified?
-          :Select ⊃CodeLocation.⎕AT AppInitFn
-          :Case 1 0 0 ⍝ result-returning niladic?
-              stopIf DebugLevel 2
-              res←CodeLocation⍎AppInitFn        ⍝ run it
-          :Case 1 1 0 ⍝ result-returning monadic?
-              stopIf DebugLevel 2
-              res←(CodeLocation⍎AppInitFn)⎕THIS ⍝ run it
-          :Else
-              →0⊣(rc msg)←8('"',(⍕CodeLocation),'.',AppInitFn,'" is not a niladic or monadic result-returning function')
-          :EndSelect
-          :If 0≠⊃res
-              →0⊣(rc msg)←2↑res,(≢res)↓¯1('"',(⍕CodeLocation),'.',AppInitFn,'" did not return a 0 return code')
-          :EndIf
+      →0 If⊃(rc msg)←AppInitFn CheckHookFn 1(0 1) ⍝ result returning niladic or monadic?
+      stopIf DebugLevel 2
+      :If 0=2⊃⊃CodeLocation.⎕AT AppInitFn ⍝ niladic?
+          res←CodeLocation⍎AppInitFn        ⍝ run it
+      :Else
+          res←(CodeLocation⍎AppInitFn)⎕THIS ⍝ run it
+      :EndIf
+      :If 0≠⊃res
+          →0⊣(rc msg)←2↑res,(≢res)↓¯1('"',(⍕CodeLocation),'.',AppInitFn,'" did not return a 0 return code')
       :EndIf
      
-     
-      :If ~0∊⍴AppCloseFn ⍝ application close function specified?
-          :If 1 0 0≢⊃CodeLocation.⎕AT AppCloseFn ⍝ result-returning niladic?
-              →0⊣(rc msg)←8('"',(⍕CodeLocation),'.',AppCloseFn,'" is not a niladic result-returning function')
-          :EndIf
-      :EndIf
+      →0 If⊃(rc msg)←AppCloseFn CheckHookFn 1 0 0 ⍝ result-returning niladic?
      
       Validate←{0} ⍝ dummy validation function
-      :If ~0∊⍴ValidateRequestFn  ⍝ Request validation function specified?
-          :If ∧/(⊃CodeLocation.⎕AT ValidateRequestFn)∊¨1(1 ¯2)0 ⍝ result-returning monadic or ambivalent?
-              Validate←CodeLocation⍎ValidateRequestFn
-          :Else
-              →0⊣(rc msg)←8('"',(⍕CodeLocation),'.',ValidateRequestFn,'" is not a monadic result-returning function')
-          :EndIf
-      :EndIf
+      →0 If⊃(rc msg)←ValidateRequestFn CheckHookFn 1(1 ¯2)0 ⍝ result-returning monadic or ambivalent?
      
       Authenticate←{0} ⍝ dummy authentication function
-      :If ~0∊⍴AuthenticateFn  ⍝ authentication function specified?
-          :If ∧/(⊃CodeLocation.⎕AT AuthenticateFn)∊¨1(1 ¯2)0 ⍝ result-returning monadic or ambivalent?
-              Authenticate←CodeLocation⍎AuthenticateFn
-          :Else
-              →0⊣(rc msg)←8('"',(⍕CodeLocation),'.',AuthenticateFn,'" is not a monadic result-returning function')
-          :EndIf
+      →0 If⊃(rc msg)←AuthenticateFn CheckHookFn 1(1 ¯2)0 ⍝ result-returning monadic or ambivalent?
+     
+      :If EnableWebSockets
+          →0 If⊃(rc msg)←OnWsUpgradeFn CheckHookFn 1(1 ¯2)0 ⍝ result-returning monadic or ambivalent?
+          →0 If⊃(rc msg)←OnWsReceiveFn CheckHookFn 1(1 ¯2)0 ⍝ result-returning monadic or ambivalent?
+          →0 If⊃(rc msg)←OnWsCloseFn CheckHookFn 1(1 ¯2)0 ⍝ result-returning monadic or ambivalent?
+          →0 If⊃(rc msg)←OnWsErrorFn CheckHookFn 1(1 ¯2)0 ⍝ result-returning monadic or ambivalent?
       :EndIf
     ∇
 
@@ -698,6 +693,20 @@
     ∇
 
     Exists←{0:: ¯1 (⍺,' "',⍵,'" is not a valid folder name.') ⋄ ⎕NEXISTS ⍵:0 '' ⋄ ¯1 (⍺,' "',⍵,'" was not found.')}
+
+    ∇ (rc msg)←fn CheckHookFn attr;res;val
+    ⍝ check that the valence of a specified hook function is what we expect
+      (rc msg)←0 ''
+      :If ~0∊⍴fn
+          attr←3↑attr,0
+          attr[2]←⊆∪{¯2∊⍵:⍵ ⋄ ⍵,¯2/⍨∨/1 2∊⍵}2⊃attr
+          :If ~∧/(⊃CodeLocation.⎕AT fn)∊¨attr
+              res←' ','result-returning',⍨(~|1⊃attr)/'non-'
+              val←{3↓∊' or '∘,¨'niladic' 'monadic' 'dyadic' 'ambivalent'/⍨∨⌿⍵∘.∊0 1 2 ¯2}2⊃attr
+              (rc msg)←8('"',(⍕CodeLocation),'.',fn,'" is not a',val,res,' function')
+          :EndIf
+      :EndIf
+    ∇
 
     ∇ (rc msg)←StartServer;r;cert;secureParams;accept;deny;mask;certs;options
       msg←'Unable to start server'
@@ -1348,7 +1357,7 @@
           r←CheckFunctionName¨fn
       :Else
           fn←⊆,fn
-          →0 If r←404×fn∊AppInitFn AppCloseFn ValidateRequestFn AuthenticateFn SessionInitFn _htmlRootFn
+          →0 If r←404×fn∊_userHookFns
           :If ~0∊⍴_includeRegex
               →0 If r←404×0∊⍴(_includeRegex ⎕S'%')fn
           :EndIf
