@@ -1,0 +1,3 @@
+ r←Shutdown
+ ⎕TKILL SubscriptionThread
+ r←0

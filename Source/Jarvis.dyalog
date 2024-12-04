@@ -6,7 +6,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.18.4' '2024-09-11'
+      r←'Jarvis' '1.19.0' '2024-11-13'
     ∇
 
     ∇ Documentation
@@ -23,7 +23,7 @@
 
    ⍝ Operational settings
     :Field Public CodeLocation←'#'                             ⍝ reference to application code location, if the user specifies a folder or file, that value is saved in CodeSource
-    :Field Public ConnectionTimeout←30                         ⍝ HTTP/1.1 connection timeout in seconds
+    :Field Public ConnectionTimeout←30                         ⍝ HTTP/1.1 connection timeout in seconds, ¯1 for no timeout
     :Field Public Debug←0                                      ⍝ 0 = all errors are trapped, 1 = stop on an error, 2 = stop on intentional error before processing request, 4 = Jarvis framework debugging, 8 = Conga event logging
     :Field Public DefaultContentType←'application/json; charset=utf-8'
     :Field Public ErrorInfoLevel←1                             ⍝ level of information to provide if an APL error occurs, 0=none, 1=⎕EM, 2=⎕SI
@@ -46,7 +46,7 @@
 
    ⍝ Session settings
     :Field Public SessionIdHeader←'Jarvis-SessionID'           ⍝ Name of the header field for the session token
-    :Field Public SessionUseCookie←0                           ⍝ 0 - just use the header; 1 - use an HTTP cookie
+    :Field Public SessionUseCookie←1                           ⍝ 0 - just use the header; 1 - use an HTTP cookie
     :Field Public SessionPollingTime←1                         ⍝ how frequently (in minutes) we should poll for timed out sessions
     :Field Public SessionTimeout←0                             ⍝ 0 = do not use sessions, ¯1 = no timeout , 0< session timeout time (in minutes)
     :Field Public SessionCleanupTime←60                        ⍝ how frequently (in minutes) do we clean up timed out session info from _sessionsInfo
@@ -59,10 +59,12 @@
 
    ⍝ WebSocket settings
     :Field Public EnableWebSockets←0                           ⍝ 1 = enable WebSockets
+    :Field Public WsAutoUpgrade←1                              ⍝ for now, this will always be 1. Eventually we'll add websocket validation
     :Field Public OnWsUpgradeFn←''
     :Field Public OnWsReceiveFn←''
     :Field Public OnWsCloseFn←''
     :Field Public OnWsErrorFn←''
+    :Field Public WsTimeout←5                                  ⍝ minutes before a WebSocket connection times out, 0 for no timeout
 
    ⍝ REST mode settings
     :Field Public ParsePayload←1                               ⍝ 1=parse request payload based on content-type header (REST only)
@@ -145,6 +147,7 @@
     :Field _excludeRegex←''              ⍝ private compiled regex from _ExcludeFns
     :Field _connections                  ⍝ namespace containing open connections
     :Field _userHookFns                  ⍝ list of user hook functions, set in CheckCodeLocation
+    :Field _startTime                    ⍝ time the server was started
 
     ∇ r←Config
     ⍝ returns current configuration
@@ -354,6 +357,8 @@
               :EndIf
           :EndSelect
      
+          _userHookFns,←⊂_htmlRootFn
+     
           :If EnableCORS ⍝ if we've enabled CORS
           :AndIf ¯1∊CORS_Methods ⍝ but not set any pre-flighted methods
               :If Paradigm≡'JSON'
@@ -370,6 +375,7 @@
           Log'Jarvis starting in "',Paradigm,'" mode on port ',⍕Port
           Log'Serving code in ',(⍕CodeLocation),(CodeSource≢'')/' (populated with code from "',CodeSource,'")'
           Log(_htmlEnabled∧homePage)/'Click http',(~Secure)↓'s://',MyAddr,':',(⍕Port),' to access web interface'
+          _startTime←Now
      
       :Else ⍝ :Trap
           (rc msg)←¯1 ⎕DMX.EM
@@ -639,7 +645,7 @@
           →0⊣(rc msg)←5 'CodeLocation is not valid, it should be either a namespace/class reference or a file path'
       :EndSelect
      
-      _userHookFns←AppInitFn AppCloseFn ValidateRequestFn AuthenticateFn SessionInitFn _htmlRootFn OnWsUpgradeFn OnWsReceiveFn OnWsCloseFn OnWsErrorFn
+      _userHookFns←AppInitFn AppCloseFn ValidateRequestFn AuthenticateFn SessionInitFn OnWsUpgradeFn OnWsReceiveFn OnWsCloseFn OnWsErrorFn
      
       :For fn :In _userHookFns~⊂''
           :If 3≠CodeLocation.⎕NC fn
@@ -649,14 +655,16 @@
       →0 If rc←8×~0∊⍴msg
      
       →0 If⊃(rc msg)←AppInitFn CheckHookFn 1(0 1) ⍝ result returning niladic or monadic?
-      stopIf DebugLevel 2
-      :If 0=2⊃⊃CodeLocation.⎕AT AppInitFn ⍝ niladic?
-          res←CodeLocation⍎AppInitFn        ⍝ run it
-      :Else
-          res←(CodeLocation⍎AppInitFn)⎕THIS ⍝ run it
-      :EndIf
-      :If 0≠⊃res
-          →0⊣(rc msg)←2↑res,(≢res)↓¯1('"',(⍕CodeLocation),'.',AppInitFn,'" did not return a 0 return code')
+      :If ~0∊⍴AppInitFn
+          stopIf DebugLevel 2
+          :If 0=2⊃⊃CodeLocation.⎕AT AppInitFn ⍝ niladic?
+              res←CodeLocation⍎AppInitFn        ⍝ run it
+          :Else
+              res←(CodeLocation⍎AppInitFn)⎕THIS ⍝ run it
+          :EndIf
+          :If 0≠⊃res
+              →0⊣(rc msg)←2↑res,(≢res)↓¯1('"',(⍕CodeLocation),'.',AppInitFn,'" did not return a 0 return code')
+          :EndIf
       :EndIf
      
       →0 If⊃(rc msg)←AppCloseFn CheckHookFn 1 0 0 ⍝ result-returning niladic?
@@ -730,7 +738,7 @@
       :EndIf
      
       _connections←⎕NS''
-      _connections.index←2 0⍴'' 0  ⍝ row-oriented for faster lookup
+      _connections.index←3 0⍴'' 0 0  ⍝ conx, lastactivity time, IsWebSocket row-oriented for faster lookup
       _connections.lastCheck←0
      
       :If 0=rc←1⊃r←LDRC.Srv ServerName''Port'http'BufferSize,secureParams,accept,deny,options
@@ -810,12 +818,27 @@
                           ref←_connections⍎conx
                           wres ⎕TPUT conn
                           _taskThreads←⎕TNUMS∩_taskThreads,ref{⍺ HandleRequest ⍵}&(obj conn)
-                          ref.Time←⎕AI[3]
+                          UpdateConnectionTime conx
                       :Else
                           Log'Server: Object ''_connections.',conx,''' was not found.'
                           {0:: ⋄ {}LDRC.Close ⍵}obj
                       :EndIf
      
+                  :CaseList 'WSUpgrade' 'WSUpgradeReq' 'WSReceive' 'WSClose' 'WSError'
+                      :If ~EnableWebSockets
+                          Log'Server: attempted ',evt,' on connection "',conx,'" but WebSockets are not enabled'
+                          :If 0=_connections.⎕NC conx ⍝ connection exists?
+                              Log'Server: Object "_connections.',conx,'" was not found on ',evt,', closing Conga onject'
+                              {0:: ⋄ {}LDRC.Close ⍵}obj
+                          :Else
+                              RemoveConnection conx
+                          :EndIf
+                      :Else
+                          ref←_connections⍎conx   ⍝ get its reference
+                          wres ⎕TPUT conn
+                          _taskThreads←⎕TNUMS∩_taskThreads,ref{⍺ HandleWsRequest ⍵}&(obj conn)
+                          UpdateConnectionTime conx
+                      :EndIf
                   :Case 'Closed'
                       RemoveConnection conx
      
@@ -869,14 +892,14 @@
     ∇ obj AddConnection conx;IP;res
       :Hold '_connections'
           conx _connections.⎕NS''
-          _connections.index,←conx(⎕AI[3])
+          _connections.index,←conx(⎕AI[3])0
           IP←''
           :Trap 0 DebugLevel 1
               :If 0=⊃res←LDRC.GetProp obj'PeerAddr'
                   IP←2⊃2⊃res
               :EndIf
           :EndTrap
-          (_connections⍎conx).IP←IP
+          (_connections⍎conx).(IP conx IsWebSocket)←IP conx 0
       :EndHold
     ∇
 
@@ -897,33 +920,42 @@
       CleanupTokens conx
     ∇
 
+    ∇ UpdateConnectionTime conx
+      :Hold '_connections'
+          _connections.index[2;_connections.index[1;]⍳⊂conx]←⎕AI[3]
+      :EndHold
+    ∇
+
     ∇ CleanupConnections;conxNames;timedOut;dead;kids;connecting;connected;killed
-      :If _connections.lastCheck<⎕AI[3]-ConnectionTimeout×1000
-          killed←⍬
-          :Hold '_connections'
-              connecting←connected←⍬
-              :If ~0∊⍴kids←2 2⊃LDRC.Tree ServerName ⍝ retrieve children of server
+      :If ConnectionTimeout≥0
+          :If _connections.lastCheck<⎕AI[3]-ConnectionTimeout×1000
+              killed←⍬
+              :Hold '_connections'
+                  connecting←connected←⍬
+                  :If ~0∊⍴kids←2 2⊃LDRC.Tree ServerName ⍝ retrieve children of server
               ⍝ LDRC.Tree
               ⍝ connecting → status 3 1 - incoming connection
               ⍝ connected  → status 3 4 - connected connection
-                  (connecting connected)←2↑{((2 2⍴3 1 3 4)⍪⍵[;2 3]){⊂1↓⍵}⌸'' '',⍵[;1]}↑⊃¨kids
-              :EndIf
-              conxNames←_connections.index[1;]~connecting
-              timedOut←_connections.index[1;]/⍨ConnectionTimeout<0.001×⎕AI[3]-_connections.index[2;]
-              :If ∨/{~0∊⍴⍵}¨connected conxNames
-                  :If ~0∊⍴timedOut
-                      timedOut/⍨←{6::1 ⋄ 0=(_connections⍎⍵).⎕NC⊂'Req'}¨timedOut
+                      (connecting connected)←2↑{((2 2⍴3 1 3 4)⍪⍵[;2 3]){⊂1↓⍵}⌸'' '',⍵[;1]}↑⊃¨kids
                   :EndIf
-                  :If ~0∊⍴dead←(connected~conxNames),timedOut ⍝ (connections not in the index), timed out
-                      {0∊⍴⍵: ⋄ {}LDRC.Close ServerName,'.',⍵}¨dead ⍝ attempt to close them
-                  :EndIf
+                  conxNames←_connections.index[1;]~connecting
+              ⍝↓↓↓ exclude WebSocket connections
+                  timedOut←_connections.index[1;]/⍨(_connections.index[3;]=0)∧ConnectionTimeout<0.001×⎕AI[3]-_connections.index[2;]
+                  :If ∨/{~0∊⍴⍵}¨connected conxNames
+                      :If ~0∊⍴timedOut
+                          timedOut/⍨←{6::1 ⋄ 0=(_connections⍎⍵).⎕NC⊂'Req'}¨timedOut
+                      :EndIf
+                      :If ~0∊⍴dead←(connected~conxNames),timedOut ⍝ (connections not in the index), timed out
+                          {0∊⍴⍵: ⋄ {}LDRC.Close ServerName,'.',⍵}¨dead ⍝ attempt to close them
+                      :EndIf
                ⍝ remove timed out, or connections that are
-                  _connections.⎕EX killed←(conxNames~connected~dead),timedOut
-                  _connections.index/⍨←_connections.index[1;]∊_connections.⎕NL ¯9
-              :EndIf
-              _connections.lastCheck←⎕AI[3]
-          :EndHold
-          CleanupTokens killed
+                      _connections.⎕EX killed←(conxNames~connected~dead),timedOut
+                      _connections.index/⍨←_connections.index[1;]∊_connections.⎕NL ¯9
+                  :EndIf
+                  _connections.lastCheck←⎕AI[3]
+              :EndHold
+              CleanupTokens killed
+          :EndIf
       :EndIf
     ∇
 
@@ -1030,6 +1062,87 @@
      
           :EndIf
       :EndHold
+    ∇
+
+    ∇ ns HandleWsRequest(obj conn);rc;evt;data;cert;hdrs;req
+    ⍝ Handle WebSocket requests
+      :Hold obj
+          (rc obj evt data)←⊃⎕TGET conn ⍝ from Conga.Wait
+          :Select evt
+          :Case 'WSUpgrade'
+              ns.Thread←⎕TID
+              ns.PeerCert←''
+              ns.PeerAddr←2⊃2⊃LDRC.GetProp obj'PeerAddr'
+              ns.Server←⎕THIS
+              ns.IsWebSocket←1
+              _connections.index[3;_connections.index[1;]⍳⊂ns.conx]←1
+              :If Secure
+                  (rc cert)←2↑LDRC.GetProp obj'PeerCert'
+                  :If rc=0
+                      ns.PeerCert←cert
+                  :Else
+                      ns.PeerCert←'Could not obtain certificate'
+                  :EndIf
+              :EndIf
+              (req hdrs)←1(⊃{⍺ ⍵}↓)(⊃data splitOn crlf,crlf)splitOn crlf
+              ns.(Command Path HttpVersion)←req splitOn' '
+              ns.Headers←↑dlb¨¨hdrs splitOnFirst¨':'
+     
+              :If ~0∊⍴OnWsUpgradeFn
+                  :If 0≠(CodeLocation⍎OnWsUpgradeFn)ns
+                      RemoveConnection ns.conx
+                  :EndIf
+              :EndIf
+     
+          :Case 'WSUpgradeReq'
+              Log'HandleWsRequest: "WSUpgradeReq" event occurred, but is not yet supported... closing connection'
+              RemoveConnection ns.conx
+     
+          :Case 'WSReceive'
+              ns.(Payload Complete DataType)←data
+              :If 0∊⍴OnWsReceiveFn
+                  Log'WSReceive: ',data
+              :Else
+                  :If 0≠(CodeLocation⍎OnWsReceiveFn)ns
+                      RemoveConnection ns.conx
+                  :EndIf
+              :EndIf
+          :Case 'WSClose'
+              :If ~0∊⍴OnWsCloseFn
+                  {}(CodeLocation⍎OnWsCloseFn)ns
+              :EndIf
+              RemoveConnection ns.conx
+          :Case 'WSError'
+              Log'WSError occurred on ',obj
+              RemoveConnection ns.conx
+          :Else
+              Log'Unexpected HandleWsRequest event: ',evt,'???'
+          :EndSelect
+      :EndHold
+    ∇
+
+    ∇ where WsSend what;conx;res
+      :Access public
+      :If ~0∊⍴where
+          :Select nameClass what
+          :Case 9.1 ⍝ namespace
+              what←JSONout what
+          :Case 2.1 ⍝ variable
+              :If ~isJSON what
+                  what←JSONout what
+              :EndIf
+          :Else
+              →0⊣Log'WsSend: invalid payload'
+          :EndSelect
+          :For conx :In ,⊆where
+              :If 9.1=nameClass conx
+                  conx←conx.conx
+              :EndIf
+              :If 0≠⊃res←LDRC.Send(ServerName,'.',conx)(what 1 1)
+                  Log'WsSend: error sending WebSocket message: ',⍷⍕res
+              :EndIf
+          :EndFor
+      :EndIf
     ∇
 
     ∇ fn HandleJSONRequest ns;payload;resp;valence;nc;debug;file;isGET
@@ -1817,6 +1930,7 @@
     begins←{⍺≡(⍴⍺)↑⍵} ⍝ does ⍺ begin with ⍵?
     ends←{⍺≡(-≢⍺)↑⍵} ⍝ does ⍺ end with ⍵?
     match←{⍺ (≡nocase) ⍵} ⍝ case insensitive ≡
+    isJSON←{~0 2∊⍨10|⎕DR ⍵:0 ⋄ ~(⊃⍵)∊'-{["',⎕D:0 ⋄ {0::0 ⋄1⊣0 ⎕JSON ⍵}⍵} ⍝ test for JSONableness fails on APL that looks like JSON (e.g. '"abc"')
     sins←{0∊⍴⍺:⍵ ⋄ ⍺} ⍝ set if not set
     stopIf←{1∊⍵:-⎕TRAP←0 'C' '⎕←''Stopped for debugging... (Press Ctrl-Enter)''' ⋄ shy←0} ⍝ faster alternative to setting ⎕STOP
     show←{(2⊃⎕SI),'[',(⍕2⊃⎕LC),'] ',⍵} ⍝ debugging utility
@@ -2106,6 +2220,7 @@
 
     :Section HTML
     ∇ r←ScriptFollows
+      :Access public
     ⍝ return the subsequent block of comments as a text script
       r←{⍵/⍨'⍝'≠⊃¨⍵}{1↓¨⍵/⍨∧\'⍝'=⊃¨⍵}{⍵{((∨\⍵)∧⌽∨\⌽⍵)/⍺}' '≠⍵}¨(1+2⊃⎕LC)↓↓(180⌶)2⊃⎕XSI
       r←2↓∊(⎕UCS 13 10)∘,¨r

@@ -1,0 +1,8 @@
+ SubscriptionWatcher jarvis;update
+ :While 1
+     {}⎕DL 2
+     update←⎕NS ''
+     update.Type←'Update'
+     update.Data←⍕⎕TS
+     Subscriptions jarvis.WsSend update
+ :EndWhile

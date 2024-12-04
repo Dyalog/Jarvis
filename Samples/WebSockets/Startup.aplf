@@ -1,0 +1,4 @@
+r←Startup jarvis
+Subscriptions←⍬
+SubscriptionThread←SubscriptionWatcher&jarvis
+r←0

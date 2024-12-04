@@ -1,0 +1,24 @@
+ r←OnWsReceive ns;payload;endpoint;res;j;resp
+ r←0
+ payload←⎕JSON ns.Payload
+ j←ns.Server
+ :Select {6::⍵ ⋄ payload.Type}''
+ :Case 'Endpoint'
+     endpoint←(⍕j.CodeLocation),'.'@(=∘'/')⊢payload.Endpoint
+     :Trap 0
+         res←(⍎endpoint)payload.Payload
+     :Else
+         res←⎕DMX.EM,' occurred on call to "',endpoint,'"'
+     :EndTrap
+     resp←⎕NS''
+     resp.Type←'Asynch'
+     resp.Data←res
+     ns j.WsSend resp
+ :Case 'Subscribe'
+     Subscriptions,←ns.conx
+ :Case 'Unsubscribe'
+     Subscriptions~←ns.conx
+ :Else
+     ⎕←'Unknown payload type'
+     ⎕←⎕JSON payload
+ :EndSelect

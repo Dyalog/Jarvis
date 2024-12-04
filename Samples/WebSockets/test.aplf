@@ -1,0 +1,14 @@
+ test ns
+⍝ ns is namespace with Jarvis
+ sum←{⊃+/⍵}
+ delay←⎕DL
+ j←ns.Jarvis.New''
+ j.EnableWebSockets←1
+ j.WaitTimeout←60000
+ j.CodeLocation←⎕THIS
+ j.HTMLInterface←'' 'HtmlPage'
+ j.OnWsReceiveFn←'OnWsReceive'
+ j.AppInitFn←'Startup'
+ j.AppCloseFn←'Shutdown'
+ j.FIFO←0
+ j.Start
