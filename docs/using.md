@@ -41,14 +41,23 @@ Assuming that the file `/JarvisConfig.json` contains:<br/>
 and<br/>
 <code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;namespace←⎕JSON ⊃⎕NGET '/JarvisConfig.json'</code><br/>
 the following are equivalent.
-
-* `j←Jarvis.New '' ⋄ j.(Port CodeLocation Paradigm)←80 '/myJarvisApp' 'REST'`
-* `j←Jarvis.New '/JarvisConfig.json'`
-* `j←Jarvis.New namespace`
-* `j←Jarvis.New 80 '/myJarvisApp/' 'REST'`
-
+```
+j←Jarvis.New '' ⋄ j.(Port CodeLocation Paradigm)←80 '/myJarvisApp' 'REST'
+j←Jarvis.New '/JarvisConfig.json'
+j←Jarvis.New namespace
+j←Jarvis.New 80 '/myJarvisApp/' 'REST'
+```
 #### `CodeLocation`
 `CodeLocation` specifies where **Jarvis** should look for the code that implements your endpoints. It can be
 
 * a reference to, or the name of, a namespace in the workspace. For example, either `#.MyApp` and `'#.MyApp'` will work if your application code is in the namespace `#.MyApp`.
-* a character vector representing the path to the folder that contains your application code.  If the path is relative, **Jarvis** 
+* a character vector representing the path to the folder that contains your application code.  If the path is relative, **Jarvis** attempts to determine the root folder from which to the path is relative to what it's relative to as follows:
+    * If **Jarvis** is running in a saved workspace, it uses the folder where the workspace is located.
+    * Otherwise, if you have specified a **Jarvis** config file, **Jarvis** will use the folder where the config file is located.
+    * Otherwise, if **Jarvis** can determine the path for its source file, it will use that.
+    * Finally, it will default to the current folder for your Dyalog session as determined by  `(1 ⎕NPARTS '')`. 
+    Using a relative path can be useful for making your **Jarvis** service more portable, but it's important to make sure to understand the process above. For instance, if you have been running **Jarvis** from a `CLEAR WS` by dynamically loading it and then you save your application to a named workspace, **Jarvis** could wind up looking in a potentially different folder if the workspace is stored elsewhere than the **Jarvis** config file.
+### Configure the `Jarvis` instance
+Having created a `Jarvis` instance, you can set any configuration parameter prior to starting the instance.  This includes being able to override parameters that may have been loaded from a **Jarvis** config file. Details about each of the parameters can be found in [Settings](./settings-overview.md).
+### Run the `Jarvis` instance
+Use `j.Start` to start the `Jarvis` instance. Use `j.Stop` to stop `Jarvis`. You can run `j.Start` again to restart `Jarvis`. 

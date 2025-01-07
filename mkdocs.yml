@@ -2,37 +2,7 @@ site_name: Jarvis
 repo_url: https://github.com/dyalog/Jarvis
 repo_name: Dyalog/Jarvis
 dev_addr: 127.0.0.1:22361
-copyright: Copyright &copy; 2019-2023 <strong><a href="https://dyalog.com">Dyalog, LTD</a></strong>
-nav:
-    - Overview: 'index.md' # complete
-    - Usage: 
-      - 'Concepts': 'concepts.md' # complete
-      - 'Using Jarvis': 'using.md' 
-      - 'JSON Paradigm': 'json.md'
-      - 'REST Paradigm': 'rest.md'
-    - Reference:
-      - 'Settings':
-        - 'Operational Settings': 'settings-operational.md'
-        - 'Session Settings': 'settings-session.md'
-        - 'JSON Settings': 'settings-json.md'
-        - 'REST Settings': 'settings-rest.md'
-        - 'User Hooks Settings' : 'settings-hooks.md'
-        - 'Conga-Related Settings': 'settings-conga.md'
-        - 'Container Settings': 'settings-container.md'      
-      - 'Methods':
-        - 'Shared Methods': 'methods-shared.md'
-        - 'Instance Methods': 'methods-instance.md'
-      - 'Reference Guide': 'reference.md'
-      - 'Configuration Settings': 'configuration.md'
-    - Advanced Topics:
-      - 'Security' : 'security.md'
-      - 'Using Sessions' : 'sessions.md'
-      - 'Docker Integration' : 'docker.md'
-      - 'Running as a Windows Service' : 'winservice.md'
-      - 'Into the Cloud' : 'cloud.md'
-    - About: 
-      - License: 'LICENSE.md'
-      - 'Release Notes': 'release-notes.md'
+copyright: <div class="left">Made with <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener"><strong>Material for MkDocs</strong></a>.&nbsp;</div><div class="right">Contents copyright &copy;2015-2024 <strong><a href="https://dyalog.com" target="_blank" rel="noopener">Dyalog, LTD</a></strong></div>
 
 theme:
   favicon: 'img/favicon-32.png'
@@ -40,10 +10,15 @@ theme:
   features:
     - navigation.sections
     - navigation.instant
+    - content.footnote.tooltips
+    - navigation.path
+    - navigation.indexes
   name: material
 
 extra:
   generator: false
+  version:
+    provider: mike
 
 extra_css:
   - css/main.css
@@ -74,5 +49,47 @@ markdown_extensions:
   - abbr 
   - footnotes
   - attr_list
+  - def_list
+  - markdown_tables_extended
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tasklist:
+      custom_checkbox: true 
+  - pymdownx.emoji:
+      emoji_index: !!python/name:materialx.emoji.twemoji
+      emoji_generator: !!python/name:materialx.emoji.to_svg
   - toc:
       title: On this page
+
+nav:
+    - Overview: 'index.md' # complete
+    - Usage: 
+      - 'Concepts': 'concepts.md' # complete
+      - 'Using Jarvis': 'using.md' # complete
+      - 'JSON Paradigm': 'json.md' # complete
+      - 'REST Paradigm': 'rest.md' # complete
+    - Reference:
+      - 'Settings':
+        - 'Settings Overview': 'settings-overview.md' # complete
+        - 'Operational Settings': 'settings-operational.md' # complete
+        - 'Session Settings': 'settings-session.md' # complete
+        - 'JSON Settings': 'settings-json.md' # complete
+        - 'REST Settings': 'settings-rest.md' # complete
+        - 'User Hooks Settings' : 'settings-hooks.md' # complete
+        - 'Conga-Related Settings': 'settings-conga.md' # complete
+        - 'CORS Settings': 'settings-cors.md' # complete
+        - 'Container Settings': 'settings-container.md' # complete
+      - 'Methods':
+        - 'Shared Methods': 'methods-shared.md'
+        - 'Instance Methods': 'methods-instance.md'
+      - 'Request': 'request.md'
+      - 'Reference Guide': 'reference.md'
+    - Advanced Topics:
+      - 'Security' : 'security.md'
+      - 'Using Sessions' : 'sessions.md'
+#      - 'Docker Integration' : 'docker.md'
+#      - 'Running as a Windows Service' : 'winservice.md'
+#      - 'Into the Cloud' : 'cloud.md'
+    - About: 
+      - License: 'LICENSE.md'
+      - 'Release Notes': 'release-notes.md'
