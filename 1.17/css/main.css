@@ -1,0 +1,95 @@
+@font-face {
+	font-family: APL;
+	src: local("APL385 Unicode"), url("../assets/apl385.ttf");
+}
+.language-APL {
+	font-family: APL!important;
+	line-height: 1.2em!important;
+}
+code {
+	font-family: APL;
+	font-size: 1em!important;
+	padding-left: 0em!important;
+	padding-right: 0em!important;
+	white-space: pre;
+	overflow-x: scroll;
+}
+.md-logo > img{
+	width: 7rem!important;
+	height: 1.2rem!important;
+}
+@media screen and (max-width: 76.1875em) {
+	.md-logo > img{
+		width: 10rem!important;
+		height: 1.8rem!important;
+	}
+}
+td:first-child {
+	white-space: nowrap;
+}
+table.scrollable {
+	display:block;
+	overflow-x: auto;
+	white-space: nowrap;
+}
+
+/* Custom colors */
+:root {
+	--md-primary-fg-color: #ED7F00;
+	--md-primary-fg-color--dark: #563336;
+	--md-default-bg-color: #F8F8F8;
+}
+/* Code copy only input (see CONTRIBUTING.md) */
+pre + pre > button, pre + hr {
+    display: none!important;
+}
+pre > code {
+    padding-bottom: 1em!important;
+}
+hr + pre > button {
+    top: -0.2em!important;
+}
+pre + pre , hr + pre {
+    margin-top: -1.8em!important;
+}
+pre + pre > code, hr + pre > code {
+    padding-top: 0.2em!important;
+}
+
+/* make admonition styling a la Dyalog */
+.md-typeset .admonition,
+.md-typeset details { 
+	border-color: #ED7F00 !important;
+	box-shadow: #ED7F00 !important;
+}
+
+.md-typeset :is(.admonition-title, summary){
+	background-color: #F3AD5b !important;
+} 
+
+.md-typeset .admonition-title:before,
+.md-typeset summary:before{
+	background-color: #F8F8F8 !important;
+}
+
+.md-typeset pre > code {
+	overflow: scroll !important;
+	scrollbar-color: black;
+	scrollbar-width: thin;
+}
+
+.md-copyright {
+	width: 100%;
+}
+
+.md-typeset dd {
+	margin-top: 0em;
+}
+
+.left {
+	float: left;
+}
+
+.right {
+	float: right;
+}
