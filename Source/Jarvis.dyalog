@@ -1,4 +1,4 @@
-:Class Jarvis
+﻿:Class Jarvis
 ⍝ Dyalog Web Service Server
 ⍝ See https://dyalog.github.io/Jarvis for documentation
 
@@ -6,7 +6,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.19.0' '2024-11-13'
+      r←'Jarvis' '1.20.0' '2025-01-11'
     ∇
 
     ∇ Documentation
@@ -65,6 +65,7 @@
     :Field Public OnWsCloseFn←''
     :Field Public OnWsErrorFn←''
     :Field Public WsTimeout←5                                  ⍝ minutes before a WebSocket connection times out, 0 for no timeout
+    :Field Public WsAuthenticateFn←''                          ⍝ WebSocket authentication function
 
    ⍝ REST mode settings
     :Field Public ParsePayload←1                               ⍝ 1=parse request payload based on content-type header (REST only)
@@ -645,7 +646,7 @@
           →0⊣(rc msg)←5 'CodeLocation is not valid, it should be either a namespace/class reference or a file path'
       :EndSelect
      
-      _userHookFns←AppInitFn AppCloseFn ValidateRequestFn AuthenticateFn SessionInitFn OnWsUpgradeFn OnWsReceiveFn OnWsCloseFn OnWsErrorFn
+      _userHookFns←AppInitFn AppCloseFn ValidateRequestFn AuthenticateFn SessionInitFn OnWsUpgradeFn OnWsReceiveFn OnWsCloseFn OnWsErrorFn WsAuthenticateFn
      
       :For fn :In _userHookFns~⊂''
           :If 3≠CodeLocation.⎕NC fn
@@ -671,15 +672,25 @@
      
       Validate←{0} ⍝ dummy validation function
       →0 If⊃(rc msg)←ValidateRequestFn CheckHookFn 1(1 ¯2)0 ⍝ result-returning monadic or ambivalent?
-     
+      :If ~0∊⍴ValidateRequestFn
+          Validate←CodeLocation⍎ValidateRequestFn
+      :EndIf
       Authenticate←{0} ⍝ dummy authentication function
       →0 If⊃(rc msg)←AuthenticateFn CheckHookFn 1(1 ¯2)0 ⍝ result-returning monadic or ambivalent?
+      :If ~0∊⍴AuthenticateFn
+          Authenticate←CodeLocation⍎AuthenticateFn
+      :EndIf
      
       :If EnableWebSockets
+          WsAuthenticate←{0}
           →0 If⊃(rc msg)←OnWsUpgradeFn CheckHookFn 1(1 ¯2)0 ⍝ result-returning monadic or ambivalent?
           →0 If⊃(rc msg)←OnWsReceiveFn CheckHookFn 1(1 ¯2)0 ⍝ result-returning monadic or ambivalent?
           →0 If⊃(rc msg)←OnWsCloseFn CheckHookFn 1(1 ¯2)0 ⍝ result-returning monadic or ambivalent?
           →0 If⊃(rc msg)←OnWsErrorFn CheckHookFn 1(1 ¯2)0 ⍝ result-returning monadic or ambivalent?
+          →0 If⊃(rc msg)←WsAuthenticateFn CheckHookFn 1(1 ¯2)0 ⍝ result-returning monadic or ambivalent?
+          :If ~0∊⍴WsAuthenticateFn
+              WsAuthenticate←CodeLocation⍎WsAuthenticateFn
+          :EndIf
       :EndIf
     ∇
 
@@ -1075,7 +1086,8 @@
               ns.PeerAddr←2⊃2⊃LDRC.GetProp obj'PeerAddr'
               ns.Server←⎕THIS
               ns.IsWebSocket←1
-              _connections.index[3;_connections.index[1;]⍳⊂ns.conx]←1
+              ns.IsAuthenticated←0
+              _connections.index[3;_connections.index[1;]⍳⊂ns.conx]←1 ⍝ mark this connection as a WebSocket
               :If Secure
                   (rc cert)←2↑LDRC.GetProp obj'PeerCert'
                   :If rc=0
@@ -1089,6 +1101,7 @@
               ns.Headers←↑dlb¨¨hdrs splitOnFirst¨':'
      
               :If ~0∊⍴OnWsUpgradeFn
+                  stopIf DebugLevel 2
                   :If 0≠(CodeLocation⍎OnWsUpgradeFn)ns
                       RemoveConnection ns.conx
                   :EndIf
@@ -1100,15 +1113,24 @@
      
           :Case 'WSReceive'
               ns.(Payload Complete DataType)←data
-              :If 0∊⍴OnWsReceiveFn
+              :If 0∊⍴OnWsReceiveFn ⍝ if no hook function, just log the payload
                   Log'WSReceive: ',data
               :Else
+                  stopIf DebugLevel 2
+                  :If ~ns.IsAuthenticated ⍝ are we already authenticated?
+                      :If 0≠WsAuthenticate ns ⍝
+                          Log'WSReceive: Authentication failed... closing connection'
+                          RemoveConnection ns.conx
+                      :EndIf
+                  :EndIf
                   :If 0≠(CodeLocation⍎OnWsReceiveFn)ns
                       RemoveConnection ns.conx
                   :EndIf
               :EndIf
+     
           :Case 'WSClose'
               :If ~0∊⍴OnWsCloseFn
+                  stopIf DebugLevel 2
                   {}(CodeLocation⍎OnWsCloseFn)ns
               :EndIf
               RemoveConnection ns.conx
@@ -1122,6 +1144,8 @@
     ∇
 
     ∇ where WsSend what;conx;res
+    ⍝ Send a WebSocket payload
+    ⍝ where is the Conga connection
       :Access public
       :If ~0∊⍴where
           :Select nameClass what
@@ -2237,15 +2261,16 @@
       :EndFor
     ∇
 
-    ∇ r←HtmlPage;endpoints
+    ∇ r←HtmlPage req;endpoints;j
       :Access public
-      r←ScriptFollows
+      j←req.Server
+      →Skip⊣r←j.ScriptFollows
 ⍝<!DOCTYPE html>
 ⍝<html>
 ⍝<head>
 ⍝<meta content="text/html; charset=utf-8" http-equiv="Content-Type">
 ⍝<link rel="icon" href="data:,">
-⍝<title>Jarvis</title>
+⍝<title>JAWS</title>
 ⍝ <style>
 ⍝   body {color:#000000;background-color:white;font-family:Verdana;margin-left:0px;margin-top:0px;}
 ⍝   button {display:inline-block;font-size:1.1em;}
@@ -2255,8 +2280,8 @@
 ⍝   div {padding:5px;}
 ⍝   label input textarea button #result {display:flex;}
 ⍝   textarea {width:100%;font-size:18px;}
-⍝   #result {font-size:18px;}
-⍝   #result code {white-space:pre-line;word-wrap:break-word;}
+⍝   .result {font-size:18px;}
+⍝   .result code {white-space:pre-line;word-wrap:break-word;}
 ⍝ </style>
 ⍝</head>
 ⍝<body>
@@ -2273,52 +2298,132 @@
 ⍝      <textarea id="payload" name="payload"></textarea>
 ⍝    </div>
 ⍝    <div>
-⍝      <button onclick="doit()" type="button">Send</button>
+⍝      <button onclick="doit()" type="button">Send via HTTP</button>
+⍝      <button id="wsButton" style="visibility:hidden" onclick="wsdoit()" type="button">Send via WebSocket</button>
+⍝      <button id="wsSubButton" style="visibility:hidden" onclick="wsSubscribe()" type="button">Subscribe</button>
+⍝      <button id="wsUnsubButton" style="visibility:hidden" onclick="wsUnsubscribe()" type="button">Unsubscribe</button>
 ⍝    </div>
 ⍝  </form>
 ⍝</fieldset>
 ⍝<fieldset>
 ⍝  <legend>Response</legend>
-⍝  <div id="result">
+⍝  <div class="result" id="result">
+⍝  </div>
+⍝</fieldset>
+⍝<fieldset id="wsFields" style="visibility:hidden">
+⍝  <legend>WebSocket Response</legend>
+⍝  <div class="result" id="wsResult">
+⍝  </div>
+⍝</fieldset>
+⍝<fieldset id="wsSubscribeFields" style="visibility:hidden">
+⍝  <legend>WebSocket Subscription</legend>
+⍝  <div id="wsSubscribeDiv">
 ⍝  </div>
 ⍝</fieldset>
 ⍝<script>
 ⍝function doit() {
-⍝  document.getElementById("result").innerHTML = "";
-⍝  var payload = document.getElementById("payload").value;
-⍝  if (0 == payload.length) {
-⍝    document.getElementById("result").innerHTML = "<span style='color:red;'>Please enter a valid JSON payload</span>";
-⍝    } else {
-⍝    var xhttp = new XMLHttpRequest();
-⍝    var fn = document.getElementById("function").value;
-⍝    fn = (0 == fn.indexOf('/')) ? fn : '/' + fn;
-⍝
-⍝    xhttp.open("POST", fn, true);
-⍝    xhttp.setRequestHeader("content-type", "application/json; charset=utf-8");
-⍝
-⍝    xhttp.onreadystatechange = function() {
-⍝      if (this.readyState == 4){
-⍝        if (this.status == 200) {
-⍝          try {
-⍝            var resp = "<pre><code>" + JSON.stringify(JSON.parse(this.responseText)) + "</code></pre>";;
-⍝          }
-⍝          catch(err) {
-⍝            var resp = "<pre><code>" + this.responseText + "</code></pre>";
-⍝          }
+⍝    document.getElementById("result").innerHTML = "";
+⍝    var payload = document.getElementById("payload").value;
+⍝    var parses = false;
+⍝    try {
+⍝        var json = JSON.parse(payload);
+⍝        parses = true;
+⍝    } finally {
+⍝        if (!parses) {
+⍝            document.getElementById("result").innerHTML = "<span style='color:red;'>Please enter a valid JSON payload</span>";
 ⍝        } else {
-⍝          var resp = "<span style='color:red;'>" + this.statusText + "</span> <pre><code>" + this.responseText + "</code></pre>";
+⍝            var xhttp = new XMLHttpRequest();
+⍝            var fn = document.getElementById("function").value;
+⍝            fn = (0 == fn.indexOf('/')) ? fn : '/' + fn;
+⍝
+⍝            xhttp.open("POST", fn, true);
+⍝            xhttp.setRequestHeader("content-type", "application/json; charset=utf-8");
+⍝
+⍝            xhttp.onreadystatechange = function () {
+⍝                if (this.readyState == 4) {
+⍝                    if (this.status == 200) {
+⍝                        try {
+⍝                            var resp = "<pre><code>" + JSON.stringify(JSON.parse(this.responseText)) + "</code></pre>";;
+⍝                        }
+⍝                        catch (err) {
+⍝                            var resp = "<pre><code>" + this.responseText + "</code></pre>";
+⍝                        }
+⍝                    } else {
+⍝                        var resp = "<span style='color:red;'>" + this.statusText + "</span> <pre><code>" + this.responseText + "</code></pre>";
+⍝                    }
+⍝                    document.getElementById("result").innerHTML = resp;
+⍝                }
+⍝            }
+⍝            xhttp.send(document.getElementById("payload").value);
 ⍝        }
-⍝        document.getElementById("result").innerHTML = resp;
-⍝      }
 ⍝    }
-⍝    xhttp.send(document.getElementById("payload").value);
+⍝}
+⍝function wsdoit() {
+⍝    document.getElementById("wsResult").innerHTML = "";
+⍝    var payload = document.getElementById("payload").value;
+⍝    var parses = false;
+⍝    try {
+⍝        var json = JSON.parse(payload);
+⍝        parses = true;
+⍝    } finally {
+⍝        if (!parses) {
+⍝            document.getElementById("wsResult").innerHTML = "<span style='color:red;'>Please enter a valid JSON payload</span>";
+⍝        } else {
+⍝            var fn = document.getElementById("function").value;
+⍝            fn = (0 == fn.indexOf('/')) ? fn : '/' + fn;
+⍝            var msg = {};
+⍝            msg.Endpoint = fn;
+⍝            msg.Payload = json;
+⍝            msg.Type = "Endpoint";
+⍝            ws.send(JSON.stringify(msg));
+⍝        }
+⍝    }
+⍝}
+⍝function wsSubscribe() {
+⍝  var msg = {};
+⍝  msg.Type = "Subscribe";
+⍝  ws.send(JSON.stringify(msg));
+⍝}
+⍝function wsUnsubscribe() {
+⍝  var msg = {};
+⍝  msg.Type = "Unsubscribe";
+⍝  ws.send(JSON.stringify(msg));
+⍝}
+⍝var ws;                                                                               0
+⍝ws = new WebSocket("ws://localhost:⍴/");
+⍝ws.onopen = function(evt) { onOpen(evt) };
+⍝ws.onclose = function(evt) { onClose(evt) };
+⍝ws.onmessage = function(evt) { onMessage(evt) };
+⍝ws.onerror = function(evt) { onError(evt) };
+⍝
+⍝function onOpen(evt){
+⍝  document.getElementById("wsButton").style.visibility = "visible";
+⍝  document.getElementById("wsFields").style.visibility = "visible";
+⍝  document.getElementById("wsSubButton").style.visibility = "visible";
+⍝  document.getElementById("wsUnsubButton").style.visibility = "visible";
+⍝  document.getElementById("wsSubscribeFields").style.visibility = "visible";};
+⍝function onClose(evt){console.log("WebSocket closed");};
+⍝function onError(evt){console.log("WebSocket error");};
+⍝
+⍝function onMessage(evt){
+⍝  let payload = JSON.parse(evt.data);
+⍝  switch (payload.Type){
+⍝    case "Asynch":
+⍝      document.getElementById("wsResult").innerHTML =  "<br/><pre><code>" + JSON.stringify(payload.Data) + "</code></pre>";
+⍝    break;
+⍝    case "Update":
+⍝      document.getElementById("wsSubscribeDiv").innerHTML = "<br/>" + payload.Data;
+⍝    break;
+⍝    default:
+⍝      document.getElementById("result").innerHTML = "<br/><span style='color:red;'>Invalid message type</span>";
 ⍝  }
 ⍝}
 ⍝</script>
 ⍝</div>
 ⍝</body>
 ⍝</html>
-      endpoints←{⍵/⍨0=CheckFunctionName ⍵}EndPoints CodeLocation
+     Skip:
+      endpoints←j.({⍵/⍨0=CheckFunctionName ⍵}EndPoints CodeLocation)
       :If 0∊⍴endpoints
           endpoints←'<b>No Endpoints Found</b>'
       :Else
@@ -2326,6 +2431,7 @@
           endpoints←'<select id="function" name="function">',endpoints,'</select>'
       :EndIf
       r←endpoints{i←⍵⍳'⍠' ⋄ ((i-1)↑⍵),⍺,i↓⍵}r
+      r←(⍕j.Port){i←⍵⍳'⍴' ⋄ ((i-1)↑⍵),⍺,i↓⍵}r
       r←⎕UCS'UTF-8'⎕UCS r
     ∇
     :EndSection
