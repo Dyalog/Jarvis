@@ -6,7 +6,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.18.4' '2024-09-11'
+      r←'Jarvis' '1.18.5' '2025-02-05'
     ∇
 
     ∇ Documentation
@@ -1185,7 +1185,7 @@
      
       :If ParsePayload
           :Trap 0 DebugLevel 1
-              :Select ns.Req.ContentType
+              :Select ct←ns.Req.ContentType
               :Case 'application/json'
                   ns.Req.Payload←JSONin ns.Req.Body
               :Case 'application/xml'
