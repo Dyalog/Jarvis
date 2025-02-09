@@ -69,7 +69,7 @@
 
 ### `Paradigm`
 |--|--|
-|Description|`Paradigm` specifies the mode in which `Jarvis` will operate. Current valid values are:<ul><li>`'JSON'` to use the [JSON Paradign](json.md)</li><li>`'REST`' to use the [REST Paradigm](.rest.md)</li></ul>|
+|Description|`Paradigm` specifies the mode in which `Jarvis` will operate. Current valid values are:<ul><li>`'JSON'` to use the [JSON Paradign](json.md)</li><li>`'REST`' to use the [REST Paradigm](./rest.md)</li></ul>|
 |Default|`'JSON`|
 |Examples|`j.Paradigm←'REST'`|
 |Notes|You should set `Paradigm` before starting your `Jarvis` instance.|
