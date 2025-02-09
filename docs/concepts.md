@@ -1,20 +1,20 @@
 # Conceptual Overview
-***Jarvis*** is implemented as a Dyalog APL class. It's okay if you're not familiar with the [object oriented features of Dyalog](https://docs.dyalog.com/latest/Dyalog%20Programming%20Reference%20Guide.pdf#%5B%7B%22num%22%3A846%2C%22gen%22%3A0%7D%2C%7B%22name%22%3A%22XYZ%22%7D%2C0%2C714%2C0%5D). All you really need to understand is that a ***Jarvis*** server is an "instance" of the `Jarvis` class. You create an instance of the class and then configure and run the instance. This is covered in [Using Jarvis](using.md).
+*Jarvis* is implemented as a Dyalog APL class. It's okay if you're not familiar with the [object oriented features of Dyalog](https://docs.dyalog.com/latest/Dyalog%20Programming%20Reference%20Guide.pdf#%5B%7B%22num%22%3A846%2C%22gen%22%3A0%7D%2C%7B%22name%22%3A%22XYZ%22%7D%2C0%2C714%2C0%5D). All you really need to understand is that a *Jarvis* server is an "instance" of the `Jarvis` class. You create an instance of the class and then configure and run the instance. This is covered in [Using Jarvis](using.md).
 
 ## Terminology
-***Jarvis*** supports two different "paradigms" which define how the client will interact witht the ***Jarvis*** service. This section defines some terms that we will use in the discussion below about ***Jarvis*** paradigms. 
+*Jarvis* supports two different "paradigms" which define how the client will interact witht the *Jarvis* service. This section defines some terms that we will use in the discussion below about *Jarvis* paradigms. 
 
 ### Client
-This is the component sending a request to the ***Jarvis*** service and receiving ***Jarvis***' response. The client can be anything that can send HTTP requests and receive HTTP responses.  It could be a web browser, a program, an app on a mobile phone, another server, and so on.
+This is the component sending a request to the *Jarvis* service and receiving *Jarvis*' response. The client can be anything that can send HTTP requests and receive HTTP responses.  It could be a web browser, a program, an app on a mobile phone, another server, and so on.
 
 ### URL (or URI)
-The URL (Universal Resource Locator) or URI (Universal Resource Identifier) is the address, possibly including query parameters, which is sent to ***Jarvis***. A URL has the general format:
+The URL (Universal Resource Locator) or URI (Universal Resource Identifier) is the address, possibly including query parameters, which is sent to *Jarvis*. A URL has the general format:
 ```
 [scheme://][userinfo@]host[:port][/path][?query]
 ```
 `scheme` is either `http` or `https`.<br/>
 `userinfo@` is HTTP Basic authentication user credentials if authentication is being used.<br/>
-`host` is the ***Jarvis*** server domain name or IP address.<br/>
+`host` is the *Jarvis* server domain name or IP address.<br/>
 `port` is the optional port number. It defaults to 80 for `http` or 443 for `https`.<br/>
 `path` is the endpoint for the request.<br/>
 `query` are the query parameters, if any, for the request.
@@ -29,15 +29,15 @@ JSON stands for **J**ava**S**cript **O**bject **N**otation and is a flexible not
 REST stands for **RE**presentational **S**tate **T**ransfer and is a design pattern for APIs. An API that follows this design pattern is termed "RESTful". When a RESTful API is called, the server will transfer to the client a representation of the state of the requested resource.
 
 ## Paradigms
-***Jarvis*** supports two operational paradigms that we term **JSON** and **REST**. A ***Jarvis*** server can run only one paradigm at a time. One of the first decisions you'll need to make when using ***Jarvis*** is which web service paradigm to use. The paradigm will determine protocol for how a client will interact with ***Jarvis***. This section provides information to help you decide which paradigm is most appropriate for your application.
+*Jarvis* supports two operational paradigms that we term **JSON** and **REST**. A *Jarvis* server can run only one paradigm at a time. One of the first decisions you'll need to make when using *Jarvis* is which web service paradigm to use. The paradigm will determine protocol for how a client will interact with *Jarvis*. This section provides information to help you decide which paradigm is most appropriate for your application.
 
 ### The JSON paradigm
 The JSON paradigm may seem quite natural to the APLer in that the endpoints (functions) take a data argument and return a data result. The argument and result can be as complex as you like, provided that they can be represented using JSON.
 
 -	The endpoints are the names of APL functions that are called to satisfy the request.  You can specify which functions you want to expose as endpoints for your service to the client.
 -	The client uses the HTTP POST method and passes the parameters for the request as JSON in the request body.
--	The payload (body) of the request is automatically converted by ***Jarvis*** from JSON to an APL array and passed as the right argument to your function.
--	Your function should return an APL array which ***Jarvis*** then converts to JSON and returns to the client in the response.
+-	The payload (body) of the request is automatically converted by *Jarvis* from JSON to an APL array and passed as the right argument to your function.
+-	Your function should return an APL array which *Jarvis* then converts to JSON and returns to the client in the response.
 -	Your application needs to know nothing about JSON, HTTP or web services.
 
 ### The REST paradigm
@@ -49,7 +49,7 @@ RESTful web services use standard HTTP methods to perform operations on resource
     - PUT – update/replace a resource
     - PATCH – update/modify a resource
     - DELETE – delete a resource
-- With ***Jarvis***, you specify which methods you want your service to support.
+- With *Jarvis*, you specify which methods you want your service to support.
 - You then implement an APL function with the same name as each method.
 - Resources are specified in the `path` of the request URL.  
 - Depending on how you design the service API, parameters, if any, can be passed in the URL,  the query string, the body of the request, or some combination thereof.
@@ -79,7 +79,7 @@ One way to implement this using the JSON paradigm might be to:
     [3]    namespace.total←+/costs ⍝ insert a total element into the namespace  
        ∇
 ```
-- ***Jarvis*** will then convert the result, in this case the updated namespace, to JSON `{"customer":231,"invoicenum":45,"total":654.32}` and return it to the client
+- *Jarvis* will then convert the result, in this case the updated namespace, to JSON `{"customer":231,"invoicenum":45,"total":654.32}` and return it to the client
 
 #### REST Example
 

@@ -1,8 +1,8 @@
-**Jarvis**'s REST paradigm was developed to make it possible to deploy your APL application using a REST API. REST APIs are more applicable when managing a collection of resources. HTTP-based REST web services, like **Jarvis**, use standard HTTP methods (GET, POST, PUT, DELETE, etc) to create, retrieve, and manipulate resources.
+Jarvis's REST paradigm was developed to make it possible to deploy your APL application using a REST API. REST APIs are more applicable when managing a collection of resources. HTTP-based REST web services, like Jarvis, use standard HTTP methods (GET, POST, PUT, DELETE, etc) to create, retrieve, and manipulate resources.
 
 There are [six guiding principles of REST](https://en.wikipedia.org/wiki/REST#Architectural_constraints). The degree to which you adhere to these principles is completely up to you.
 
-## How **Jarvis**'s REST mode works
+## How Jarvis's REST mode works
 
 ### You write an APL function for each HTTP method your service will support
 Rather than writing a function for each endpoint as in the JSON paradigm, you will write a monadic function for each of the HTTP methods that your web service will support. Your functions should reside in the namespace specified by [`CodeLocation`](settings-operational.md#codelocation). 
@@ -35,7 +35,7 @@ When `Jarvis` receives the request, it verifies that the request is well-formed.
 If the requested resource is not found, or some other issue occurs, your function should fail the request with an appropriate HTTP status code using [`Request.Fail`](./httprequest.md#fail). For example, an HTTP status code of 404 means that the requested resource was not found and you would use `Request.Fall 404` to set the status code.
 
 !!! tip "Advanced Usage"
-    **Jarvis** has a few specific places where you can "inject" your own APL code to perform actions like additional request validation, authentication, and so on. Two such places are available after `Jarvis` receives the request, but before calling your function.  These are:
+    Jarvis has a few specific places where you can "inject" your own APL code to perform actions like additional request validation, authentication, and so on. Two such places are available after `Jarvis` receives the request, but before calling your function.  These are:
     
     * [`ValidateRequestFn`](./settings-hooks.md#validaterequestfn) specifies the name of a function to call for every request that `Jarvis` receives.
     * [`AuthenticateFn`](./settings-hooks.md#authenticatefn) specified the name of a function to call to perform authentication. 

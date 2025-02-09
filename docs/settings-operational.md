@@ -14,7 +14,7 @@
 
 ### `Debug`
 |--|--|
-|Description|Setting `Debug` to a non-zero value will enable various types of debugging and reporting to take place. The valid values for `Debug` are:<ul><li>`0` - all errors are trapped</li><li>`1` - stop when an untrapped error occurs in either the endpoint code or the **Jarvis** framework itself.</li><li>`2` - `Jarvis` will stop execution on the thread handling a request prior to any application code being executed.  This enables the user to debug their code "in situ".</li><li>`4` - `Jarvis` will stop execution on the thread handling a request once the the request is completely received. This is used mostly for tracing and debugging **Jarvis** itself.</li><li>`8` - `Jarvis` will display Conga events other than `'Timeout'` to the APL session.</li></ul>`Debug` values are additive. For example `9` would stop on any error as well as enable Conga event reporting are |
+|Description|Setting `Debug` to a non-zero value will enable various types of debugging and reporting to take place. The valid values for `Debug` are:<ul><li>`0` - all errors are trapped</li><li>`1` - stop when an untrapped error occurs in either the endpoint code or the Jarvis framework itself.</li><li>`2` - `Jarvis` will stop execution on the thread handling a request prior to any application code being executed.  This enables the user to debug their code "in situ".</li><li>`4` - `Jarvis` will stop execution on the thread handling a request once the the request is completely received. This is used mostly for tracing and debugging Jarvis itself.</li><li>`8` - `Jarvis` will display Conga events other than `'Timeout'` to the APL session.</li></ul>`Debug` values are additive. For example `9` would stop on any error as well as enable Conga event reporting are |
 |Default|`0`|
 |Examples|`j.Debug←2 ⍝ stop just before executing any user code`|
 |Notes|While it is possible to set `Debug` to `¯1` to enable all forms of debugging, be mindful that additional values for `Debug` may be added in the future and this could lead to unintended behavior.|
@@ -48,10 +48,10 @@
 
 ### `JarvisConfig`
 |--|--|
-|Description|`JarvisConfig` is the name of the JSON (or JSON5) file, if any, that contains your **Jarvis** configuration.|
+|Description|`JarvisConfig` is the name of the JSON (or JSON5) file, if any, that contains your Jarvis configuration.|
 |Default|`''`|
 |Examples|`j.JarvisConfig←'/home/myapp/jarvisconfig.json`|
-|Notes|If you specify a relative path to the **Jarvis** configuration file, `Jarvis` will consider it to be relative to the current working directory as returned by `1 ⎕NPARTS ''` 
+|Notes|If you specify a relative path to the Jarvis configuration file, `Jarvis` will consider it to be relative to the current working directory as returned by `1 ⎕NPARTS ''` 
 
 ### `LoadableFiles`
 |--|--|
@@ -65,7 +65,7 @@
 |Description|`Logging` is a Boolean setting that determines whether `Jarvis` will display certain internal log messages to the session.|
 |Default|`1`|
 |Examples|&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`j←Jarvis.New ''`<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`j.Start ⍝ default is Logging←1`<br>`2024-12-06 @ 11.34.23.890 - Starting  Jarvis  1.18.4`<br>`2024-12-06 @ 11.34.23.913 - Conga copied from C:\Program Files\Dyalog\Dyalog APL-64 19.0 Unicode/ws/conga`<br>`2024-12-06 @ 11.34.23.915 - Local Conga v3.5 reference is #.Jarvis.[LIB]`<br>`2024-12-06 @ 11.34.23.923 - Jarvis starting in "JSON" mode on port 8080`<br>`2024-12-06 @ 11.34.23.927 - Serving code in #`<br>`2024-12-06 @ 11.34.23.931 - Click http://192.168.223.134:8080 to access web interface`<br>`0  Server started`<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`j.Stop`<br>`2024-12-06 @ 11.34.35.564 - Stopping server...`<br>`0  Server stopped `<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`j.Logging←0 ⍝ turn off logging`<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`j.Start`<br>`0  Server started `|
-|Notes|The messages controlled by `Logging` are internal, operational, messages.<br>Request and HTTP logging capabilities will be available in a forthcoming **Jarvis** release.|
+|Notes|The messages controlled by `Logging` are internal, operational, messages.<br>Request and HTTP logging capabilities will be available in a forthcoming Jarvis release.|
 
 ### `Paradigm`
 |--|--|

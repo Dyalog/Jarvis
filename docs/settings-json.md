@@ -1,4 +1,4 @@
-These settings apply when using **Jarvis**'s JSON paradigm.
+These settings apply when using Jarvis's JSON paradigm.
 
 ### `AllowFormData`
 |--|--|
@@ -15,7 +15,7 @@ These settings apply when using **Jarvis**'s JSON paradigm.
 
 ### `HTMLInterface`
 |--|--|
-|Description|`HTMLInterface` controls whether and how `Jarvis` will provide an HTML interface. Valid settings are:<ul><li>`0` - do not enable the HTML interface</li><li>`1` - enable the **Jarvis**'s built-in HTML interface</li><li>`'path'` - a character vector naming a folder (or file) that contains the HTML content to serve. If `'path'` is a folder name, `Jarvis` will look for a file named "index.html" in that folder.</li><li>`'' 'function'` - where `function` is the name of a monadic, result-returning function. The function is passed the [`Request`](./request.md) object and should return HTML content.|
+|Description|`HTMLInterface` controls whether and how `Jarvis` will provide an HTML interface. Valid settings are:<ul><li>`0` - do not enable the HTML interface</li><li>`1` - enable the Jarvis's built-in HTML interface</li><li>`'path'` - a character vector naming a folder (or file) that contains the HTML content to serve. If `'path'` is a folder name, `Jarvis` will look for a file named "index.html" in that folder.</li><li>`'' 'function'` - where `function` is the name of a monadic, result-returning function. The function is passed the [`Request`](./request.md) object and should return HTML content.|
 |Default|`1` if using JSON mode, `0` otherwise|
 |Examples|`j.HTMLInterface←'/myjarvis/web/' ⍝ HTML content is in the folder /myjarvis/web/`|
 
@@ -24,7 +24,7 @@ These settings apply when using **Jarvis**'s JSON paradigm.
 |Description|`JSONInputFormat` controls the format of the request's JSON payload when converted to APL. Valid settings are:<ul><li>`'D'` - return the payload as data</li><li>`'M'` - return the payload in a matrix format.</li></ul>These settings are the same as the `'Format`' option for `⎕JSON`.|
 |Default|`D`|
 |Examples|`j.JSONInputFormat←'M' ⍝ use the matrix inport format for ⎕JSON`|
-|Notes|`JSONInputFormat` also has effect when using **Jarvis**`s REST paradigm if [`ParsePayload`](./settings-rest.md#parsepayload) is set to `1`.|
+|Notes|`JSONInputFormat` also has effect when using Jarvis`s REST paradigm if [`ParsePayload`](./settings-rest.md#parsepayload) is set to `1`.|
 
 ### `Report404InHTML`
 |--|--|

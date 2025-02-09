@@ -4,7 +4,7 @@ When a web page makes a request to a different domain (cross-origin request), th
 
 CORS is essential for enabling secure communication between different web applications and APIs while protecting users from potential security risks.
 
-Without modification, **Jarvis**'s default CORS settings will allow most CORS requests. For more information about CORS, see [CORS](https://developer.mozilla.org/docs/Web/HTTP/CORS).
+Without modification, Jarvis's default CORS settings will allow most CORS requests. For more information about CORS, see [CORS](https://developer.mozilla.org/docs/Web/HTTP/CORS).
 
 ### `EnableCORS`
 |--|--|

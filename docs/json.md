@@ -1,5 +1,5 @@
-**Jarvis**'s JSON paradigm was developed to make it easy to expose the functionality of your APL application as a web service. The endpoints of your service are simply APL functions that take an array as a right argument and return an error as a result.
-## How **Jarvis**'s JSON mode works
+Jarvis's JSON paradigm was developed to make it easy to expose the functionality of your APL application as a web service. The endpoints of your service are simply APL functions that take an array as a right argument and return an error as a result.
+## How Jarvis's JSON mode works
 ### You write an APL function for each endpoint of your service
 Each endpoint function should at a minimum take an APL array as a right argument and return an APL array as its result. The name of the endpoint is the name of your function - so, it's best to not use characters in your endpoint function names that aren't easily supported in URLs. Your functions should reside in the namespace specified by [`CodeLocation] 
 
@@ -26,7 +26,7 @@ When `Jarvis` receives the request, it verifies that the request is well-formed.
 `Jarvis` passes the APL array as the right argument to your endpoint function.  If your function is dyadic or ambivalent, `Jarvis` will pass the [`HttpRequest`](./reference.md#httprequest) object as the left argument. Your function should return an APL array result.
 
 !!! tip "Advanced Usage"
-    **Jarvis** has a few specific places where you can "inject" your own APL code to perform actions like additional request validation, authentication, and so on. Two such places are available after `Jarvis` receives the request, but before calling your endpoint function.  These are:
+    Jarvis has a few specific places where you can "inject" your own APL code to perform actions like additional request validation, authentication, and so on. Two such places are available after `Jarvis` receives the request, but before calling your endpoint function.  These are:
     
     * [`ValidateRequestFn`](./settings-hooks.md#validaterequestfn) specifies the name of a function to call for every request that `Jarvis` receives.
     * [`AuthenticateFn`](./settings-hooks.md#authenticatefn) specified the name of a function to call to perform authentication. 

@@ -1,4 +1,4 @@
-These settings apply when using **Jarvis**'s REST paradigm.
+These settings apply when using Jarvis's REST paradigm.
 
 ### `ParsePayload`
 |--|--|
@@ -12,4 +12,4 @@ These settings apply when using **Jarvis**'s REST paradigm.
 |Description|`RESTMethods` specifies which HTTP methods will be supported by your REST web service. It is a comma-delimited character vector of HTTP method names and optionally, the name of the APL function that will service that HTTP method. Each comma-delimited segment consists of a case-insensitive HTTP method name (`'get' 'GET' 'gEt'` will all match GET). The method name can be optionally followed by a `'/'` and the function name which implements the handler for that HTTP method. If no function name is supplied, the function name will be the case-sensitive HTTP method. |
 |Default|`'Get,Post,Put,Delete,Patch,Options'`|
 |Examples|`j.RESTMethods←'Get,post/handlePOST'`<br>In this example our service will accept HTTP GET and POST requests.<ul><li>GET requests will be by a function named `Get`</li><li>POST requests will be handled by a function called `handlePOST`.</li></ul>|
-|Notes|**Jarvis** does not place a restriction on the HTTP method names, meaning that you could potentially invent your own "HTTP" methods.<br>`j.RESTMethods←'Get,Bloofo' ⍝ allow GET and BLOOFO`.|
+|Notes|Jarvis does not place a restriction on the HTTP method names, meaning that you could potentially invent your own "HTTP" methods.<br>`j.RESTMethods←'Get,Bloofo' ⍝ allow GET and BLOOFO`.|

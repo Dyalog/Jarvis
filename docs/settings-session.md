@@ -1,4 +1,4 @@
-A stateless web service means that each request from a client to the server is treated as an independent transaction that is unrelated to any previous request. In other words, the server does not store any information about the state of the client between requests. There are many good reasons for implementing a stateless web service including improved scalability, reliability, and independence. However, in some cases it may make sense to maintain some state on the server. **Jarvis**'s sessions are intended to allow you to maintain state in the server.
+A stateless web service means that each request from a client to the server is treated as an independent transaction that is unrelated to any previous request. In other words, the server does not store any information about the state of the client between requests. There are many good reasons for implementing a stateless web service including improved scalability, reliability, and independence. However, in some cases it may make sense to maintain some state on the server. Jarvis's sessions are intended to allow you to maintain state in the server.
 
 See [Using Sessions](./sessions.md) for more information.
 
@@ -21,14 +21,14 @@ See [Using Sessions](./sessions.md) for more information.
 |Examples|`j.SessionUseCookie←1 ⍝ use a cookie for the session id`|
 |Notes|Using an HTTP cookie can be more convenient, especially if the client is a browser. When `Jarvis` creates session it will send the cookie in its response and then the browser will automatically include the cookie in every subsequent request.| 
 
-### `SessionPollingTime` 
+### `SessionPollingTime`
 |--|--|
 |Description| `SessionPollingTime` controls how often, in minutes, `Jarvis` polls for timed-out sessions.|
 |Default|`1`|
 |Examples|`j.SessionPollingTime←5`|
 |Notes|When using sessions, `Jarvis` starts a session monitor in a separate thread. The session monitor loops continuously checking for timed-out sessions. `SessionPollingTime` controls the time between each loop.|
 
-### `SessionCleanupTime` 
+### `SessionCleanupTime`
 |--|--|
 |Description| `SessionCleanupTime` controls how often, in minutes, `Jarvis` purges remaining information about timed-out sessions.|
 |Default|`60`|
