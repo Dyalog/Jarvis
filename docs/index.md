@@ -25,45 +25,46 @@ The name **Jarvis** is a pseudo-acronym for **J**SON **a**nd **R**EST Ser**vice*
 ## Create an APL Web Service in 5 Minutes
 If you know how to write a monadic, result-returning APL function, you're ready to run your first **Jarvis**-based web service.  Here's how:
 
-1. If you already have a copy of the `Jarvis` class, skip to step 3.  Otherwise, load the `HttpCommand` utility so that we can download a copy of **Jarvis** and also use `HttpCommand` for testing our web service.
+1.  If you already have a copy of the `Jarvis` class, skip to step 3.  Otherwise, load the `HttpCommand` utility so that we can download a copy of **Jarvis** and also use `HttpCommand` for testing our web service.
 
               ]load HttpCommand
 
-2. Next, download a copy of Jarvis. Note, the following statement downloads the latest, perhaps pre-release, version of the Jarvis class for this quick demonstration. For a production environment, you should use a [released version of Jarvis](https://github.com/Dyalog/Jarvis/releases). `HttpCommand.Fix` both downloads and runs `⎕FIX` on an APL code file from the web.
+2.  Next, download a copy of Jarvis. Note, the following statement downloads the latest, perhaps pre-release, version of the Jarvis class for this quick demonstration. For a production environment, you should use a [released version of Jarvis](https://github.com/Dyalog/Jarvis/releases). `HttpCommand.Fix` both downloads and runs `⎕FIX` on an APL code file from the web.
 
-		      HttpCommand.Fix 'https://raw.githubusercontent.com/Dyalog/Jarvis/master/Source/Jarvis.dyalog'
+              HttpCommand.Fix 'https://raw.githubusercontent.com/Dyalog/Jarvis/master/Source/Jarvis.dyalog'
 
-1. Write one or more monadic, result-returning APL functions. For instance:
- 
+1.  Write one or more monadic, result-returning APL functions. For instance:
+
               )cs #
               sum ← {+/⍵}                       ⍝ dfns work
-	          total ← +/                        ⍝ derived functions work
+              total ← +/                        ⍝ derived functions work
               ⎕FX '∇r←addemup a' 'r←+/a' '∇'    ⍝ and of course, tradfns work
 
-1. Next, create an instance of `Jarvis` using `Jarvis.New`. 
+1.  Next, create an instance of `Jarvis` using `Jarvis.New`.
 
-```
-      j←Jarvis.New ''
-```
-This will create a `Jarvis` instance with all settings set to their default values. By default, `Jarvis` will use port 8080 and look for your endpoint code in `#`.
+              j←Jarvis.New ''
 
-1. You can now run your web service running on port 8080 and serving code from the # (root) namespace.  
-```      
-      (rc msg)←j.Start
-2024-09-06 @ 15.46.24.199 - Starting  Jarvis  1.18.1 
-2024-09-06 @ 15.46.24.217 - Conga copied from C:\Program Files\Dyalog\Dyalog APL-64 19.0 Unicode/ws/conga
-2024-09-06 @ 15.46.24.221 - Local Conga v3.5 reference is #.Jarvis.[LIB]
-2024-09-06 @ 15.46.24.231 - Jarvis starting in "JSON" mode on port 8080
-2024-09-06 @ 15.46.24.232 - Serving code in #
-2024-09-06 @ 15.46.24.237 - Click http://192.168.001.123:8080 to access web interface
-```
+    This will create a `Jarvis` instance with all settings set to their default values. By default, `Jarvis` will use port 8080 and look for your endpoint code in `#`.
+
+1.  You can now run your web service running on port 8080 and serving code from the # (root) namespace.
+
+    ```
+          (rc msg)←j.Start
+    2024-09-06 @ 15.46.24.199 - Starting  Jarvis  1.18.1
+    2024-09-06 @ 15.46.24.217 - Conga copied from C:\Program Files\Dyalog\Dyalog APL-64 19.0 Unicode/ws/conga
+    2024-09-06 @ 15.46.24.221 - Local Conga v3.5 reference is #.Jarvis.[LIB]
+    2024-09-06 @ 15.46.24.231 - Jarvis starting in "JSON" mode on port 8080
+    2024-09-06 @ 15.46.24.232 - Serving code in #
+    2024-09-06 @ 15.46.24.237 - Click http://192.168.001.123:8080 to access web interface
+    ```
 
 If the server started successfully, you'll see messages similar to those above displayed to the APL session and the return code `rc` should be `0` and `msg` should be empty.  If there was any problem starting `Jarvis`, `rc` will be non-`0` and `msg` will contain a (hopefully) helpful message about the problem that occurred.
 
 
 Now, let's test our service using **Jarvis**' built-in HTML interface. You could click on the link displayed or open your favorite browser to http://localhost:8080, but just for fun, we'll use Dyalog's HTMLRenderer object.
 
-           'h' ⎕WC 'HTMLRenderer' ('URL' 'localhost:8080')
+          'h' ⎕WC 'HTMLRenderer' ('URL' 'localhost:8080')
+
 ![Jarvis Sample](img/sample.png)
 
 We select the Endpoint (APL function) we want from the drop down list, enter some valid JSON data (`[1,3,5]`), and press Send to send the request to **Jarvis**.  **Jarvis**' response is then sent back and displayed.
