@@ -1175,7 +1175,7 @@
           (name filename)←deb¨2↑1↓disposition splitOn';'
           name←'"'~⍨2⊃name splitOn'='
           name↓⍨←¯2×'[]'≡¯2↑name ⍝ drop any trailing [] (we handle arrays automatically)
-          :If {¯1=⎕NC ⍵}name
+          :If ('.'∊name)∨¯1=⎕NC name
               →0⊣('Invalid form field name "',name,'" for Jarvis')req.Fail 400
           :EndIf
           tmp←⎕NS''
@@ -1203,7 +1203,7 @@
       formData←⎕NS''
       data←req.URLDecode¨¨(req.Body splitOn'&')splitOn¨'='
       :For (name value) :In data
-          :If {¯1=⎕NC ⍵}name
+          :If ('.'∊name)∨¯1=⎕NC name
               →0⊣('Invalid form field name "',name,'" for Jarvis')req.Fail 400
           :EndIf
           :If 0=formData.⎕NC name ⋄ formData{⍺⍎⍵,'←⍬'}name ⋄ :EndIf
