@@ -6,7 +6,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.18.5' '2025-02-05'
+      r←'Jarvis' '1.18.6' '2025-03-06'
     ∇
 
     ∇ Documentation
@@ -1094,10 +1094,10 @@
           :Trap 0 DebugLevel 1
               :If 0∊⍴ns.Req.QueryParams
                   ns.Req.Payload←''
-              :ElseIf 1=≢⍴ns.Req.QueryParams ⍝ name/value pairs
+              :ElseIf 1=≢⍴ns.Req.QueryParams ⍝ if a vector, try to parse as JSON
                   ns.Req.Payload←JSONin ns.Req.QueryParams
-              :Else
-                  ns.Req.Payload←{JSONin{1⌽'}{',¯1↓∊'"',¨⍵[;,1],¨'":'∘,¨⍵[;,2],¨','}⍵}ns.Req.QueryParams
+              :Else ⍝ if a matrix it's [;1] name [;2] value
+                  ns.Req.Payload←JSONin 1⌽'}{',1↓∊',',¯1⌽':',⌽JSONout¨ns.Req.QueryParams
               :EndIf
           :Else
               →End⊣'Could not parse query string as JSON'ns.Req.Fail 400
