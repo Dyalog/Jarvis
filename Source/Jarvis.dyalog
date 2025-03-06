@@ -1082,12 +1082,11 @@
      
       :Case 'multipart/form-data'
           →End If'Content-Type should be "application/json"'ns.Req.Fail 400×~AllowFormData
-          :Trap 0 DebugLevel 1
-              ns.Req.Payload←ParseMultipartForm ns.Req
-              →End If 200≠ns.Req.Response.Status ⍝ bail if parsing fails
-          :Else
-              →End⊣'Could not parse payload as "multipart/form-data"'ns.Req.Fail 400
-          :EndTrap
+          →End If 0≠ParseMultipart ns.Req
+     
+      :Case 'application/x-www-form-urlencoded'
+          →End If'Content-Type should be "application/json"'ns.Req.Fail 400×~AllowFormData
+          →End If 0≠ParseFormData ns.Req
      
       :Case ''
           →End If'No Content-Type specified'ns.Req.Fail 400×~isGET∧AllowGETs
@@ -1155,6 +1154,16 @@
      End:
     ∇
 
+    ∇ rc←ParseMultipart req
+    ⍝ cover for ParseMultipartForm so we can call it from JSON or REST handling
+      :Trap 0 DebugLevel 1
+          req.Payload←ParseMultipartForm req
+          rc←200≠req.Response.Status ⍝ bail if parsing fails
+      :Else
+          rc←1⊣'Could not parse payload as "multipart/form-data"'req.Fail 400
+      :EndTrap
+    ∇
+
     ∇ formData←ParseMultipartForm req;boundary;body;part;headers;payload;disposition;type;name;filename;tmp
       boundary←crlf,'--',req.Boundary ⍝ the HTTP standard prepends '--' to the boundary
       body←req.Body
@@ -1179,6 +1188,23 @@
       :EndFor
     ∇
 
+    ∇ rc←ParseFormData req
+    ⍝ cover for ParseUrlencodedForm so we can call it from JSON or REST handling
+      :Trap 0 DebugLevel 1
+          req.Payload←ParseUrlencodedForm req
+          rc←200≠req.Response.Status ⍝ bail if parsing fails
+      :Else
+          rc←1⊣'Could not parse payload as "application/x-www-form-urlencoded"'req.Fail 400
+      :EndTrap
+    ∇
+
+    ∇ formData←ParseUrlencodedForm req
+    ⍝ parse application/x-www-form-urlencoded content 
+    formData←⎕NS'' 
+    ∘∘∘
+    ∇
+
+
     ∇ fn HandleRESTRequest ns;ind;exec;valence;ct;resp
       →0 If HandleCORSRequest ns.Req
       →0 If CheckAuthentication ns.Req
@@ -1190,6 +1216,10 @@
                   ns.Req.Payload←JSONin ns.Req.Body
               :Case 'application/xml'
                   ns.Req.(Payload←⎕XML Body)
+              :Case 'multipart/form-data'
+     
+              :Case 'application/x-www-form-urlencoded'
+     
               :EndSelect
           :Else
               →0⊣('Unable to parse request body as ',ct)ns.Req.Fail 400
