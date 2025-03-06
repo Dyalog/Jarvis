@@ -1646,9 +1646,7 @@
 
         ∇ r←ContentTypeForFile filename;ext
           :Access public instance
-          :If '.'∊ext←filename ⍝ if no '.' (hence no extension) just use the filename
-              ext←1↓3⊃⎕NPARTS filename
-          :EndIf
+          ext←1↓3⊃⎕NPARTS filename
           r←(ContentTypes[;1]⍳⊂ext)⊃ContentTypes[;2],⊂'application/octet-stream'
           r,←('text/html'≡r)/'; charset=utf-8'
         ∇
