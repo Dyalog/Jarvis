@@ -1176,7 +1176,7 @@
           name←'"'~⍨2⊃name splitOn'='
           name↓⍨←¯2×'[]'≡¯2↑name ⍝ drop any trailing [] (we handle arrays automatically)
           :If {¯1=⎕NC ⍵}name
-              →0⊣'Invalid form field name for Jarvis'req.Fail 400
+              →0⊣('Invalid form field name "',name,'" for Jarvis')req.Fail 400
           :EndIf
           tmp←⎕NS''
           filename←'"'~⍨2⊃2↑filename splitOn'='
@@ -1198,10 +1198,17 @@
       :EndTrap
     ∇
 
-    ∇ formData←ParseUrlencodedForm req
-    ⍝ parse application/x-www-form-urlencoded content 
-    formData←⎕NS'' 
-    ∘∘∘
+    ∇ formData←ParseUrlencodedForm req;data;name;value
+    ⍝ parse application/x-www-form-urlencoded content
+      formData←⎕NS''
+      data←req.URLDecode¨¨(req.Body splitOn'&')splitOn¨'='
+      :For (name value) :In data
+          :If {¯1=⎕NC ⍵}name
+              →0⊣('Invalid form field name "',name,'" for Jarvis')req.Fail 400
+          :EndIf
+          :If 0=formData.⎕NC name ⋄ formData{⍺⍎⍵,'←⍬'}name ⋄ :EndIf
+          formData(name{⍺⍎⍺⍺,',←⍵'})value
+      :EndFor
     ∇
 
 
@@ -1217,9 +1224,9 @@
               :Case 'application/xml'
                   ns.Req.(Payload←⎕XML Body)
               :Case 'multipart/form-data'
-     
+                  →0 If 0≠ParseMultipart ns.Req
               :Case 'application/x-www-form-urlencoded'
-     
+                  →0 If 0≠ParseFormData ns.Req
               :EndSelect
           :Else
               →0⊣('Unable to parse request body as ',ct)ns.Req.Fail 400
