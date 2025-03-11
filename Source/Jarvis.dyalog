@@ -6,7 +6,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.19.1' '2025-03-06'
+      r←'Jarvis' '1.19.2' '2025-03-11'
     ∇
 
     ∇ Documentation
@@ -994,33 +994,50 @@
                       ns.Req.Body←'UTF-8'⎕UCS ⎕UCS ns.Req.Body
                   :EndIf
               :Case 'gzip'
-                  ns.Req.Body←⎕UCS 256|¯3 Zipper 83 ⎕DR ns.Req.Body
+                  →resp If'gzip'Unzip ns.Req
               :Case 'deflate'
-                  ns.Req.Body←⎕UCS 256|¯2 Zipper 83 ⎕DR ns.Req.Body
+                  →resp If'deflate'Unzip ns.Req
               :Else
                   →resp⊣'Unsupported content-encoding'ns.Req.Fail 400
               :EndSelect
-     
-              :If _htmlEnabled∧ns.Req.Response.Status≠200
-                  ns.Req.Response.Headers←1 2⍴'Content-Type' 'text/html; charset=utf-8'
-                  ns.Req.Response.Payload←'<h3>',(⍕ns.Req.Response.((⍕Status),' ',StatusText)),'</h3>'
-                  →resp
-              :EndIf
-     
+        
             ⍝ Application-specified validation
               stopIf DebugLevel 4+2×~0∊⍴ValidateRequestFn
-              rc←Validate ns.Req
-              ns.Req.Fail 400×(ns.Req.Response.Status=200)∧0≠rc ⍝ default status 400 if not set by application
-              →resp If rc≠0
+              :If 0≠Validate ns.Req
+                  ns.Req.Fail 400×ns.Req.Response.Status=0 ⍝ default status 400 if not set by application
+                  →resp
+              :EndIf                                                                                           
+
+              ns.Req.Response.(Status←(Status 200)[1+Status=0]) ⍝ if status was not already set, set to default
      
               fn←1↓'.'@('/'∘=)ns.Req.Endpoint
      
               fn RequestHandler ns ⍝ RequestHandler is either HandleJSONRequest or HandleRESTRequest
      
-     resp:    obj Respond ns
+     resp:    
+              ⍝ if HTML interface is enabled, and there's a problem with the request, and we haven't already set a payload
+              :If _htmlEnabled∧(2=⌊.01×ns.Req.Response.Status)<0∊⍴ns.Req.Response.Payload
+                  ns.Req.Response.Headers←1 2⍴'Content-Type' 'text/html; charset=utf-8'
+                  ns.Req.Response.Payload←'<h3>',(⍕ns.Req.Response.((⍕Status),' ',StatusText)),'</h3>'
+              :EndIf
+     
+              obj Respond ns
      
           :EndIf
       :EndHold
+    ∇
+
+    ∇ rc←type Unzip req;n
+    ⍝ attempt to unzip the request payload
+    ⍝ req is the Request instance
+    ⍝ type is 'deflate' or 'gzip'
+      n←¯2 ¯3['deflate' 'gzip'⍳⊂type]
+      :Trap rc←0
+          req.Body←⎕UCS 256|n Zipper 83 ⎕DR req.Body
+      :Else
+          ('Invalid payload for "',type,'" content-encoding')req.Fail 400
+          rc←1
+      :EndTrap
     ∇
 
     ∇ fn HandleJSONRequest ns;payload;resp;valence;nc;debug;file;isGET
@@ -1502,7 +1519,7 @@
         ∇ makeResponse
         ⍝ create the response namespace
           Response←⎕NS''
-          Response.(Status StatusText Payload)←200 'OK' ''
+          Response.(Status StatusText Payload)←0 'OK' ''
           Response.Headers←0 2⍴'' ''
         ∇
 
