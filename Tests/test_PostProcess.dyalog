@@ -6,7 +6,7 @@
  j.PostProcessFn←'PostJSON'
  j.Paradigm←'JSON'
  ns.(Endpoint←{⎕NS''})
- ns.(PostJSON←{⍵.Message←'hello stranger'})
+ ns.(PostJSON←{⍵.Response.Payload.Message←'hello stranger'})
  ns.(Get←{'hello'})
  ns.(PostREST←{⍵.Response.Payload,←' stranger'})
  :If 0≠⊃resp←j.Start
