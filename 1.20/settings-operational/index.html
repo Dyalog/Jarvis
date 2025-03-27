@@ -1,0 +1,1455 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      <link rel="icon" href="../img/favicon-32.png">
+      <meta name="generator" content="mkdocs-1.4.2, mkdocs-material-8.5.10">
+    
+    
+      
+        <title>Operational Settings - Jarvis</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.975780f9.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.2505c338.min.css">
+        
+      
+      
+
+    
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../css/print-site-enum-headings2.css">
+    
+      <link rel="stylesheet" href="../css/print-site-enum-headings3.css">
+    
+      <link rel="stylesheet" href="../css/print-site-enum-headings4.css">
+    
+      <link rel="stylesheet" href="../css/print-site-enum-headings5.css">
+    
+      <link rel="stylesheet" href="../css/print-site-enum-headings6.css">
+    
+      <link rel="stylesheet" href="../css/print-site.css">
+    
+      <link rel="stylesheet" href="../css/print-site-material.css">
+    
+      <link rel="stylesheet" href="../css/main.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="None" data-md-color-accent="None">
+  
+    
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#codelocation" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Jarvis" class="md-header__button md-logo" aria-label="Jarvis" data-md-component="logo">
+      
+  <img src="../img/dyalog-white.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2Z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Jarvis
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Operational Settings
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/dyalog/Jarvis" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Dyalog/Jarvis
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Jarvis" class="md-nav__button md-logo" aria-label="Jarvis" data-md-component="logo">
+      
+  <img src="../img/dyalog-white.svg" alt="logo">
+
+    </a>
+    Jarvis
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/dyalog/Jarvis" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Dyalog/Jarvis
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        Overview
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_2" type="checkbox" id="__nav_2" >
+      
+      
+      
+        
+          
+        
+          
+        
+          
+        
+          
+        
+      
+      
+        <label class="md-nav__link" for="__nav_2">
+          Usage
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" aria-label="Usage" data-md-level="1">
+        <label class="md-nav__title" for="__nav_2">
+          <span class="md-nav__icon md-icon"></span>
+          Usage
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/" class="md-nav__link">
+        Concepts
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../using/" class="md-nav__link">
+        Using Jarvis
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../json/" class="md-nav__link">
+        JSON Paradigm
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../rest/" class="md-nav__link">
+        REST Paradigm
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+    
+  
+  
+    
+      
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_3" type="checkbox" id="__nav_3" checked>
+      
+      
+      
+        
+          
+        
+          
+        
+          
+        
+          
+        
+      
+      
+        <label class="md-nav__link" for="__nav_3">
+          Reference
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" aria-label="Reference" data-md-level="1">
+        <label class="md-nav__title" for="__nav_3">
+          <span class="md-nav__icon md-icon"></span>
+          Reference
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+    
+  
+  
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_3_1" type="checkbox" id="__nav_3_1" checked>
+      
+      
+      
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+      
+      
+        <label class="md-nav__link" for="__nav_3_1">
+          Settings
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" aria-label="Settings" data-md-level="2">
+        <label class="md-nav__title" for="__nav_3_1">
+          <span class="md-nav__icon md-icon"></span>
+          Settings
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../settings-overview/" class="md-nav__link">
+        Settings Overview
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+    
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" data-md-toggle="toc" type="checkbox" id="__toc">
+      
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          Operational Settings
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        Operational Settings
+      </a>
+      
+        
+
+  
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#codelocation" class="md-nav__link">
+    CodeLocation
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#connectiontimeout" class="md-nav__link">
+    ConnectionTimeout
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#debug" class="md-nav__link">
+    Debug
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#defaultcontenttype" class="md-nav__link">
+    DefaultContentType
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#errorlevelinfo" class="md-nav__link">
+    ErrorLevelInfo
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hostname" class="md-nav__link">
+    Hostname
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#httpauthentication" class="md-nav__link">
+    HTTPAuthentication
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#jarvisconfig" class="md-nav__link">
+    JarvisConfig
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#loadablefiles" class="md-nav__link">
+    LoadableFiles
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#logging" class="md-nav__link">
+    Logging
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#paradigm" class="md-nav__link">
+    Paradigm
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#usezip" class="md-nav__link">
+    UseZip
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ziplevel" class="md-nav__link">
+    ZipLevel
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../settings-session/" class="md-nav__link">
+        Session Settings
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../settings-json/" class="md-nav__link">
+        JSON Settings
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../settings-rest/" class="md-nav__link">
+        REST Settings
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../settings-hooks/" class="md-nav__link">
+        User Hooks Settings
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../settings-conga/" class="md-nav__link">
+        Conga-Related Settings
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../settings-cors/" class="md-nav__link">
+        CORS Settings
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../settings-container/" class="md-nav__link">
+        Container Settings
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../settings-shared/" class="md-nav__link">
+        Shared Settings
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_3_2" type="checkbox" id="__nav_3_2" >
+      
+      
+      
+        
+          
+        
+          
+        
+      
+      
+        <label class="md-nav__link" for="__nav_3_2">
+          Methods
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" aria-label="Methods" data-md-level="2">
+        <label class="md-nav__title" for="__nav_3_2">
+          <span class="md-nav__icon md-icon"></span>
+          Methods
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../methods-shared/" class="md-nav__link">
+        Shared Methods
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../methods-instance/" class="md-nav__link">
+        Instance Methods
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../request/" class="md-nav__link">
+        Request
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/" class="md-nav__link">
+        Reference Guide
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_4" type="checkbox" id="__nav_4" >
+      
+      
+      
+        
+          
+        
+          
+        
+          
+        
+      
+      
+        <label class="md-nav__link" for="__nav_4">
+          Advanced Topics
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" aria-label="Advanced Topics" data-md-level="1">
+        <label class="md-nav__title" for="__nav_4">
+          <span class="md-nav__icon md-icon"></span>
+          Advanced Topics
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../security/" class="md-nav__link">
+        Security
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sessions/" class="md-nav__link">
+        Using Sessions
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docker/" class="md-nav__link">
+        Docker Integration
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_5" type="checkbox" id="__nav_5" >
+      
+      
+      
+        
+          
+        
+          
+        
+      
+      
+        <label class="md-nav__link" for="__nav_5">
+          About
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" aria-label="About" data-md-level="1">
+        <label class="md-nav__title" for="__nav_5">
+          <span class="md-nav__icon md-icon"></span>
+          About
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../LICENSE/" class="md-nav__link">
+        License
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../release-notes/" class="md-nav__link">
+        Release Notes
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../print_page/" class="md-nav__link">
+        Print
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+  
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#codelocation" class="md-nav__link">
+    CodeLocation
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#connectiontimeout" class="md-nav__link">
+    ConnectionTimeout
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#debug" class="md-nav__link">
+    Debug
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#defaultcontenttype" class="md-nav__link">
+    DefaultContentType
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#errorlevelinfo" class="md-nav__link">
+    ErrorLevelInfo
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hostname" class="md-nav__link">
+    Hostname
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#httpauthentication" class="md-nav__link">
+    HTTPAuthentication
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#jarvisconfig" class="md-nav__link">
+    JarvisConfig
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#loadablefiles" class="md-nav__link">
+    LoadableFiles
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#logging" class="md-nav__link">
+    Logging
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#paradigm" class="md-nav__link">
+    Paradigm
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#usezip" class="md-nav__link">
+    UseZip
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ziplevel" class="md-nav__link">
+    ZipLevel
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+  <a href="https://github.com/dyalog/Jarvis/edit/master/docs/settings-operational.md" title="Edit this page" class="md-content__button md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25Z"/></svg>
+  </a>
+
+
+  <h1>Operational Settings</h1>
+
+<h3 id="codelocation"><code>CodeLocation</code></h3>
+<table>
+<tbody>
+<tr>
+<td>Description</td>
+<td>Prior to starting a <code>Jarvis</code> instance, <code>CodeLocation</code> specifies where <code>Jarvis</code> will look for your endpoint code. <code>CodeLocation</code> can be any of:<ul><li>The name of or a reference to an existing namespace that contains your endpoint code.</li><li>A file path to a folder that contains your endpoint code. In this case, <code>Jarvis</code> will load the contents of the folder into the namespace <code>#.CodeLocation</code>, similar to how <a href="https://dyalog.github.io/link">LINK</a> works.</li><li>The name of a file containing a namespace definition. In this case, <code>Jarvis</code> will use <code>⎕FIX</code> to load the namespace into <code>#</code> and set <code>CodeLocation</code> to a reference to the loaded namespace.</li></ul>After starting, <code>CodeLocation</code> is set to a reference to the namespace containing your endpoint code.</td>
+</tr>
+<tr>
+<td>Default</td>
+<td><code>'#'</code></td>
+</tr>
+<tr>
+<td>Examples</td>
+<td><code>j.CodeLocation←#.myEndpoints               ⍝ reference to namespace</code> <br><code>j.CodeLocation←'#.myEndpoints'             ⍝ name of namespace</code><br><code>j.Codelocation←'/home/me/myEndpoints'      ⍝ folder</code><br><code>j.CodeLocation←'/home/me/myEndpoints.apln' ⍝ file containing namespace definition</code></td>
+</tr>
+<tr>
+<td>Notes</td>
+<td>If the environment variable <code>DYALOG_JARVIS_CODELOCATION</code> exists, it will override any other setting for <code>CodeLocation</code>.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="connectiontimeout"><code>ConnectionTimeout</code></h3>
+<table>
+<tbody>
+<tr>
+<td>Description</td>
+<td><code>ConnectionTimeout</code> specifies the the amount of time in seconds that a connection may be idle before being closed. <code>Jarvis</code> will not close a connection that is currently being serviced by a long-running endpoint.</td>
+</tr>
+<tr>
+<td>Default</td>
+<td><code>30</code></td>
+</tr>
+<tr>
+<td>Examples</td>
+<td><code>j.ConnectionTimeout←120 ⍝ 2 minute timeout</code></td>
+</tr>
+<tr>
+<td>Notes</td>
+<td><code>ConnectionTimeout</code> is used by <code>Jarvis</code>'s "housekeeping" to prevent inactive connections from accumulating.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="debug"><code>Debug</code></h3>
+<table>
+<tbody>
+<tr>
+<td>Description</td>
+<td>Setting <code>Debug</code> to a non-zero value will enable various types of debugging and reporting to take place. The valid values for <code>Debug</code> are:<ul><li><code>0</code> - all errors are trapped</li><li><code>1</code> - stop when an untrapped error occurs in either the endpoint code or the <strong>Jarvis</strong> framework itself.</li><li><code>2</code> - <code>Jarvis</code> will stop execution on the thread handling a request prior to any application code being executed.  This enables the user to debug their code "in situ".</li><li><code>4</code> - <code>Jarvis</code> will stop execution on the thread handling a request once the the request is completely received. This is used mostly for tracing and debugging <strong>Jarvis</strong> itself.</li><li><code>8</code> - <code>Jarvis</code> will display Conga events other than <code>'Timeout'</code> to the APL session.</li></ul><code>Debug</code> values are additive. For example <code>9</code> would stop on any error as well as enable Conga event reporting are</td>
+</tr>
+<tr>
+<td>Default</td>
+<td><code>0</code></td>
+</tr>
+<tr>
+<td>Examples</td>
+<td><code>j.Debug←2 ⍝ stop just before executing any user code</code></td>
+</tr>
+<tr>
+<td>Notes</td>
+<td>While it is possible to set <code>Debug</code> to <code>¯1</code> to enable all forms of debugging, be mindful that additional values for <code>Debug</code> may be added in the future and this could lead to unintended behavior.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="defaultcontenttype"><code>DefaultContentType</code></h3>
+<table>
+<tbody>
+<tr>
+<td>Description</td>
+<td><code>DefaultContentType</code> specifies the HTTP content-type for <code>Jarvis</code>'s response if no content-type header has been specified by the user's endpoint code.</td>
+</tr>
+<tr>
+<td>Default</td>
+<td><code>'application/json; charset=utf-8'</code></td>
+</tr>
+<tr>
+<td>Examples</td>
+<td><code>j.DefaultContentType←'application/xml; charset=utf-8'</code></td>
+</tr>
+<tr>
+<td>Notes</td>
+<td><code>DefaultContentType</code> should only be set when most of the responses from your endpoints will have a content-type other than <code>'application/json'</code>. For individual responses that use a different content-type, set <code>request.ContentType</code>.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="errorlevelinfo"><code>ErrorLevelInfo</code></h3>
+<table>
+<tbody>
+<tr>
+<td>Description</td>
+<td><code>ErrorLevelInfo</code> specifies how much information to include in the HTTP status message when an untrapped error occurs and <code>Jarvis</code> returns an HTTP status code of 500. Valid settings are:<ul><li><code>0</code> - do not include any information about the error</li><li><code>1</code> - include the APL error name (for example <code>VALUE ERROR</code>)</li><li><code>2</code> - include the function and line number where the error occurred.</li></ul></td>
+</tr>
+<tr>
+<td>Default</td>
+<td><code>1</code></td>
+</tr>
+<tr>
+<td>Examples</td>
+<td><code>j.ErrorInfoLevel←2 ⍝ include function name and line number</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="hostname"><code>Hostname</code></h3>
+<table>
+<tbody>
+<tr>
+<td>Description</td>
+<td><code>Hostname</code> is the name of the host that <code>Jarvis</code> will insert into the "host" header of the response. If a response payload from <code>Jarvis</code> needs to include URLs pointing to other endpoints within the service, <code>Hostname</code> can be used to construct those URLS.</td>
+</tr>
+<tr>
+<td>Default</td>
+<td><code>''</code> which means that <code>Jarvis</code> will use the result of <code>2 ⎕NQ # 'TCPGetHostID'</code> (the IP address of the server on the local network)</td>
+</tr>
+<tr>
+<td>Examples</td>
+<td><code>j.Hostname←'www.myJarvis.com'</code></td>
+</tr>
+<tr>
+<td>Notes</td>
+<td><code>2 ⎕NQ # 'TCPGetHostID'</code> returns the IP address on the local network, which isn't of much use if the client is accessing <code>Jarvis</code> from an external network. <code>Hostame</code> exists to address this problem by providing an external address to <code>Jarvis</code>.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="httpauthentication"><code>HTTPAuthentication</code></h3>
+<table>
+<tbody>
+<tr>
+<td>Description</td>
+<td><code>HTTPAuthentication</code> indicates the HTTP authentication scheme that will be used to authenticate requests. Currently only HTTP Basic authentication is supported. Valid settings are:<ul><li><code>'basic'</code> to enable HTTP Basic authentication</li><li><code>''</code> to disable HTTP Basic authentication.</td>
+</tr>
+<tr>
+<td>Default</td>
+<td><code>'basic'</code></td>
+</tr>
+<tr>
+<td>Examples</td>
+<td><code>j.HTTPAuthentication←'' ⍝ disable HTTP basic authentication</code></td>
+</tr>
+<tr>
+<td>Notes</td>
+<td>See <a href="../security/">HTTP Basic Authentication</a></td>
+</tr>
+</tbody>
+</table>
+<h3 id="jarvisconfig"><code>JarvisConfig</code></h3>
+<table>
+<tbody>
+<tr>
+<td>Description</td>
+<td><code>JarvisConfig</code> is the name of the JSON (or JSON5) file, if any, that contains your <strong>Jarvis</strong> configuration.</td>
+</tr>
+<tr>
+<td>Default</td>
+<td><code>''</code></td>
+</tr>
+<tr>
+<td>Examples</td>
+<td><code>j.JarvisConfig←'/home/myapp/jarvisconfig.json</code></td>
+</tr>
+<tr>
+<td>Notes</td>
+<td>If you specify a relative path to the <strong>Jarvis</strong> configuration file, <code>Jarvis</code> will consider it to be relative to the current working directory as returned by <code>1 ⎕NPARTS ''</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="loadablefiles"><code>LoadableFiles</code></h3>
+<table>
+<tbody>
+<tr>
+<td>Description</td>
+<td>If <code>CodeLocation</code> specifies a folder from which to load your endpoints' code, <code>LoadableFiles</code> specifies a comma-delimited set of patterns to match when selecting files to load into workspace.</td>
+</tr>
+<tr>
+<td>Default</td>
+<td><code>'*.apl?,*.dyalog'</code></td>
+</tr>
+<tr>
+<td>Examples</td>
+<td><code>j.LoadableFiles←'*.apln,*.aplf,*.aplc'</code></td>
+</tr>
+<tr>
+<td>Notes</td>
+<td>Dyalog has evolved its "code in files" methodology. In its early days, the <code>.dyalog</code> extension was used almost exclusively. Over time, and with the advent of <a href="https://dyalog.github.io/link"><code>Link</code></a>, the common practice is to the use of file extension to indicate the particular type of APL object contained within the file - <code>.aplf</code> for a function, <code>.apln</code> for a namespace, <code>.aplc</code> for a class, and <code>.apla</code> for an array.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="logging"><code>Logging</code></h3>
+<table>
+<tbody>
+<tr>
+<td>Description</td>
+<td><code>Logging</code> is a Boolean setting that determines whether <code>Jarvis</code> will display certain internal log messages to the session.</td>
+</tr>
+<tr>
+<td>Default</td>
+<td><code>1</code></td>
+</tr>
+<tr>
+<td>Examples</td>
+<td>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>j←Jarvis.New ''</code><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>j.Start ⍝ default is Logging←1</code><br><code>2024-12-06 @ 11.34.23.890 - Starting  Jarvis  1.18.4</code><br><code>2024-12-06 @ 11.34.23.913 - Conga copied from C:\Program Files\Dyalog\Dyalog APL-64 19.0 Unicode/ws/conga</code><br><code>2024-12-06 @ 11.34.23.915 - Local Conga v3.5 reference is #.Jarvis.[LIB]</code><br><code>2024-12-06 @ 11.34.23.923 - Jarvis starting in "JSON" mode on port 8080</code><br><code>2024-12-06 @ 11.34.23.927 - Serving code in #</code><br><code>2024-12-06 @ 11.34.23.931 - Click http://192.168.223.134:8080 to access web interface</code><br><code>0  Server started</code><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>j.Stop</code><br><code>2024-12-06 @ 11.34.35.564 - Stopping server...</code><br><code>0  Server stopped</code><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>j.Logging←0 ⍝ turn off logging</code><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<code>j.Start</code><br><code>0  Server started</code></td>
+</tr>
+<tr>
+<td>Notes</td>
+<td>The messages controlled by <code>Logging</code> are internal, operational, messages.<br>Request and HTTP logging capabilities will be available in a forthcoming <strong>Jarvis</strong> release.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="paradigm"><code>Paradigm</code></h3>
+<table>
+<tbody>
+<tr>
+<td>Description</td>
+<td><code>Paradigm</code> specifies the mode in which <code>Jarvis</code> will operate. Current valid values are:<ul><li><code>'JSON'</code> to use the <a href="../json/">JSON Paradign</a></li><li><code>'REST</code>' to use the <a href="../rest/">REST Paradigm</a></li></ul></td>
+</tr>
+<tr>
+<td>Default</td>
+<td><code>'JSON</code></td>
+</tr>
+<tr>
+<td>Examples</td>
+<td><code>j.Paradigm←'REST'</code></td>
+</tr>
+<tr>
+<td>Notes</td>
+<td>You should set <code>Paradigm</code> before starting your <code>Jarvis</code> instance.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="usezip"><code>UseZip</code></h3>
+<table>
+<tbody>
+<tr>
+<td>Description</td>
+<td><code>UseZip</code> is a Boolean that tells <code>Jarvis</code> whether to send a compressed response payload if the client will accept it as indicated by the "accept-encoding" header in the client request. Valid values are:<ul><li><code>0</code> - do not compress the response payload</li><li><code>1</code> use either "gzip" or "deflate" compression if the client will accept them</td>
+</tr>
+<tr>
+<td>Default</td>
+<td><code>0</code></td>
+</tr>
+<tr>
+<td>Examples</td>
+<td><code>j.UseZip←1</code></td>
+</tr>
+<tr>
+<td>Notes</td>
+<td>At present only "gzip" and "deflate" content-encodings are supported. <a href="#ziplevel"><code>ZipLevel</code></a> controls the level of compression employed.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="ziplevel"><code>ZipLevel</code></h3>
+<table>
+<tbody>
+<tr>
+<td>Description</td>
+<td><code>ZipLevel</code> is an integer value between 0 and 9 and specifies the level of compression to use when <code>Jarvis</code> compresses the response payload (see <a href="#usezip"><code>UseZip</code></a>). Higher values result in a higher degree of compression albeit at the cost of performance.</td>
+</tr>
+<tr>
+<td>Default</td>
+<td><code>3</code> which seems to provide the best trade-off of compression versus speed.</td>
+</tr>
+<tr>
+<td>Examples</td>
+<td><code>j.ZipLevel←6</code></td>
+</tr>
+</tbody>
+</table>
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+    <nav class="md-footer__inner md-grid" aria-label="Footer" >
+      
+        
+        <a href="../settings-overview/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Settings Overview" rel="prev">
+          <div class="md-footer__button md-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
+          </div>
+          <div class="md-footer__title">
+            <div class="md-ellipsis">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              Settings Overview
+            </div>
+          </div>
+        </a>
+      
+      
+        
+        <a href="../settings-session/" class="md-footer__link md-footer__link--next" aria-label="Next: Session Settings" rel="next">
+          <div class="md-footer__title">
+            <div class="md-ellipsis">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              Session Settings
+            </div>
+          </div>
+          <div class="md-footer__button md-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11H4Z"/></svg>
+          </div>
+        </a>
+      
+    </nav>
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      <div class="left">Made with <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener"><strong>Material for MkDocs</strong></a>.&nbsp;</div><div class="right">Contents copyright &copy;2015-2024 <strong><a href="https://dyalog.com" target="_blank" rel="noopener">Dyalog, LTD</a></strong></div>
+    </div>
+  
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    <script id="__config" type="application/json">{"base": "..", "features": ["navigation.sections", "navigation.instant", "content.footnote.tooltips", "navigation.path", "navigation.indexes"], "search": "../assets/javascripts/workers/search.16e2a7d4.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version.title": "Select version"}, "version": {"provider": "mike"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.5a2dcb6a.min.js"></script>
+      
+        <script src="../js/print-site.js"></script>
+      
+    
+    
+  </body>
+</html>
