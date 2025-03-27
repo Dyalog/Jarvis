@@ -6,7 +6,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.19.2' '2025-03-11'
+      r←'Jarvis' '1.20.0' '2025-03-27'
     ∇
 
     ∇ Documentation
@@ -18,6 +18,7 @@
     :Field Public AppCloseFn←''                                ⍝ name of the function to run on application (server) shutdown
     :Field Public AppInitFn←''                                 ⍝ name of the application "bootstrap" function
     :Field Public AuthenticateFn←''                            ⍝ name of function to perform authentication,if empty, no authentication is necessary
+    :Field Public PostProcessFn←''                             ⍝ name of the function to be called after the endpoint but before the response is sent
     :Field Public SessionInitFn←''                             ⍝ Function name to call when initializing a session
     :Field Public ValidateRequestFn←''                         ⍝ name of the request validation function
 
@@ -631,7 +632,7 @@
           →0⊣(rc msg)←5 'CodeLocation is not valid, it should be either a namespace/class reference or a file path'
       :EndSelect
      
-      :For fn :In AppInitFn AppCloseFn ValidateRequestFn AuthenticateFn SessionInitFn _htmlRootFn~⊂''
+      :For fn :In AppInitFn AppCloseFn ValidateRequestFn AuthenticateFn PostProcessFn SessionInitFn _htmlRootFn~⊂''
           :If 3≠CodeLocation.⎕NC fn
               msg,←(0∊⍴msg)↓',"CodeLocation.',fn,'" was not found '
           :EndIf
@@ -676,6 +677,15 @@
               Authenticate←CodeLocation⍎AuthenticateFn
           :Else
               →0⊣(rc msg)←8('"',(⍕CodeLocation),'.',AuthenticateFn,'" is not a monadic result-returning function')
+          :EndIf
+      :EndIf
+     
+      PostProcess←{} ⍝ dummy postprocessing function
+      :If ~0∊⍴PostProcessFn ⍝ postprocessing function specified?
+          :If ∧/(⊃CodeLocation.⎕AT PostProcessFn)∊¨(0 1)(1 ¯2)0 ⍝ non-result-returning monadic or ambivalent?
+              PostProcess←CodeLocation⍎PostProcessFn
+          :Else
+              →0⊣(rc msg)←8('"',(⍕CodeLocation),'.',PostProcessFn,'" is not a monadic non-result-returning function')
           :EndIf
       :EndIf
     ∇
@@ -1000,23 +1010,23 @@
               :Else
                   →resp⊣'Unsupported content-encoding'ns.Req.Fail 400
               :EndSelect
-        
+     
             ⍝ Application-specified validation
               stopIf DebugLevel 4+2×~0∊⍴ValidateRequestFn
               :If 0≠Validate ns.Req
                   ns.Req.Fail 400×ns.Req.Response.Status=0 ⍝ default status 400 if not set by application
                   →resp
-              :EndIf                                                                                           
-
+              :EndIf
+     
               ns.Req.Response.(Status←(Status 200)[1+Status=0]) ⍝ if status was not already set, set to default
      
               fn←1↓'.'@('/'∘=)ns.Req.Endpoint
      
               fn RequestHandler ns ⍝ RequestHandler is either HandleJSONRequest or HandleRESTRequest
      
-     resp:    
+     resp:
               ⍝ if HTML interface is enabled, and there's a problem with the request, and we haven't already set a payload
-              :If _htmlEnabled∧(2=⌊.01×ns.Req.Response.Status)<0∊⍴ns.Req.Response.Payload
+              :If _htmlEnabled∧(2=⌊0.01×ns.Req.Response.Status)<0∊⍴ns.Req.Response.Payload
                   ns.Req.Response.Headers←1 2⍴'Content-Type' 'text/html; charset=utf-8'
                   ns.Req.Response.Payload←'<h3>',(⍕ns.Req.Response.((⍕Status),' ',StatusText)),'</h3>'
               :EndIf
@@ -1151,20 +1161,26 @@
           →End⊣ErrorInfo ns.Req.Fail 500
       :EndTrap
      
-      →End If 204=ns.Req.Response.Status
+      →End If 204=ns.Req.Response.Status ⍝ exit on no content
      
      ⍝ Exit if
      ⍝        ↓↓↓↓↓↓↓ no response from endpoint,
      ⍝ and              ↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓ endpoint did not set payload
      ⍝ and                                          ↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓ endpoint failed the request
-      →End If(0∊⍴resp)∧(0∊⍴ns.Req.Response.Payload)∧200≠ns.Req.Response.Status
+      →End If(0∊⍴resp)∧(0∊⍴ns.Req.Response.Payload)∧2≠⌊0.01×ns.Req.Response.Status
+     
+      ns.Req.Response.Payload←resp
+     
+      stopIf DebugLevel 2×~0∊⍴PostProcessFn
+      :Trap 85 ⍝ ignore any result from PostProcess
+          {}PostProcess ns.Req ⍝ call postprocessing
+      :EndTrap
      
       'Content-Type'ns.Req.DefaultHeader DefaultContentType ⍝ set the header if not set
       :If ∨/'application/json'⍷ns.Req.(Response.Headers GetHeader'content-type') ⍝ if the response is JSON
-          ns.Req ToJSON resp ⍝ convert it
-      :Else
-          ns.Req.Response.Payload←resp
+          ToJSON ns.Req ⍝ convert payload
       :EndIf
+     
       :If 0∊⍴ns.Req.Response.Payload
           'Content-Length'ns.Req.DefaultHeader 0
       :EndIf
@@ -1264,12 +1280,23 @@
       :Else
           →0⊣ns.Req.Fail 500
       :EndTrap
+     
+      :If (0∊⍴ns.Req.Response.Payload)>0∊⍴resp ⍝ if the endpoint returned a response, and there isn't already a response payload...
+          ns.Req.Response.Payload←resp
+      :EndIf
+     
+      stopIf DebugLevel 2×~0∊⍴PostProcessFn
+      :Trap 85 ⍝ ignore any result from PostProcess
+          {}PostProcess ns.Req ⍝ call postprocessing
+      :EndTrap
+     
       →0 If 2≠⌊0.01×ns.Req.Response.Status
       :If (ns.Req.(Response.Headers GetHeader'content-type')≡'')∧~0∊⍴DefaultContentType
           'content-type'ns.Req.SetHeader DefaultContentType
       :EndIf
+     
       :If 'application/json'match⊃';'(≠⊆⊢)ns.Req.(Response.Headers GetHeader'content-type')
-          ns.Req ToJSON resp
+          ToJSON ns.Req
       :EndIf
     ∇
 
@@ -1288,10 +1315,10 @@
       r←1
     ∇
 
-    ∇ req ToJSON data
+    ∇ ToJSON req
     ⍝ convert APL response payload to JSON
       :Trap 0 DebugLevel 1
-          req.Response.Payload←⎕UCS SafeJSON JSONout data
+          req.Response.Payload←⎕UCS SafeJSON JSONout req.Response.Payload
       :Else
           'Could not format result payload as JSON'req.Fail 500
       :EndTrap
@@ -1402,7 +1429,7 @@
           r←CheckFunctionName¨fn
       :Else
           fn←⊆,fn
-          →0 If r←404×fn∊AppInitFn AppCloseFn ValidateRequestFn AuthenticateFn SessionInitFn _htmlRootFn
+          →0 If r←404×fn∊AppInitFn AppCloseFn ValidateRequestFn AuthenticateFn PostProcessFn SessionInitFn _htmlRootFn
           :If ~0∊⍴_includeRegex
               →0 If r←404×0∊⍴(_includeRegex ⎕S'%')fn
           :EndIf
