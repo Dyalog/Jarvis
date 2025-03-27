@@ -20,6 +20,14 @@
 |Examples|`j.AuthenticateFn←'Authenticate'`|
 |Notes|See [Authentication](./security.md#authentication) for more information about how to authenticate an HTTP request.|
 
+### `PostProcessFn`
+|--|--|
+|Description|`PostProcessFn` is the name of monadic, non-result-returning function to be called *after* your endpoint has run but *before* the response is sent to the client. The right argument to the function is the [`Request`](./request.md) instance. The function should not return a result however, if it does, that result is ignored.<br>If you have some treatment that you need to apply to every response, `PostProcessFn` can be used to avoid having to add that treatment to every endpoint.|
+|Default|`''`|
+|Examples|`j.PostProcessFn←'PostProcess'`<br><br>&emsp;&emsp;&emsp;`∇ PostProcess req`<br>`[1]    'custom-header'req.SetHeader'some value' ⍝ add a custom header`<br>`[2]    req.Reponse.Payload.Message←'Have a nice day!' ⍝ modify the payload`<br>&emsp;&emsp;&emsp;`∇`|
+
+
+
 ### `SessionInitFn`
 |--|--|
 |Description|`SessionInitFn` is the name of a monadic, result-returning function that can perform session initialization if your web service is using sessions. The right argument is the [`Request`](./request.md) instance, which we'll call `req`. The reference to the session namespace is `req.Session`. The integer function result should be either:<ul><li>`0` - indicating that the session was successfully initialized</li><li>non-`0` - indicating session initialization failed; in which case `Jarvis` will fail the request with an HTTP status code of 500 ().</li></ul>|

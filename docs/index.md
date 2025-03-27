@@ -42,21 +42,21 @@ If you know how to write a monadic, result-returning APL function, you're ready 
 
 1. Next, create an instance of `Jarvis` using `Jarvis.New`. 
 
-```
-      j←Jarvis.New ''
-```
-This will create a `Jarvis` instance with all settings set to their default values. By default, `Jarvis` will use port 8080 and look for your endpoint code in `#`.
+              j←Jarvis.New ''
+
+    This will create a `Jarvis` instance with all settings set to their default values. By default, `Jarvis` will use port 8080 and look for your endpoint code in `#`.
 
 1. You can now run your web service running on port 8080 and serving code from the # (root) namespace.  
-```      
-      (rc msg)←j.Start
-2024-09-06 @ 15.46.24.199 - Starting  Jarvis  1.18.1 
-2024-09-06 @ 15.46.24.217 - Conga copied from C:\Program Files\Dyalog\Dyalog APL-64 19.0 Unicode/ws/conga
-2024-09-06 @ 15.46.24.221 - Local Conga v3.5 reference is #.Jarvis.[LIB]
-2024-09-06 @ 15.46.24.231 - Jarvis starting in "JSON" mode on port 8080
-2024-09-06 @ 15.46.24.232 - Serving code in #
-2024-09-06 @ 15.46.24.237 - Click http://192.168.001.123:8080 to access web interface
-```
+
+    ```      
+          (rc msg)←j.Start
+    2024-09-06 @ 15.46.24.199 - Starting  Jarvis  1.18.1 
+    2024-09-06 @ 15.46.24.217 - Conga copied from C:\Program Files\Dyalog\Dyalog APL-64 19.0 Unicode/ws/conga
+    2024-09-06 @ 15.46.24.221 - Local Conga v3.5 reference is #.Jarvis.[LIB]
+    2024-09-06 @ 15.46.24.231 - Jarvis starting in "JSON" mode on port 8080
+    2024-09-06 @ 15.46.24.232 - Serving code in #
+    2024-09-06 @ 15.46.24.237 - Click http://192.168.001.123:8080 to access web interface
+    ```
 
 If the server started successfully, you'll see messages similar to those above displayed to the APL session and the return code `rc` should be `0` and `msg` should be empty.  If there was any problem starting `Jarvis`, `rc` will be non-`0` and `msg` will contain a (hopefully) helpful message about the problem that occurred.
 

@@ -79,6 +79,7 @@ nav:
         - 'Conga-Related Settings': 'settings-conga.md' # complete
         - 'CORS Settings': 'settings-cors.md' # complete
         - 'Container Settings': 'settings-container.md' # complete
+        - 'Shared Settings': settings-shared.md
       - 'Methods':
         - 'Shared Methods': 'methods-shared.md'
         - 'Instance Methods': 'methods-instance.md'
@@ -87,7 +88,7 @@ nav:
     - Advanced Topics:
       - 'Security' : 'security.md'
       - 'Using Sessions' : 'sessions.md'
-#      - 'Docker Integration' : 'docker.md'
+      - 'Docker Integration' : 'docker.md'
 #      - 'Running as a Windows Service' : 'winservice.md'
 #      - 'Into the Cloud' : 'cloud.md'
     - About: 

@@ -9,9 +9,9 @@ Rather than writing a function for each endpoint as in the JSON paradigm, you wi
 
 You specify which HTTP methods your REST service will support using the [`RESTMethods`](settings-rest.md#restmethods) setting. For instance, setting `RESTMethods←'Get'` indicates that your service will support only HTTP GET requests. Such requests will call the `#.CodeLocation.Get` function, passing the HTTP request as its right argument. For the purposes of this document, we'll call the request right argument `Request`.
 
-Your `Get` function would then look at the resource being requested by parsing [`Request.Endpoint`](httprequest.md#endpoint) element. If [`DefaultContentType`](settings-operational.md#defaultcontenttype) is set to `'application/json'` (the default), your function can return an APL array which `Jarvis` will convert to JSON. If you are not using `'application/json'`, then you will need to:
+Your `Get` function would then look at the resource being requested by parsing [`Request.Endpoint`](request.md#endpoint) element. If [`DefaultContentType`](settings-operational.md#defaultcontenttype) is set to `'application/json'` (the default), your function can return an APL array which `Jarvis` will convert to JSON. If you are not using `'application/json'`, then you will need to:
 
-1. use [`Request.SetContentType`](httprequest.md#contenttype) to set an appropriate content type
+1. use [`Request.SetContentType`](request.md#contenttype) to set an appropriate content type
 2. set the `Request.Response.Payload` to the content you want to send back to the client
 
 ### The client sends a request
@@ -32,7 +32,7 @@ When `Jarvis` receives the request, it verifies that the request is well-formed.
 ### `Jarvis` calls your method function
 `Jarvis` passes the [`Request`](./reference.md#request) object as the right argument to the function appropriate for the HTTP method being used. It is up to your function to parse `Request.Endpoint` to determine the resource being requested. As noted above, if the response payload's `content-type` is `'application/json'` your function can return an APL array which `Jarvis` will automatically convert to JSON. Otherwise, your function is responsible for setting the `Request.Response.Payload` and `Request.ContentType` appropriately.
 
-If the requested resource is not found, or some other issue occurs, your function should fail the request with an appropriate HTTP status code using [`Request.Fail`](./httprequest.md#fail). For example, an HTTP status code of 404 means that the requested resource was not found and you would use `Request.Fall 404` to set the status code.
+If the requested resource is not found, or some other issue occurs, your function should fail the request with an appropriate HTTP status code using [`Request.Fail`](request.md#fail). For example, an HTTP status code of 404 means that the requested resource was not found and you would use `Request.Fall 404` to set the status code.
 
 !!! tip "Advanced Usage"
     **Jarvis** has a few specific places where you can "inject" your own APL code to perform actions like additional request validation, authentication, and so on. Two such places are available after `Jarvis` receives the request, but before calling your function.  These are:

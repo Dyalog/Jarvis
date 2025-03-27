@@ -31,4 +31,4 @@ These settings apply when using **Jarvis**'s JSON paradigm.
 |Description|When a requested endpoint is not found, `Jarvis` will always respond by setting the response HTTP status code to `404` and HTTP status message to `'Not Found'`.  `Report404InHTML` controls whether `Jarvis` will also return a simple "not found" HTML page in its response payload. This is potentially useful when the client is a web browser. Valid settings are:<ul><li>`1` - return a simple HTML page in the response payload indicating the requested endpoint was not found.  This is useful when the client connecting to `Jarvis` is a web browser.</li><li>`0` - Do not return any information in the response payload.|
 |Default|`1`|
 |Examples|`j.Report404←0 ⍝ disable sending the "not found" HTML page`|
-|Notes|`Report404InHTML` has effect only if the [`HTMLInterface`](.settings-json.md) is enabled.|
+|Notes|`Report404InHTML` has effect only if the [`HTMLInterface`](#htmlinterface) is enabled.|
