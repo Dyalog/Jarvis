@@ -6,7 +6,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.20.0' '2025-03-27'
+      r←'Jarvis' '1.20.1' '2025-03-28'
     ∇
 
     ∇ Documentation
@@ -1173,7 +1173,7 @@
      
       stopIf DebugLevel 2×~0∊⍴PostProcessFn
       :Trap 85 ⍝ ignore any result from PostProcess
-          {}PostProcess ns.Req ⍝ call postprocessing
+          {}{1(85⌶)'PostProcess ⍵'}ns.Req ⍝ call postprocessing
       :EndTrap
      
       'Content-Type'ns.Req.DefaultHeader DefaultContentType ⍝ set the header if not set
@@ -1287,7 +1287,7 @@
      
       stopIf DebugLevel 2×~0∊⍴PostProcessFn
       :Trap 85 ⍝ ignore any result from PostProcess
-          {}PostProcess ns.Req ⍝ call postprocessing
+          {}{1(85⌶)'PostProcess ⍵'}ns.Req ⍝ call postprocessing
       :EndTrap
      
       →0 If 2≠⌊0.01×ns.Req.Response.Status
