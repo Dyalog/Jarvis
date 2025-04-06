@@ -1027,7 +1027,7 @@
      resp:
               ⍝ if HTML interface is enabled, and there's a problem with the request, and we haven't already set a payload
               :If _htmlEnabled∧(2=⌊0.01×ns.Req.Response.Status)<0∊⍴ns.Req.Response.Payload
-                  ns.Req.Response.Headers←1 2⍴'Content-Type' 'text/html; charset=utf-8'
+                  'content-type'ns.Req.SetHeader'text/html; charset=utf-8'
                   ns.Req.Response.Payload←'<h3>',(⍕ns.Req.Response.((⍕Status),' ',StatusText)),'</h3>'
               :EndIf
      
