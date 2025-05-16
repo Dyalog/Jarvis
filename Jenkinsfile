@@ -1,5 +1,8 @@
 def jarvis
 def BRANCH = env.BRANCH_NAME.toLowerCase()
+def docker_branches = [
+    'dyalog-v20.0-techpreview'
+]
 
 node ('Docker') {
     stage ('Checkout') {
@@ -9,7 +12,7 @@ node ('Docker') {
         stage ('Build Jarvis Container') {
             if (BRANCH == 'master') {
                 jarvis=docker.build('dyalog/jarvis', '--no-cache .')
-            } else {
+            } else if (BRANCH in docker_branches) {
                 jarvis=docker.build("dyalog/jarvis:${BRANCH}", '--no-cache .')
             }
         }
