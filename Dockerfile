@@ -1,4 +1,4 @@
-FROM dyalog/dyalog:19.0
+FROM dyalog/techpreview:20.0-beta1
 USER root
 
 ADD . /opt/mdyalog/Jarvis
