@@ -14,6 +14,9 @@ node ('Docker') {
                 jarvis=docker.build('dyalog/jarvis', '--no-cache .')
             } else if (BRANCH in docker_branches) {
                 jarvis=docker.build("dyalog/jarvis:${BRANCH}", '--no-cache .')
+            } else {
+                echo 'This checkout is not marked for Docker image publication. To publish a docker image from this branch, add the branch name to docker_branches in Jenkinsfile.'
+                return
             }
         }
         stage ('Publish Jarvis Container') {
