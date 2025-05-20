@@ -10,10 +10,10 @@ node ('Docker') {
         stage ('Build Jarvis Containers') {
             if (BRANCH == 'master') {
                 jarvis=docker.build('dyalog/jarvis', '--no-cache .') // :latest
-                jarvis_d20=docker.build('dyalog/jarvis:dyalog-v20.0', '-f Dockerfile.20.0', '--no-cache')
+                jarvis_d20=docker.build('dyalog/jarvis:dyalog-v20.0', '-f Dockerfile.20.0 --no-cache')
             } else {
                 jarvis=docker.build("dyalog/jarvis:${BRANCH}-v19.0", '--no-cache .')
-                jarvis_d20=docker.build("dyalog/jarvis:${BRANCH}-v20.0", '-f Dockerfile.20.0', '--no-cache')
+                jarvis_d20=docker.build("dyalog/jarvis:${BRANCH}-v20.0", '-f Dockerfile.20.0 --no-cache')
             }
         }
         stage ('Publish Jarvis Containers') {
