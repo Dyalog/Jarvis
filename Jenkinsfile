@@ -1,7 +1,6 @@
 def jarvis
 def jarvis_d20
 def BRANCH = env.BRANCH_NAME.toLowerCase()
-def TAG = env.TAG_NAME.toLowerCase()
 
 node ('Docker') {
     stage ('Checkout') {
@@ -18,7 +17,7 @@ node ('Docker') {
             }
         }
         stage ('Publish Jarvis Containers') {
-            if ((TAG ==~ /^v\d.*/) || (BRANCH == 'master')) {
+            if ((BRANCH ==~ /^v\d.*/) || (BRANCH == 'master')) {
                 jarvis.push()
                 jarvis_d20.push()
             } else {
