@@ -1,9 +1,9 @@
-FROM dyalog/dyalog:19.0
+FROM dyalog/techpreview:20.0
 USER root
 
 ADD . /opt/mdyalog/Jarvis
 
 EXPOSE 8080
-ENV VERSION=19.0
+ENV VERSION=20.0
 ADD Docker/entrypoint /entrypoint
 USER dyalog
