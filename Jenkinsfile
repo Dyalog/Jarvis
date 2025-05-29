@@ -25,8 +25,7 @@ node ('Docker') {
             }
         }
         stage ('Build and publish Jarvis Containers (Dyalog v20.0)')
-            // Replace 'issue-101' with 'master' after testing
-            if ((BRANCH ==~ /^v\d.*/) || (BRANCH == 'issue-101')) {
+            if ((BRANCH ==~ /^v\d.*/) || (BRANCH == 'master')) {
                 // Make sure we have multiarch builders available
                 sh '''
                     if ! docker buildx ls | grep multi-arch-builder ; then
