@@ -6,7 +6,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.20.2' '2025-04-06'
+      r←'Jarvis' '1.20.3' '2025-05-29'
     ∇
 
     ∇ Documentation
@@ -1079,7 +1079,7 @@
       :Else
           file←_htmlFolder,('/'=⊣/ns.Req.Endpoint)↓ns.Req.Endpoint
       :EndIf
-      file←∊1 ⎕NPARTS file
+      file←resolveFilename file
       file,←(isDir file)/'/',_htmlDefaultPage
       →End If ns.Req.Fail 400×~_htmlFolder begins file
       :If 0≠ns.Req.Fail 404×~⎕NEXISTS file
@@ -1970,12 +1970,24 @@
 
     ∇ r←isDir path
     ⍝ is path a directory?
-      r←{22::0 ⋄ 1=1 ⎕NINFO ⍵}path
-    ∇
+      r←{11 22::0 ⋄ 1=1 ⎕NINFO ⍵}path
+    ∇           
 
     ∇ r←SourceFile;class
       :If 0∊⍴r←4⊃5179⌶class←⊃∊⎕CLASS ⎕THIS
           r←{6::'' ⋄ ∊1 ⎕NPARTS ⍵⍎'SALT_Data.SourceFile'}class
+      :EndIf
+    ∇
+
+    ∇ r←resolveFilename filename
+    ⍝ resolve filename to an absolute path even if it contains . .. or symbolic links
+    ⍝ under Windows 1 ⎕NPARTS does this, but not on non-Windows
+    ⍝ so, on non-Windows, we try to use the "realpath" command
+    ⍝ NB: realpath might need to be installed if you're running on AIX
+      :If isWin
+          r←∊1 ⎕NPARTS filename
+      :Else
+          r←{0::'' ⋄ ⊃⎕SH'realpath ',filename,' 2>/dev/null'}filename
       :EndIf
     ∇
 
