@@ -6,7 +6,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.20.3' '2025-05-29'
+      r←'Jarvis' '1.20.4' '2025-08-05'
     ∇
 
     ∇ Documentation
@@ -1365,14 +1365,33 @@
       :EndTrap
     ∇
 
-    ∇ obj Respond ns;status;z;res;close;conx
+    ∇ obj Respond ns;status;z;res;close;conx;okay
       res←ns.Req.Response
-      status←(⊂ns.Req.HTTPVersion),res.((⍕Status)StatusText)
       res.Headers⍪←'Server'(deb⍕2↑Version)
       res.Headers⍪←'Date'(2⊃LDRC.GetProp'.' 'HttpDate')
       conx←lc ns.Req.GetHeader'connection'
+     
+      ⍝ as endpoints might return something other than JSON, check to make sure we can transmit it
+      okay←1
+      :Select ⎕DR res.Payload
+      :CaseList 160 320 82 ⍝ 2-byte, 4-byte, or Classic character
+          okay←{11::0 ⋄ 1⊣res.Payload←'UTF-8'⎕UCS ⍵}res.Payload
+      :CaseList 80 83 ⍝ single-byte char or int, do nothing
+      :Case 163 ⍝ 2-byte int (check in range 0-255)
+          okay←{⎕IO←0 ⋄ 3::0 ⋄ 1⊣(256⍴' ')[⍵]}res.Payload
+      :Else
+          okay←0
+      :EndSelect
+      :If ~okay
+          'Invalid response payload data'ns.Req.Fail 500
+          res.Payload←''
+      :EndIf
+
+      status←(⊂ns.Req.HTTPVersion),res.((⍕Status)StatusText)
+
       close←(('HTTP/1.0'≡ns.Req.HTTPVersion)>'keep-alive'≡conx)∨'close'≡conx
       close∨←2≠⌊0.01×res.Status ⍝ close the connection on non-2XX status
+     
       UseZip ContentEncode ns.Req
       :Select 1⊃z←LDRC.Send obj(status,res.Headers res.Payload)close
       :Case 0 ⍝ everything okay, nothing to do
@@ -1971,7 +1990,7 @@
     ∇ r←isDir path
     ⍝ is path a directory?
       r←{11 22::0 ⋄ 1=1 ⎕NINFO ⍵}path
-    ∇           
+    ∇
 
     ∇ r←SourceFile;class
       :If 0∊⍴r←4⊃5179⌶class←⊃∊⎕CLASS ⎕THIS
@@ -2235,7 +2254,7 @@
 ⍝  <form id="myform">
 ⍝    <div>
 ⍝      <label for="function">Endpoint:</label>
-⍝      ⍠
+⍝      ⌹
 ⍝    </div>
 ⍝    <div>
 ⍝      <label for="payload">JSON Payload:</label>
@@ -2294,8 +2313,8 @@
           endpoints←∊{'<option value="',⍵,'">',⍵,'</option>'}¨'/'@('.'=⊢)¨endpoints
           endpoints←'<select id="function" name="function">',endpoints,'</select>'
       :EndIf
-      r←endpoints{i←⍵⍳'⍠' ⋄ ((i-1)↑⍵),⍺,i↓⍵}r
-      r←⎕UCS'UTF-8'⎕UCS r
+      r←endpoints{i←⍵⍳'⌹' ⋄ ((i-1)↑⍵),⍺,i↓⍵}r
+      r←'UTF-8'⎕UCS r
     ∇
     :EndSection
 

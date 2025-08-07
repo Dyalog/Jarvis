@@ -1,0 +1,54 @@
+﻿ r←{req}test_contentTypes payload;here;resp;tests;rc;contentType;data;j;h;jarvis;ok
+⍝ As endpoints can return other than JSON payloads, make sure we catch data that Conga cannot transmit
+ :If 0∊⍴payload
+     :If 0=⎕NC'HttpCommand' ⋄ ⎕SE.UCMD'Load HttpCommand' ⋄ :EndIf
+     :If 0=⎕NC'Jarvis'
+         :If 0∊⍴here←1↓⊃'§'(=⊂⊢)⊃⊢/⎕NR⊃⎕SI ⍝ SALTed?
+         :AndIf 0∊⍴here←4⊃5179⌶⊃⎕SI
+             here←'/git/Jarvis/tests/ContentTypes/'
+         :EndIf
+         here←⊃1 ⎕NPARTS here
+         :If ~⎕NEXISTS jarvis←here,'../../Source/Jarvis.dyalog'
+             ('"',jarvis,'" not found')⎕SIGNAL 22
+         :Else
+             ⎕SE.Link.Import # jarvis
+         :EndIf
+     :EndIf
+     j←Jarvis.New''
+     j.CodeLocation←⊃⎕RSI
+     j.Start
+     h←HttpCommand.New'post'('http://localhost:',(⍕j.Port),'/test_contentTypes')
+     r←''
+    ⍝ test cases [;1] content-type, [;2] content, [;3] expected response
+     tests←[
+         'text/html;charset=utf-8' '<h2>Hello ⍵○⍴⌊⍋</h2>'(0 200)
+         'application/json'(name:'foo' ⋄ value:42)(0 200)
+         'application/octet-stream'(○1)(0 500)
+         'application/octet-stream'(83 ⎕DR○1)(0 200)
+     ]
+ ⍝ now test various content types
+     :For (contentType data rc) :In ↓tests
+         h.Params←(contentType:contentType ⋄ data:data)
+         resp←h.Run
+         :If resp.(rc HttpStatus)≢rc
+             r,←⊂h.Params.contentType,' failed: ',⍕resp
+         :EndIf
+         :If resp.IsOK
+             :Select contentType
+             :Case 'application/octet-stream'
+                 ok←data≡83 ⎕DR resp.Data
+             :Case 'application/json'
+                 ok←(⎕JSON data)≡resp.Data
+             :Else
+                 ok←data≡resp.Data
+             :EndSelect
+             :If ~ok ⋄ r,←⊂'content-type: ',contentType,' data: ',(⍕data),' did not match response data' ⋄ :EndIf
+         :EndIf
+     :EndFor
+
+     j.Stop
+     ⎕EX'j'
+ :Else ⍝ we have a payload
+     req.SetContentType payload.contentType
+     r←payload.data
+ :EndIf
