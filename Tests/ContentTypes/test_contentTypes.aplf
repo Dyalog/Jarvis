@@ -20,15 +20,16 @@
      h←HttpCommand.New'post'('http://localhost:',(⍕j.Port),'/test_contentTypes')
      r←''
     ⍝ test cases [;1] content-type, [;2] content, [;3] expected response
-     tests←[
-         'text/html;charset=utf-8' '<h2>Hello ⍵○⍴⌊⍋</h2>'(0 200)
-         'application/json'(name:'foo' ⋄ value:42)(0 200)
-         'application/octet-stream'(○1)(0 500)
-         'application/octet-stream'(83 ⎕DR○1)(0 200)
-     ]
+     tests←0 3⍴'' ''(0 200)
+     tests⍪←'text/html;charset=utf-8' '<h2>Hello ⍵○⍴⌊⍋</h2>'(0 200)
+     tests⍪←'application/json'(name:'foo' ⋄ value:42)(0 200)
+     tests⍪←'application/octet-stream'(○1)(0 500)
+     tests⍪←'application/octet-stream'(83 ⎕DR○1)(0 200)
+
  ⍝ now test various content types
      :For (contentType data rc) :In ↓tests
-         h.Params←(contentType:contentType ⋄ data:data)
+         h.Params←⎕NS''
+         h.Params.(contentType data)←contentType data
          resp←h.Run
          :If resp.(rc HttpStatus)≢rc
              r,←⊂h.Params.contentType,' failed: ',⍕resp
