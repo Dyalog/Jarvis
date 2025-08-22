@@ -6,7 +6,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.20.4' '2025-08-05'
+      r←'Jarvis' '1.20.5' '2025-08-17'
     ∇
 
     ∇ Documentation
@@ -1365,30 +1365,13 @@
       :EndTrap
     ∇
 
-    ∇ obj Respond ns;status;z;res;close;conx;okay
+    ∇ obj Respond ns;status;z;res;close;conx
       res←ns.Req.Response
       res.Headers⍪←'Server'(deb⍕2↑Version)
       res.Headers⍪←'Date'(2⊃LDRC.GetProp'.' 'HttpDate')
       conx←lc ns.Req.GetHeader'connection'
-     
-      ⍝ as endpoints might return something other than JSON, check to make sure we can transmit it
-      okay←1
-      :Select ⎕DR res.Payload
-      :CaseList 160 320 82 ⍝ 2-byte, 4-byte, or Classic character
-          okay←{11::0 ⋄ 1⊣res.Payload←'UTF-8'⎕UCS ⍵}res.Payload
-      :CaseList 80 83 ⍝ single-byte char or int, do nothing
-      :Case 163 ⍝ 2-byte int (check in range 0-255)
-          okay←{⎕IO←0 ⋄ 3::0 ⋄ 1⊣(256⍴' ')[⍵]}res.Payload
-      :Else
-          okay←0
-      :EndSelect
-      :If ~okay
-          'Invalid response payload data'ns.Req.Fail 500
-          res.Payload←''
-      :EndIf
-
       status←(⊂ns.Req.HTTPVersion),res.((⍕Status)StatusText)
-
+     
       close←(('HTTP/1.0'≡ns.Req.HTTPVersion)>'keep-alive'≡conx)∨'close'≡conx
       close∨←2≠⌊0.01×res.Status ⍝ close the connection on non-2XX status
      
@@ -1492,6 +1475,12 @@
         split←{p←(⍺⍷⍵)⍳1 ⋄ ((p-1)↑⍵)(p↓⍵)} ⍝ Split ⍵ on first occurrence of ⍺
         lc←{2::0(819⌶)⍵ ⋄ ¯3 ⎕C ⍵}
         deb←{{1↓¯1↓⍵/⍨~'  '⍷⍵}' ',⍵,' '}
+
+        ∇ r←Config
+        ⍝ returns current request configuration - useful for debugging
+          :Access public
+          r←↑{6::⍵'No value' ⋄ ⍵(⍎⍵)}¨(⎕THIS⍎'⎕NL ¯2.2 ¯2.1 ¯2.3')~'ContentTypes' 'HttpStatus'
+        ∇
 
         ∇ {r}←{message}Fail status
         ⍝ Set HTTP response status code and message if status≠0
