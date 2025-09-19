@@ -1,6 +1,8 @@
-**Jarvis** uses Conga for TCP/IP communications. `Jarvis`'s Conga settings are used to configure the Conga's operation. See the [Conga User Guide](https://docs.dyalog.com/latest/Conga%20User%20Guide.pdf) for more detailed information on specific settings.
+**Jarvis** uses Conga for TCP/IP communications. `Jarvis`'s Conga settings are used to configure the Conga's operation. In most cases `Jarvis`' default Conga-settings are sufficient. See the [Conga User Guide](https://docs.dyalog.com/latest/Conga%20User%20Guide.pdf) for more detailed information on specific settings. See [Jarvis and Conga](./conga.md) if your application has other components that also use Conga, such as HttpCommand or isolates, or if you are using Conga that is not located in the Dyalog installation folder. 
 
-Once started, `Jarvis` maintains a reference to to Conga library in the `LDRC` field. This enables you to manage query and/or manage Conga settings directly if you need to.  For instance, `j.LDRC.Tree '.'` will return the entire Conga object tree.  
+Once started, `Jarvis` maintains a reference to to Conga library in the shared [`LDRC`](./settings-shared.md#ldrc) setting. This enables you to manage query and/or manage Conga settings directly if you need to.  For instance, `j.LDRC.Tree '.'` will return the entire Conga object tree.
+
+`Jarvis` has two shared Conga-related settings - [`CongaPath`](./settings-shared.md#congapath) and [`CongaRef`](./settings-shared.md#congaref).
 
 ### `AcceptFrom`
 |--|--|

@@ -29,7 +29,7 @@ When `Jarvis` receives the request, it verifies that the request is well-formed.
     **Jarvis** has a few specific places where you can "inject" your own APL code to perform actions like additional request validation, authentication, and so on. Two such places are available after `Jarvis` receives the request, but before calling your endpoint function.  These are:
     
     * [`ValidateRequestFn`](./settings-hooks.md#validaterequestfn) specifies the name of a function to call for every request that `Jarvis` receives.
-    * [`AuthenticateFn`](./settings-hooks.md#authenticatefn) specified the name of a function to call to perform authentication. 
+    * [`AuthenticateFn`](./settings-hooks.md#authenticatefn) specifies the name of a function to call to perform authentication. 
 
 ### `Jarvis` sends the response to the client
 `Jarvis` will convert the APL array result into JSON format using `⎕JSON⍠'HighRank' 'Split'` and send the JSON back to the client as the payload of the response.

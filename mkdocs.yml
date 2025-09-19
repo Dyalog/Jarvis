@@ -56,7 +56,7 @@ markdown_extensions:
   - pymdownx.tasklist:
       custom_checkbox: true 
   - pymdownx.emoji:
-      emoji_index: !!python/name:materialx.emoji.twemoji
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
       emoji_generator: !!python/name:materialx.emoji.to_svg
   - toc:
       title: On this page
@@ -68,6 +68,7 @@ nav:
       - 'Using Jarvis': 'using.md' # complete
       - 'JSON Paradigm': 'json.md' # complete
       - 'REST Paradigm': 'rest.md' # complete
+      - 'Using the Request Object': 'using-request.md'
     - Reference:
       - 'Settings':
         - 'Settings Overview': 'settings-overview.md' # complete
@@ -79,13 +80,13 @@ nav:
         - 'Conga-Related Settings': 'settings-conga.md' # complete
         - 'CORS Settings': 'settings-cors.md' # complete
         - 'Container Settings': 'settings-container.md' # complete
-        - 'Shared Settings': settings-shared.md
+        - 'Shared Settings': settings-shared.md # complete
       - 'Methods':
-        - 'Shared Methods': 'methods-shared.md'
-        - 'Instance Methods': 'methods-instance.md'
-      - 'Request': 'request.md'
-      - 'Reference Guide': 'reference.md'
+        - 'Shared Methods': 'methods-shared.md' # complete
+        - 'Instance Methods': 'methods-instance.md' # complete
+      - 'Request Object': 'request.md'
     - Advanced Topics:
+      - 'Jarvis and Conga': 'conga.md' # complete
       - 'Security' : 'security.md'
       - 'Using Sessions' : 'sessions.md'
       - 'Docker Integration' : 'docker.md'
