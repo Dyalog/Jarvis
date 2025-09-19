@@ -6,7 +6,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.20.5' '2025-08-17'
+      r←'Jarvis' '1.20.6' '2025-09-02'
     ∇
 
     ∇ Documentation
@@ -25,7 +25,7 @@
    ⍝ Operational settings
     :Field Public CodeLocation←'#'                             ⍝ reference to application code location, if the user specifies a folder or file, that value is saved in CodeSource
     :Field Public ConnectionTimeout←30                         ⍝ HTTP/1.1 connection timeout in seconds
-    :Field Public Debug←0                                      ⍝ 0 = all errors are trapped, 1 = stop on an error, 2 = stop on intentional error before processing request, 4 = Jarvis framework debugging, 8 = Conga event logging
+    :Field Public Debug←0                                      ⍝ 0 = all errors are trapped, 1 = stop on an error, 2 = stop on intentional error before processing request, 4 = Jarvis framework debugging, 8 = Conga event logging, 16 = just before response
     :Field Public DefaultContentType←'application/json; charset=utf-8'
     :Field Public ErrorInfoLevel←1                             ⍝ level of information to provide if an APL error occurs, 0=none, 1=⎕EM, 2=⎕SI
     :Field Public Hostname←''                                  ⍝ external-facing host name
@@ -150,7 +150,7 @@
     ⍝    example: stopIf DebugLevel 2  ⍝ sets a stop if Debug contains 2
     ⍝  dyadic:  return value unless level is within Debug (powers of 2)
     ⍝    example: :Trap 0 DebugLevel 5 ⍝ set Trap 0 unless Debug contains 1 or 4 in its
-      r←∨/(2 2 2 2⊤⊃Debug)∨.∧2 2 2 2⊤level
+      r←∨/(2 2 2 2 2⊤⊃Debug)∨.∧2 2 2 2 2⊤level
       :If 0≠⎕NC'value'
           r←value/⍨~r
       :EndIf
@@ -159,7 +159,7 @@
     ∇ r←Thread
     ⍝ return the thread that the server is running in
       :Access public
-      r←_serverThread
+      r←_serverThread∩⎕TNUMS
     ∇
 
     ∇ {msg}←{level}Log msg;ts;fmsg
@@ -236,13 +236,13 @@
     ∇ MakeCommon
       APLVersion←⊃⊃(//)⎕VFI{⍵/⍨2>+\'.'=⍵}2⊃#.⎕WG'APLVersion'
       :Trap 11
-          JSONin←0 ##.##.⎕JSON⍠('Dialect' 'JSON5')('Format'JSONInputFormat)⊢ ⋄ {}JSONin'1'
-          JSONout←1 ##.##.⎕JSON⍠'HighRank' 'Split'⊢ ⋄ {}JSONout 1
-          JSONread←0 ##.##.⎕JSON⍠'Dialect' 'JSON5'⊢ ⍝ for reading configuration files
+          JSONin←0 ##.⎕JSON⍠('Dialect' 'JSON5')('Format'JSONInputFormat)⊢ ⋄ {}JSONin'1'
+          JSONout←1 ##.⎕JSON⍠'HighRank' 'Split'⊢ ⋄ {}JSONout 1
+          JSONread←0 ##.⎕JSON⍠'Dialect' 'JSON5'⊢ ⍝ for reading configuration files
       :Else
-          JSONin←0 ##.##.⎕JSON⍠('Format'JSONInputFormat)⊢
-          JSONout←1 ##.##.⎕JSON⊢
-          JSONread←0 ##.##.⎕JSON⊢
+          JSONin←0 ##.⎕JSON⍠('Format'JSONInputFormat)⊢
+          JSONout←1 ##.⎕JSON⊢
+          JSONread←0 ##.⎕JSON⊢
       :EndTrap
     ∇
 
@@ -400,7 +400,7 @@
     ∇ (rc msg)←Pause
       :Access public
       →0 If~_started⊣(rc msg)←¯1 'Server is not running'
-      →0 If 2=⊃2⊃LDRC.GetProp ServerName'Pause'⊣(rc msg)←¯2 Error'Server is already paused'
+      →0 If 2=⊃2⊃LDRC.GetProp ServerName'Pause'⊣(rc msg)←¯2 'Server is already paused'
       →0 If 0≠rc←⊃LDRC.SetProp ServerName'Pause' 2⊣msg←'Error attempting to pause server'
       Log'Pausing server...'
       (rc msg)←0 'Server paused'
@@ -479,7 +479,7 @@
                   LDRC←ResolveCongaRef CongaRef
                   →∆END↓⍨0∊⍴msg←(''≡LDRC)/'CongaRef (',(⍕CongaRef),') does not point to a valid instance of Conga'
               :Else
-                  :For root :In ##.## #
+                  :For root :In ## #
                       ref nc←root{1↑¨⍵{(×⍵)∘/¨⍺ ⍵}⍺.⎕NC ⍵}ns←'Conga' 'DRC'
                       :If 9=⊃⌊nc ⋄ :Leave ⋄ :EndIf
                   :EndFor
@@ -1169,7 +1169,10 @@
      ⍝ and                                          ↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓ endpoint failed the request
       →End If(0∊⍴resp)∧(0∊⍴ns.Req.Response.Payload)∧2≠⌊0.01×ns.Req.Response.Status
      
-      ns.Req.Response.Payload←resp
+     ⍝ If the endpoint explicitly sets the payload, use it in preference to any endpoint result
+      :If 0∊⍴ns.Req.Response.Payload
+          ns.Req.Response.Payload←resp
+      :EndIf
      
       stopIf DebugLevel 2×~0∊⍴PostProcessFn
       :Trap 85 ⍝ ignore any result from PostProcess
@@ -1376,6 +1379,8 @@
       close∨←2≠⌊0.01×res.Status ⍝ close the connection on non-2XX status
      
       UseZip ContentEncode ns.Req
+      stopIf DebugLevel 16 
+
       :Select 1⊃z←LDRC.Send obj(status,res.Headers res.Payload)close
       :Case 0 ⍝ everything okay, nothing to do
       :Case 1008 ⍝ Wrong object class likely caused by socket being closed during the request
@@ -1735,7 +1740,7 @@
 
         ∇ r←ContentTypeForFile filename;ext
           :Access public instance
-          ext←1↓3⊃⎕NPARTS filename
+          ext←1↓3⊃⎕NPARTS'..',filename
           r←(ContentTypes[;1]⍳⊂ext)⊃ContentTypes[;2],⊂'application/octet-stream'
           r,←('text/html'≡r)/'; charset=utf-8'
         ∇
