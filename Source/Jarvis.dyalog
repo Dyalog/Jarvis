@@ -6,7 +6,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.20.0' '2025-01-11'
+      r←'Jarvis' '1.21.0' '2025-09-02'
     ∇
 
     ∇ Documentation
@@ -18,13 +18,14 @@
     :Field Public AppCloseFn←''                                ⍝ name of the function to run on application (server) shutdown
     :Field Public AppInitFn←''                                 ⍝ name of the application "bootstrap" function
     :Field Public AuthenticateFn←''                            ⍝ name of function to perform authentication,if empty, no authentication is necessary
+    :Field Public PostProcessFn←''                             ⍝ name of the function to be called after the endpoint but before the response is sent
     :Field Public SessionInitFn←''                             ⍝ Function name to call when initializing a session
     :Field Public ValidateRequestFn←''                         ⍝ name of the request validation function
 
    ⍝ Operational settings
     :Field Public CodeLocation←'#'                             ⍝ reference to application code location, if the user specifies a folder or file, that value is saved in CodeSource
-    :Field Public ConnectionTimeout←30                         ⍝ HTTP/1.1 connection timeout in seconds, ¯1 for no timeout
-    :Field Public Debug←0                                      ⍝ 0 = all errors are trapped, 1 = stop on an error, 2 = stop on intentional error before processing request, 4 = Jarvis framework debugging, 8 = Conga event logging
+    :Field Public ConnectionTimeout←30                         ⍝ HTTP/1.1 connection timeout in seconds, ¯1 = no timeout
+    :Field Public Debug←0                                      ⍝ 0 = all errors are trapped, 1 = stop on an error, 2 = stop on intentional error before processing request, 4 = Jarvis framework debugging, 8 = Conga event logging, 16 = just before response
     :Field Public DefaultContentType←'application/json; charset=utf-8'
     :Field Public ErrorInfoLevel←1                             ⍝ level of information to provide if an APL error occurs, 0=none, 1=⎕EM, 2=⎕SI
     :Field Public Hostname←''                                  ⍝ external-facing host name
@@ -46,7 +47,7 @@
 
    ⍝ Session settings
     :Field Public SessionIdHeader←'Jarvis-SessionID'           ⍝ Name of the header field for the session token
-    :Field Public SessionUseCookie←1                           ⍝ 0 - just use the header; 1 - use an HTTP cookie
+    :Field Public SessionUseCookie←0                           ⍝ 0 - just use the header; 1 - use an HTTP cookie
     :Field Public SessionPollingTime←1                         ⍝ how frequently (in minutes) we should poll for timed out sessions
     :Field Public SessionTimeout←0                             ⍝ 0 = do not use sessions, ¯1 = no timeout , 0< session timeout time (in minutes)
     :Field Public SessionCleanupTime←60                        ⍝ how frequently (in minutes) do we clean up timed out session info from _sessionsInfo
@@ -59,13 +60,14 @@
 
    ⍝ WebSocket settings
     :Field Public EnableWebSockets←0                           ⍝ 1 = enable WebSockets
-    :Field Public WsAutoUpgrade←1                              ⍝ for now, this will always be 1. Eventually we'll add websocket validation
-    :Field Public OnWsUpgradeFn←''
-    :Field Public OnWsReceiveFn←''
-    :Field Public OnWsCloseFn←''
-    :Field Public OnWsErrorFn←''
     :Field Public WsTimeout←5                                  ⍝ minutes before a WebSocket connection times out, 0 for no timeout
-    :Field Public WsAuthenticateFn←''                          ⍝ WebSocket authentication function
+    :Field Public WsAutoUpgrade←1                              ⍝ for now, this will always be 1. Eventually we'll add websocket validation
+    :Field Public OnWsUpgradeFn←''                             ⍝ WSUpgrade event hook function
+    :Field Public OnWsReceiveFn←''                             ⍝ WSReceive event hook function
+    :Field Public OnWsCloseFn←''                               ⍝ Close (on WebSocket) event hook function
+    :Field Public OnWsErrorFn←''                               ⍝ Error (on WebSocket) event hook function
+    :Field Public OnWsUpgradeReqFn←''                          ⍝ WSUpgradeReq event hook function
+    :Field Public WsAuthenticateFn←''                          ⍝ WebSocket authentication hook function
 
    ⍝ REST mode settings
     :Field Public ParsePayload←1                               ⍝ 1=parse request payload based on content-type header (REST only)
@@ -161,7 +163,7 @@
     ⍝    example: stopIf DebugLevel 2  ⍝ sets a stop if Debug contains 2
     ⍝  dyadic:  return value unless level is within Debug (powers of 2)
     ⍝    example: :Trap 0 DebugLevel 5 ⍝ set Trap 0 unless Debug contains 1 or 4 in its
-      r←∨/(2 2 2 2⊤⊃Debug)∨.∧2 2 2 2⊤level
+      r←∨/(2 2 2 2 2⊤⊃Debug)∨.∧2 2 2 2 2⊤level
       :If 0≠⎕NC'value'
           r←value/⍨~r
       :EndIf
@@ -170,7 +172,7 @@
     ∇ r←Thread
     ⍝ return the thread that the server is running in
       :Access public
-      r←_serverThread
+      r←_serverThread∩⎕TNUMS
     ∇
 
     ∇ {msg}←{level}Log msg;ts;fmsg
@@ -247,13 +249,13 @@
     ∇ MakeCommon
       APLVersion←⊃⊃(//)⎕VFI{⍵/⍨2>+\'.'=⍵}2⊃#.⎕WG'APLVersion'
       :Trap 11
-          JSONin←0 ##.##.⎕JSON⍠('Dialect' 'JSON5')('Format'JSONInputFormat)⊢ ⋄ {}JSONin'1'
-          JSONout←1 ##.##.⎕JSON⍠'HighRank' 'Split'⊢ ⋄ {}JSONout 1
-          JSONread←0 ##.##.⎕JSON⍠'Dialect' 'JSON5'⊢ ⍝ for reading configuration files
+          JSONin←0 ##.⎕JSON⍠('Dialect' 'JSON5')('Format'JSONInputFormat)⊢ ⋄ {}JSONin'1'
+          JSONout←1 ##.⎕JSON⍠'HighRank' 'Split'⊢ ⋄ {}JSONout 1
+          JSONread←0 ##.⎕JSON⍠'Dialect' 'JSON5'⊢ ⍝ for reading configuration files
       :Else
-          JSONin←0 ##.##.⎕JSON⍠('Format'JSONInputFormat)⊢
-          JSONout←1 ##.##.⎕JSON⊢
-          JSONread←0 ##.##.⎕JSON⊢
+          JSONin←0 ##.⎕JSON⍠('Format'JSONInputFormat)⊢
+          JSONout←1 ##.⎕JSON⊢
+          JSONread←0 ##.⎕JSON⊢
       :EndTrap
     ∇
 
@@ -358,8 +360,6 @@
               :EndIf
           :EndSelect
      
-          _userHookFns,←⊂_htmlRootFn
-     
           :If EnableCORS ⍝ if we've enabled CORS
           :AndIf ¯1∊CORS_Methods ⍝ but not set any pre-flighted methods
               :If Paradigm≡'JSON'
@@ -414,7 +414,7 @@
     ∇ (rc msg)←Pause
       :Access public
       →0 If~_started⊣(rc msg)←¯1 'Server is not running'
-      →0 If 2=⊃2⊃LDRC.GetProp ServerName'Pause'⊣(rc msg)←¯2 Error'Server is already paused'
+      →0 If 2=⊃2⊃LDRC.GetProp ServerName'Pause'⊣(rc msg)←¯2 'Server is already paused'
       →0 If 0≠rc←⊃LDRC.SetProp ServerName'Pause' 2⊣msg←'Error attempting to pause server'
       Log'Pausing server...'
       (rc msg)←0 'Server paused'
@@ -493,7 +493,7 @@
                   LDRC←ResolveCongaRef CongaRef
                   →∆END↓⍨0∊⍴msg←(''≡LDRC)/'CongaRef (',(⍕CongaRef),') does not point to a valid instance of Conga'
               :Else
-                  :For root :In ##.## #
+                  :For root :In ## #
                       ref nc←root{1↑¨⍵{(×⍵)∘/¨⍺ ⍵}⍺.⎕NC ⍵}ns←'Conga' 'DRC'
                       :If 9=⊃⌊nc ⋄ :Leave ⋄ :EndIf
                   :EndFor
@@ -646,7 +646,9 @@
           →0⊣(rc msg)←5 'CodeLocation is not valid, it should be either a namespace/class reference or a file path'
       :EndSelect
      
-      _userHookFns←AppInitFn AppCloseFn ValidateRequestFn AuthenticateFn SessionInitFn OnWsUpgradeFn OnWsReceiveFn OnWsCloseFn OnWsErrorFn WsAuthenticateFn
+      ⍝ save list of all user hook functions, saves maintenance when we add new hooks
+      _userHookFns←AppInitFn AppCloseFn ValidateRequestFn AuthenticateFn PostProcessFn SessionInitFn _htmlRootFn
+      _userHookFns,←OnWsUpgradeFn OnWsReceiveFn OnWsCloseFn OnWsErrorFn,OnWsUpgradeReqFn,WsAuthenticateFn
      
       :For fn :In _userHookFns~⊂''
           :If 3≠CodeLocation.⎕NC fn
@@ -656,11 +658,11 @@
       →0 If rc←8×~0∊⍴msg
      
       →0 If⊃(rc msg)←AppInitFn CheckHookFn 1(0 1) ⍝ result returning niladic or monadic?
-      :If ~0∊⍴AppInitFn
+      :If ~0∊⍴AppInitFn  ⍝ initialization function specified?
           stopIf DebugLevel 2
           :If 0=2⊃⊃CodeLocation.⎕AT AppInitFn ⍝ niladic?
               res←CodeLocation⍎AppInitFn        ⍝ run it
-          :Else
+          :Else ⍝ monadic
               res←(CodeLocation⍎AppInitFn)⎕THIS ⍝ run it
           :EndIf
           :If 0≠⊃res
@@ -672,13 +674,20 @@
      
       Validate←{0} ⍝ dummy validation function
       →0 If⊃(rc msg)←ValidateRequestFn CheckHookFn 1(1 ¯2)0 ⍝ result-returning monadic or ambivalent?
-      :If ~0∊⍴ValidateRequestFn
+      :If ~0∊⍴ValidateRequestFn  ⍝ Request validation function specified?
           Validate←CodeLocation⍎ValidateRequestFn
       :EndIf
+     
       Authenticate←{0} ⍝ dummy authentication function
       →0 If⊃(rc msg)←AuthenticateFn CheckHookFn 1(1 ¯2)0 ⍝ result-returning monadic or ambivalent?
-      :If ~0∊⍴AuthenticateFn
+      :If ~0∊⍴AuthenticateFn  ⍝ authentication function specified?
           Authenticate←CodeLocation⍎AuthenticateFn
+      :EndIf
+     
+      PostProcess←{} ⍝ dummy postprocessing function
+      →0 If⊃(rc msg)←PostProcessFn CheckHookFn(0 1)(1 ¯2)0 ⍝ non-result-returning monadic or ambivalent?
+      :If ~0∊⍴PostProcessFn ⍝ postprocessing function specified?
+          PostProcess←CodeLocation⍎PostProcessFn
       :EndIf
      
       :If EnableWebSockets
@@ -692,7 +701,23 @@
               WsAuthenticate←CodeLocation⍎WsAuthenticateFn
           :EndIf
       :EndIf
+     
     ∇
+
+    ∇ (rc msg)←fn CheckHookFn attr;res;val
+    ⍝ check that the valence of a specified hook function is what we expect
+      (rc msg)←0 ''
+      :If ~0∊⍴fn
+          attr←3↑attr,0
+          attr[2]←⊆∪{¯2∊⍵:⍵ ⋄ ⍵,¯2/⍨∨/1 2∊⍵}2⊃attr
+          :If ~∧/(⊃CodeLocation.⎕AT fn)∊¨attr
+              res←' ','result-returning',⍨(~|1⊃attr)/'non-'
+              val←{3↓∊' or '∘,¨'niladic' 'monadic' 'dyadic' 'ambivalent'/⍨∨⌿⍵∘.∊0 1 2 ¯2}2⊃attr
+              (rc msg)←8('"',(⍕CodeLocation),'.',fn,'" is not a',val,res,' function')
+          :EndIf
+      :EndIf
+    ∇
+
 
     ∇ (rc msg)←Setup
     ⍝ perform final setup before starting server
@@ -713,20 +738,6 @@
 
     Exists←{0:: ¯1 (⍺,' "',⍵,'" is not a valid folder name.') ⋄ ⎕NEXISTS ⍵:0 '' ⋄ ¯1 (⍺,' "',⍵,'" was not found.')}
 
-    ∇ (rc msg)←fn CheckHookFn attr;res;val
-    ⍝ check that the valence of a specified hook function is what we expect
-      (rc msg)←0 ''
-      :If ~0∊⍴fn
-          attr←3↑attr,0
-          attr[2]←⊆∪{¯2∊⍵:⍵ ⋄ ⍵,¯2/⍨∨/1 2∊⍵}2⊃attr
-          :If ~∧/(⊃CodeLocation.⎕AT fn)∊¨attr
-              res←' ','result-returning',⍨(~|1⊃attr)/'non-'
-              val←{3↓∊' or '∘,¨'niladic' 'monadic' 'dyadic' 'ambivalent'/⍨∨⌿⍵∘.∊0 1 2 ¯2}2⊃attr
-              (rc msg)←8('"',(⍕CodeLocation),'.',fn,'" is not a',val,res,' function')
-          :EndIf
-      :EndIf
-    ∇
-
     ∇ (rc msg)←StartServer;r;cert;secureParams;accept;deny;mask;certs;options
       msg←'Unable to start server'
       accept←'Accept'ipRanges AcceptFrom
@@ -738,7 +749,7 @@
       options←''
      
       :If 3.3≤CongaVersion ⍝ can we set DecodeBuffers at server creation?
-          options←⊂'Options'(5+32×FIFO) ⍝ WSAutoAccept (1) + DecodeBuffers (4) + EnableFifo (32)
+          options←⊂'Options'(WsAutoUpgrade+4+32×FIFO) ⍝ WSAutoUpgrade + DecodeBuffers (4) + EnableFifo (32)
       :EndIf
      
       :If 3.4≤CongaVersion ⍝ DOSLimit support started with v3.4
@@ -749,7 +760,7 @@
       :EndIf
      
       _connections←⎕NS''
-      _connections.index←3 0⍴'' 0 0  ⍝ conx, lastactivity time, IsWebSocket row-oriented for faster lookup
+      _connections.index←3 0⍴'' 0 0 ⍝ conx, last activity time, websocket?
       _connections.lastCheck←0
      
       :If 0=rc←1⊃r←LDRC.Srv ServerName''Port'http'BufferSize,secureParams,accept,deny,options
@@ -757,7 +768,7 @@
           :If 3.3>CongaVersion
               {}LDRC.SetProp ServerName'FIFOMode'FIFO ⍝ deprecated in Conga v3.2
               {}LDRC.SetProp ServerName'DecodeBuffers' 15 ⍝ 15 ⍝ decode all buffers
-              {}LDRC.SetProp ServerName'WSFeatures' 1 ⍝ auto accept WS requests
+              {}LDRC.SetProp ServerName'WSFeatures'WsAutoUpgrade ⍝ auto accept WS requests?
           :EndIf
           :If 0∊⍴Hostname ⍝ if Host hasn't been set, set it to the default
               Hostname←'http',(~Secure)↓'s://',(2 ⎕NQ'.' 'TCPGetHostID'),((~Port∊80 443)/':',⍕Port),'/'
@@ -850,6 +861,7 @@
                           _taskThreads←⎕TNUMS∩_taskThreads,ref{⍺ HandleWsRequest ⍵}&(obj conn)
                           UpdateConnectionTime conx
                       :EndIf
+     
                   :Case 'Closed'
                       RemoveConnection conx
      
@@ -915,6 +927,7 @@
     ∇
 
     ∇ RemoveConnection conx;ref
+      {}LDRC.Close ServerName,'.',conx
       :Hold '_connections'
           :If 0=_connections.⎕NC conx
               Log'Attempt to remove non-existent connection ',⍕conx
@@ -950,7 +963,7 @@
                       (connecting connected)←2↑{((2 2⍴3 1 3 4)⍪⍵[;2 3]){⊂1↓⍵}⌸'' '',⍵[;1]}↑⊃¨kids
                   :EndIf
                   conxNames←_connections.index[1;]~connecting
-              ⍝↓↓↓ exclude WebSocket connections
+              ⍝↓↓↓ exclude WebSocket Connections
                   timedOut←_connections.index[1;]/⍨(_connections.index[3;]=0)∧ConnectionTimeout<0.001×⎕AI[3]-_connections.index[2;]
                   :If ∨/{~0∊⍴⍵}¨connected conxNames
                       :If ~0∊⍴timedOut
@@ -1046,30 +1059,34 @@
                       ns.Req.Body←'UTF-8'⎕UCS ⎕UCS ns.Req.Body
                   :EndIf
               :Case 'gzip'
-                  ns.Req.Body←⎕UCS 256|¯3 Zipper 83 ⎕DR ns.Req.Body
+                  →resp If'gzip'Unzip ns.Req
               :Case 'deflate'
-                  ns.Req.Body←⎕UCS 256|¯2 Zipper 83 ⎕DR ns.Req.Body
+                  →resp If'deflate'Unzip ns.Req
               :Else
                   →resp⊣'Unsupported content-encoding'ns.Req.Fail 400
               :EndSelect
      
-              :If _htmlEnabled∧ns.Req.Response.Status≠200
-                  ns.Req.Response.Headers←1 2⍴'Content-Type' 'text/html; charset=utf-8'
-                  ns.Req.Response.Payload←'<h3>',(⍕ns.Req.Response.((⍕Status),' ',StatusText)),'</h3>'
+            ⍝ Application-specified validation
+              stopIf DebugLevel 4+2×~0∊⍴ValidateRequestFn
+              :If 0≠Validate ns.Req
+                  ns.Req.Fail 400×ns.Req.Response.Status=0 ⍝ default status 400 if not set by application
                   →resp
               :EndIf
      
-            ⍝ Application-specified validation
-              stopIf DebugLevel 4+2×~0∊⍴ValidateRequestFn
-              rc←Validate ns.Req
-              ns.Req.Fail 400×(ns.Req.Response.Status=200)∧0≠rc ⍝ default status 400 if not set by application
-              →resp If rc≠0
+              ns.Req.Response.(Status←(Status 200)[1+Status=0]) ⍝ if status was not already set, set to default
      
               fn←1↓'.'@('/'∘=)ns.Req.Endpoint
      
               fn RequestHandler ns ⍝ RequestHandler is either HandleJSONRequest or HandleRESTRequest
      
-     resp:    obj Respond ns
+     resp:
+              ⍝ if HTML interface is enabled, and there's a problem with the request, and we haven't already set a payload
+              :If _htmlEnabled∧(2=⌊0.01×ns.Req.Response.Status)<0∊⍴ns.Req.Response.Payload
+                  'content-type'ns.Req.SetHeader'text/html; charset=utf-8'
+                  ns.Req.Response.Payload←'<h3>',(⍕ns.Req.Response.((⍕Status),' ',StatusText)),'</h3>'
+              :EndIf
+     
+              obj Respond ns
      
           :EndIf
       :EndHold
@@ -1080,13 +1097,14 @@
       :Hold obj
           (rc obj evt data)←⊃⎕TGET conn ⍝ from Conga.Wait
           :Select evt
-          :Case 'WSUpgrade'
+          :CaseList 'WSUpgrade' 'WSUpgradeReq'
               ns.Thread←⎕TID
               ns.PeerCert←''
               ns.PeerAddr←2⊃2⊃LDRC.GetProp obj'PeerAddr'
               ns.Server←⎕THIS
               ns.IsWebSocket←1
               ns.IsAuthenticated←0
+              ns.AcceptHeaders←''  ⍝ additional headers, if any, to send back with 'WSAccept'
               _connections.index[3;_connections.index[1;]⍳⊂ns.conx]←1 ⍝ mark this connection as a WebSocket
               :If Secure
                   (rc cert)←2↑LDRC.GetProp obj'PeerCert'
@@ -1099,17 +1117,24 @@
               (req hdrs)←1(⊃{⍺ ⍵}↓)(⊃data splitOn crlf,crlf)splitOn crlf
               ns.(Command Path HttpVersion)←req splitOn' '
               ns.Headers←↑dlb¨¨hdrs splitOnFirst¨':'
-     
-              :If ~0∊⍴OnWsUpgradeFn
-                  stopIf DebugLevel 2
-                  :If 0≠(CodeLocation⍎OnWsUpgradeFn)ns
-                      RemoveConnection ns.conx
+              ns.Headers[;1]←lc ns.Headers[;1]
+              :If evt≡'WSUpgrade'
+                  :If ~0∊⍴OnWsUpgradeFn
+                      stopIf DebugLevel 2
+                      :If 0≠(CodeLocation⍎OnWsUpgradeFn)ns
+                          RemoveConnection ns.conx
+                      :EndIf
+                  :EndIf
+              :Else
+                  :If ~0∊⍴OnWsUpgradeReqFn
+                      stopIf DebugLevel 2
+                      :If 0≠(CodeLocation⍎OnWsUpgradeReqFn)ns
+                          RemoveConnection ns.conx
+                      :Else
+                          LDRC.SetProp obj'WSAccept'(data(formatAcceptHeaders ns.AcceptHeaders))
+                      :EndIf
                   :EndIf
               :EndIf
-     
-          :Case 'WSUpgradeReq'
-              Log'HandleWsRequest: "WSUpgradeReq" event occurred, but is not yet supported... closing connection'
-              RemoveConnection ns.conx
      
           :Case 'WSReceive'
               ns.(Payload Complete DataType)←data
@@ -1151,10 +1176,7 @@
           :Select nameClass what
           :Case 9.1 ⍝ namespace
               what←JSONout what
-          :Case 2.1 ⍝ variable
-              :If ~isJSON what
-                  what←JSONout what
-              :EndIf
+          :Case 2.1 ⍝ variable (do nothing)                     
           :Else
               →0⊣Log'WsSend: invalid payload'
           :EndSelect
@@ -1162,11 +1184,41 @@
               :If 9.1=nameClass conx
                   conx←conx.conx
               :EndIf
-              :If 0≠⊃res←LDRC.Send(ServerName,'.',conx)(what 1 1)
+              :If 0≠⊃res←LDRC.Send(ServerName,'.',conx)(what 1)
                   Log'WsSend: error sending WebSocket message: ',⍷⍕res
               :EndIf
           :EndFor
       :EndIf
+    ∇
+
+    ∇ headers←formatAcceptHeaders headers
+      :If ~0∊⍴headers
+          :Select |≡headers
+          :Case 1 ⍝ simple vector?
+              →0⊣headers,←(crlf≢¯2↑headers)/crlf ⍝ ensure trailing CRLF
+          :Case 2 ⍝ vector of vectors
+              headers←,⍕¨headers
+              headers←(2,⍨⌊0.5×≢,headers)⍴headers
+          :Case |3 ⍝ vector of pairs of vectors
+              headers←↑⍕¨¨headers
+          :Else
+              Log'formatAcceptHeaders: invalid header format'
+          :EndSelect
+          headers←∊(⊂crlf),⍨¨{1↓∊⍵}¨↓':',¨headers
+      :EndIf
+    ∇
+
+    ∇ rc←type Unzip req;n
+    ⍝ attempt to unzip the request payload
+    ⍝ req is the Request instance
+    ⍝ type is 'deflate' or 'gzip'
+      n←¯2 ¯3['deflate' 'gzip'⍳⊂type]
+      :Trap rc←0
+          req.Body←⎕UCS 256|n Zipper 83 ⎕DR req.Body
+      :Else
+          ('Invalid payload for "',type,'" content-encoding')req.Fail 400
+          rc←1
+      :EndTrap
     ∇
 
     ∇ fn HandleJSONRequest ns;payload;resp;valence;nc;debug;file;isGET
@@ -1198,7 +1250,7 @@
       :Else
           file←_htmlFolder,('/'=⊣/ns.Req.Endpoint)↓ns.Req.Endpoint
       :EndIf
-      file←∊1 ⎕NPARTS file
+      file←resolveFilename file
       file,←(isDir file)/'/',_htmlDefaultPage
       →End If ns.Req.Fail 400×~_htmlFolder begins file
       :If 0≠ns.Req.Fail 404×~⎕NEXISTS file
@@ -1228,22 +1280,21 @@
      
       :Case 'multipart/form-data'
           →End If'Content-Type should be "application/json"'ns.Req.Fail 400×~AllowFormData
-          :Trap 0 DebugLevel 1
-              ns.Req.Payload←ParseMultipartForm ns.Req
-              →End If 200≠ns.Req.Response.Status ⍝ bail if parsing fails
-          :Else
-              →End⊣'Could not parse payload as "multipart/form-data"'ns.Req.Fail 400
-          :EndTrap
+          →End If 0≠ParseMultipart ns.Req
+     
+      :Case 'application/x-www-form-urlencoded'
+          →End If'Content-Type should be "application/json"'ns.Req.Fail 400×~AllowFormData
+          →End If 0≠ParseFormData ns.Req
      
       :Case ''
           →End If'No Content-Type specified'ns.Req.Fail 400×~isGET∧AllowGETs
           :Trap 0 DebugLevel 1
               :If 0∊⍴ns.Req.QueryParams
                   ns.Req.Payload←''
-              :ElseIf 1=≢⍴ns.Req.QueryParams ⍝ name/value pairs
+              :ElseIf 1=≢⍴ns.Req.QueryParams ⍝ if a vector, try to parse as JSON
                   ns.Req.Payload←JSONin ns.Req.QueryParams
-              :Else
-                  ns.Req.Payload←{JSONin{1⌽'}{',¯1↓∊'"',¨⍵[;,1],¨'":'∘,¨⍵[;,2],¨','}⍵}ns.Req.QueryParams
+              :Else ⍝ if a matrix it's [;1] name [;2] value
+                  ns.Req.Payload←JSONin 1⌽'}{',1↓∊',',¯1⌽':',⌽JSONout¨ns.Req.QueryParams
               :EndIf
           :Else
               →End⊣'Could not parse query string as JSON'ns.Req.Fail 400
@@ -1281,24 +1332,43 @@
           →End⊣ErrorInfo ns.Req.Fail 500
       :EndTrap
      
-      →End If 204=ns.Req.Response.Status
+      →End If 204=ns.Req.Response.Status ⍝ exit on no content
      
      ⍝ Exit if
      ⍝        ↓↓↓↓↓↓↓ no response from endpoint,
      ⍝ and              ↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓ endpoint did not set payload
      ⍝ and                                          ↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓ endpoint failed the request
-      →End If(0∊⍴resp)∧(0∊⍴ns.Req.Response.Payload)∧200≠ns.Req.Response.Status
+      →End If(0∊⍴resp)∧(0∊⍴ns.Req.Response.Payload)∧2≠⌊0.01×ns.Req.Response.Status
+     
+     ⍝ If the endpoint explicitly sets the payload, use it in preference to any endpoint result
+      :If 0∊⍴ns.Req.Response.Payload
+          ns.Req.Response.Payload←resp
+      :EndIf
+     
+      stopIf DebugLevel 2×~0∊⍴PostProcessFn
+      :Trap 85 ⍝ ignore any result from PostProcess
+          {}{1(85⌶)'PostProcess ⍵'}ns.Req ⍝ call postprocessing
+      :EndTrap
      
       'Content-Type'ns.Req.DefaultHeader DefaultContentType ⍝ set the header if not set
       :If ∨/'application/json'⍷ns.Req.(Response.Headers GetHeader'content-type') ⍝ if the response is JSON
-          ns.Req ToJSON resp ⍝ convert it
-      :Else
-          ns.Req.Response.Payload←resp
+          ToJSON ns.Req ⍝ convert payload
       :EndIf
+     
       :If 0∊⍴ns.Req.Response.Payload
           'Content-Length'ns.Req.DefaultHeader 0
       :EndIf
      End:
+    ∇
+
+    ∇ rc←ParseMultipart req
+    ⍝ cover for ParseMultipartForm so we can call it from JSON or REST handling
+      :Trap 0 DebugLevel 1
+          req.Payload←ParseMultipartForm req
+          rc←200≠req.Response.Status ⍝ bail if parsing fails
+      :Else
+          rc←1⊣'Could not parse payload as "multipart/form-data"'req.Fail 400
+      :EndTrap
     ∇
 
     ∇ formData←ParseMultipartForm req;boundary;body;part;headers;payload;disposition;type;name;filename;tmp
@@ -1312,8 +1382,8 @@
           (name filename)←deb¨2↑1↓disposition splitOn';'
           name←'"'~⍨2⊃name splitOn'='
           name↓⍨←¯2×'[]'≡¯2↑name ⍝ drop any trailing [] (we handle arrays automatically)
-          :If {¯1=⎕NC ⍵}name
-              →0⊣'Invalid form field name for Jarvis'req.Fail 400
+          :If ('.'∊name)∨¯1=⎕NC name
+              →0⊣('Invalid form field name "',name,'" for Jarvis')req.Fail 400
           :EndIf
           tmp←⎕NS''
           filename←'"'~⍨2⊃2↑filename splitOn'='
@@ -1325,17 +1395,45 @@
       :EndFor
     ∇
 
+    ∇ rc←ParseFormData req
+    ⍝ cover for ParseUrlencodedForm so we can call it from JSON or REST handling
+      :Trap 0 DebugLevel 1
+          req.Payload←ParseUrlencodedForm req
+          rc←200≠req.Response.Status ⍝ bail if parsing fails
+      :Else
+          rc←1⊣'Could not parse payload as "application/x-www-form-urlencoded"'req.Fail 400
+      :EndTrap
+    ∇
+
+    ∇ formData←ParseUrlencodedForm req;data;name;value
+    ⍝ parse application/x-www-form-urlencoded content
+      formData←⎕NS''
+      data←req.URLDecode¨¨(req.Body splitOn'&')splitOn¨'='
+      :For (name value) :In data
+          :If ('.'∊name)∨¯1=⎕NC name
+              →0⊣('Invalid form field name "',name,'" for Jarvis')req.Fail 400
+          :EndIf
+          :If 0=formData.⎕NC name ⋄ formData{⍺⍎⍵,'←⍬'}name ⋄ :EndIf
+          formData(name{⍺⍎⍺⍺,',←⍵'})value
+      :EndFor
+    ∇
+
+
     ∇ fn HandleRESTRequest ns;ind;exec;valence;ct;resp
       →0 If HandleCORSRequest ns.Req
       →0 If CheckAuthentication ns.Req
      
       :If ParsePayload
           :Trap 0 DebugLevel 1
-              :Select ns.Req.ContentType
+              :Select ct←ns.Req.ContentType
               :Case 'application/json'
                   ns.Req.Payload←JSONin ns.Req.Body
               :Case 'application/xml'
                   ns.Req.(Payload←⎕XML Body)
+              :Case 'multipart/form-data'
+                  →0 If 0≠ParseMultipart ns.Req
+              :Case 'application/x-www-form-urlencoded'
+                  →0 If 0≠ParseFormData ns.Req
               :EndSelect
           :Else
               →0⊣('Unable to parse request body as ',ct)ns.Req.Fail 400
@@ -1356,12 +1454,23 @@
       :Else
           →0⊣ns.Req.Fail 500
       :EndTrap
+     
+      :If (0∊⍴ns.Req.Response.Payload)>0∊⍴resp ⍝ if the endpoint returned a response, and there isn't already a response payload...
+          ns.Req.Response.Payload←resp
+      :EndIf
+     
+      stopIf DebugLevel 2×~0∊⍴PostProcessFn
+      :Trap 85 ⍝ ignore any result from PostProcess
+          {}{1(85⌶)'PostProcess ⍵'}ns.Req ⍝ call postprocessing
+      :EndTrap
+     
       →0 If 2≠⌊0.01×ns.Req.Response.Status
       :If (ns.Req.(Response.Headers GetHeader'content-type')≡'')∧~0∊⍴DefaultContentType
           'content-type'ns.Req.SetHeader DefaultContentType
       :EndIf
+     
       :If 'application/json'match⊃';'(≠⊆⊢)ns.Req.(Response.Headers GetHeader'content-type')
-          ns.Req ToJSON resp
+          ToJSON ns.Req
       :EndIf
     ∇
 
@@ -1380,10 +1489,10 @@
       r←1
     ∇
 
-    ∇ req ToJSON data
+    ∇ ToJSON req
     ⍝ convert APL response payload to JSON
       :Trap 0 DebugLevel 1
-          req.Response.Payload←⎕UCS SafeJSON JSONout data
+          req.Response.Payload←⎕UCS SafeJSON JSONout req.Response.Payload
       :Else
           'Could not format result payload as JSON'req.Fail 500
       :EndTrap
@@ -1432,13 +1541,17 @@
 
     ∇ obj Respond ns;status;z;res;close;conx
       res←ns.Req.Response
-      status←(⊂ns.Req.HTTPVersion),res.((⍕Status)StatusText)
       res.Headers⍪←'Server'(deb⍕2↑Version)
       res.Headers⍪←'Date'(2⊃LDRC.GetProp'.' 'HttpDate')
       conx←lc ns.Req.GetHeader'connection'
+      status←(⊂ns.Req.HTTPVersion),res.((⍕Status)StatusText)
+     
       close←(('HTTP/1.0'≡ns.Req.HTTPVersion)>'keep-alive'≡conx)∨'close'≡conx
       close∨←2≠⌊0.01×res.Status ⍝ close the connection on non-2XX status
+     
       UseZip ContentEncode ns.Req
+      stopIf DebugLevel 16
+     
       :Select 1⊃z←LDRC.Send obj(status,res.Headers res.Payload)close
       :Case 0 ⍝ everything okay, nothing to do
       :Case 1008 ⍝ Wrong object class likely caused by socket being closed during the request
@@ -1494,7 +1607,7 @@
           r←CheckFunctionName¨fn
       :Else
           fn←⊆,fn
-          →0 If r←404×fn∊_userHookFns
+          →0 If r←404×fn∊AppInitFn AppCloseFn ValidateRequestFn AuthenticateFn PostProcessFn SessionInitFn _htmlRootFn
           :If ~0∊⍴_includeRegex
               →0 If r←404×0∊⍴(_includeRegex ⎕S'%')fn
           :EndIf
@@ -1532,12 +1645,18 @@
         :Field Public Shared HttpStatus←↑(200 'OK')(201 'Created')(204 'No Content')(301 'Moved Permanently')(302 'Found')(303 'See Other')(304 'Not Modified')(305 'Use Proxy')(307 'Temporary Redirect')(400 'Bad Request')(401 'Unauthorized')(403 'Forbidden')(404 'Not Found')(405 'Method Not Allowed')(406 'Not Acceptable')(408 'Request Timeout')(409 'Conflict')(410 'Gone')(411 'Length Required')(412 'Precondition Failed')(413 'Request Entity Too Large')(414 'Request-URI Too Long')(415 'Unsupported Media Type')(500 'Internal Server Error')(501 'Not Implemented')(503 'Service Unavailable')
 
         ⍝ Content types for common file extensions
-        :Field Public Shared ContentTypes←18 2⍴'txt' 'text/plain' 'htm' 'text/html' 'html' 'text/html' 'css' 'text/css' 'xml' 'text/xml' 'svg' 'image/svg+xml' 'json' 'application/json' 'zip' 'application/x-zip-compressed' 'csv' 'text/csv' 'pdf' 'application/pdf' 'mp3' 'audio/mpeg' 'pptx' 'application/vnd.openxmlformats-officedocument.presentationml.presentation' 'js' 'application/javascript' 'png' 'image/png' 'jpg' 'image/jpeg' 'bmp' 'image/bmp' 'jpeg' 'image/jpeg' 'woff' 'application/font-woff'
+        :Field Public Shared ContentTypes←79 2⍴'aac' 'audio/aac' 'abw' 'application/x-abiword' 'apng' 'image/apng' 'arc' 'application/x-freearc' 'avif' 'image/avif' 'avi' 'video/x-msvideo' 'azw' 'application/vnd.amazon.ebook' 'bin' 'application/octet-stream' 'bmp' 'image/bmp' 'bz' 'application/x-bzip' 'bz2' 'application/x-bzip2' 'cda' 'application/x-cdf' 'csh' 'application/x-csh' 'css' 'text/css' 'csv' 'text/csv' 'doc' 'application/msword' 'docx' 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' 'eot' 'application/vnd.ms-fontobject' 'epub' 'application/epub+zip' 'gz' 'application/gzip' 'gz' 'application/x-gzip' 'gif' 'image/gif' 'htm' 'text/html' 'html' 'text/html' 'ico' 'image/vnd.microsoft.icon' 'ics' 'text/calendar' 'jar' 'application/java-archive' 'jpeg' 'image/jpeg' 'jpg' 'image/jpeg' 'js' 'text/javascript' 'json' 'application/json' 'jsonld' 'application/ld+json' 'mid ' 'audio/midi' 'midi' 'audio/midi' 'mjs' 'text/javascript' 'mp3' 'audio/mpeg' 'mp4' 'video/mp4' 'mpeg' 'video/mpeg' 'mpkg' 'application/vnd.apple.installer+xml' 'odp' 'application/vnd.oasis.opendocument.presentation' 'ods' 'application/vnd.oasis.opendocument.spreadsheet' 'odt' 'application/vnd.oasis.opendocument.text' 'oga' 'audio/ogg' 'ogv' 'video/ogg' 'ogx' 'application/ogg' 'opus' 'audio/ogg' 'otf' 'font/otf' 'png' 'image/png' 'pdf' 'application/pdf' 'php' 'application/x-httpd-php' 'ppt' 'application/vnd.ms-powerpoint' 'pptx' 'application/vnd.openxmlformats-officedocument.presentationml.presentation' 'rar' 'application/vnd.rar' 'rtf' 'application/rtf' 'sh' 'application/x-sh' 'svg' 'image/svg+xml' 'tar' 'application/x-tar' 'tif ' 'image/tiff' 'tiff' 'image/tiff' 'ts' 'video/mp2t' 'ttf' 'font/ttf' 'txt' 'text/plain' 'vsd' 'application/vnd.visio' 'wav' 'audio/wav' 'weba' 'audio/webm' 'webm' 'video/webm' 'webp' 'image/webp' 'woff' 'font/woff' 'woff2' 'font/woff2' 'xhtml' 'application/xhtml+xml' 'xls' 'application/vnd.ms-excel' 'xlsx' 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 'xml' 'application/xml' 'xul' 'application/vnd.mozilla.xul+xml' 'zip' 'application/zip' 'zip' 'application/x-zip-compressed' '3gp' 'video/3gpp' '3g2' 'video/3gpp2' '7z' 'application/x-7z-compressed'
 
         GetFromTable←{(⍵[;1]⍳⊂,⍺)⊃⍵[;2],⊂''}
         split←{p←(⍺⍷⍵)⍳1 ⋄ ((p-1)↑⍵)(p↓⍵)} ⍝ Split ⍵ on first occurrence of ⍺
         lc←{2::0(819⌶)⍵ ⋄ ¯3 ⎕C ⍵}
         deb←{{1↓¯1↓⍵/⍨~'  '⍷⍵}' ',⍵,' '}
+
+        ∇ r←Config
+        ⍝ returns current request configuration - useful for debugging
+          :Access public
+          r←↑{6::⍵'No value' ⋄ ⍵(⍎⍵)}¨(⎕THIS⍎'⎕NL ¯2.2 ¯2.1 ¯2.3')~'ContentTypes' 'HttpStatus'
+        ∇
 
         ∇ {r}←{message}Fail status
         ⍝ Set HTTP response status code and message if status≠0
@@ -1611,7 +1730,7 @@
         ∇ makeResponse
         ⍝ create the response namespace
           Response←⎕NS''
-          Response.(Status StatusText Payload)←200 'OK' ''
+          Response.(Status StatusText Payload)←0 'OK' ''
           Response.Headers←0 2⍴'' ''
         ∇
 
@@ -1792,8 +1911,8 @@
 
         ∇ r←ContentTypeForFile filename;ext
           :Access public instance
-          ext←⊂1↓3⊃⎕NPARTS filename
-          r←(ContentTypes[;1]⍳ext)⊃ContentTypes[;2],⊂'text/html'
+          ext←1↓3⊃⎕NPARTS'..',filename
+          r←(ContentTypes[;1]⍳⊂ext)⊃ContentTypes[;2],⊂'application/octet-stream'
           r,←('text/html'≡r)/'; charset=utf-8'
         ∇
 
@@ -2036,12 +2155,24 @@
 
     ∇ r←isDir path
     ⍝ is path a directory?
-      r←{22::0 ⋄ 1=1 ⎕NINFO ⍵}path
+      r←{11 22::0 ⋄ 1=1 ⎕NINFO ⍵}path
     ∇
 
     ∇ r←SourceFile;class
       :If 0∊⍴r←4⊃5179⌶class←⊃∊⎕CLASS ⎕THIS
           r←{6::'' ⋄ ∊1 ⎕NPARTS ⍵⍎'SALT_Data.SourceFile'}class
+      :EndIf
+    ∇
+
+    ∇ r←resolveFilename filename
+    ⍝ resolve filename to an absolute path even if it contains . .. or symbolic links
+    ⍝ under Windows 1 ⎕NPARTS does this, but not on non-Windows
+    ⍝ so, on non-Windows, we try to use the "realpath" command
+    ⍝ NB: realpath might need to be installed if you're running on AIX
+      :If isWin
+          r←∊1 ⎕NPARTS filename
+      :Else
+          r←{0::'' ⋄ ⊃⎕SH'realpath ',filename,' 2>/dev/null'}filename
       :EndIf
     ∇
 
@@ -2244,7 +2375,6 @@
 
     :Section HTML
     ∇ r←ScriptFollows
-      :Access public
     ⍝ return the subsequent block of comments as a text script
       r←{⍵/⍨'⍝'≠⊃¨⍵}{1↓¨⍵/⍨∧\'⍝'=⊃¨⍵}{⍵{((∨\⍵)∧⌽∨\⌽⍵)/⍺}' '≠⍵}¨(1+2⊃⎕LC)↓↓(180⌶)2⊃⎕XSI
       r←2↓∊(⎕UCS 13 10)∘,¨r
@@ -2261,10 +2391,9 @@
       :EndFor
     ∇
 
-    ∇ r←HtmlPage req;endpoints;j
+    ∇ r←HtmlPage;endpoints;j
       :Access public
-      j←req.Server
-      →Skip⊣r←j.ScriptFollows
+      →Skip⊣r←ScriptFollows
 ⍝<!DOCTYPE html>
 ⍝<html>
 ⍝<head>
@@ -2291,7 +2420,7 @@
 ⍝  <form id="myform">
 ⍝    <div>
 ⍝      <label for="function">Endpoint:</label>
-⍝      ⍠
+⍝      ⌹
 ⍝    </div>
 ⍝    <div>
 ⍝      <label for="payload">JSON Payload:</label>
@@ -2423,16 +2552,109 @@
 ⍝</body>
 ⍝</html>
      Skip:
-      endpoints←j.({⍵/⍨0=CheckFunctionName ⍵}EndPoints CodeLocation)
+      endpoints←({⍵/⍨0=CheckFunctionName ⍵}EndPoints CodeLocation)
       :If 0∊⍴endpoints
           endpoints←'<b>No Endpoints Found</b>'
       :Else
           endpoints←∊{'<option value="',⍵,'">',⍵,'</option>'}¨'/'@('.'=⊢)¨endpoints
           endpoints←'<select id="function" name="function">',endpoints,'</select>'
       :EndIf
-      r←endpoints{i←⍵⍳'⍠' ⋄ ((i-1)↑⍵),⍺,i↓⍵}r
-      r←(⍕j.Port){i←⍵⍳'⍴' ⋄ ((i-1)↑⍵),⍺,i↓⍵}r
-      r←⎕UCS'UTF-8'⎕UCS r
+      r←endpoints{i←⍵⍳'⌹' ⋄ ((i-1)↑⍵),⍺,i↓⍵}r
+      r←(⍕Port){i←⍵⍳'⍴' ⋄ ((i-1)↑⍵),⍺,i↓⍵}r
+      r←'UTF-8'⎕UCS r
+    ∇
+
+
+    ∇ r←OldHtmlPage;endpoints
+      :Access public
+      r←ScriptFollows
+⍝<!DOCTYPE html>
+⍝<html>
+⍝<head>
+⍝<meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+⍝<link rel="icon" href="data:,">
+⍝<title>Jarvis</title>
+⍝ <style>
+⍝   body {color:#000000;background-color:white;font-family:Verdana;margin-left:0px;margin-top:0px;}
+⍝   button {display:inline-block;font-size:1.1em;}
+⍝   legend {font-size:1.1em;}
+⍝   select {font-size:1.1em;}
+⍝   label  {display:inline-block;margin-bottom:7px;}
+⍝   div {padding:5px;}
+⍝   label input textarea button #result {display:flex;}
+⍝   textarea {width:100%;font-size:18px;}
+⍝   #result {font-size:18px;}
+⍝   #result code {white-space:pre-line;word-wrap:break-word;}
+⍝ </style>
+⍝</head>
+⍝<body>
+⍝<div id="content">
+⍝<fieldset>
+⍝  <legend>Request</legend>
+⍝  <form id="myform">
+⍝    <div>
+⍝      <label for="function">Endpoint:</label>
+⍝      ⌹
+⍝    </div>
+⍝    <div>
+⍝      <label for="payload">JSON Payload:</label>
+⍝      <textarea id="payload" name="payload"></textarea>
+⍝    </div>
+⍝    <div>
+⍝      <button onclick="doit()" type="button">Send</button>
+⍝    </div>
+⍝  </form>
+⍝</fieldset>
+⍝<fieldset>
+⍝  <legend>Response</legend>
+⍝  <div id="result">
+⍝  </div>
+⍝</fieldset>
+⍝<script>
+⍝function doit() {
+⍝  document.getElementById("result").innerHTML = "";
+⍝  var payload = document.getElementById("payload").value;
+⍝  if (0 == payload.length) {
+⍝    document.getElementById("result").innerHTML = "<span style='color:red;'>Please enter a valid JSON payload</span>";
+⍝    } else {
+⍝    var xhttp = new XMLHttpRequest();
+⍝    var fn = document.getElementById("function").value;
+⍝    fn = (0 == fn.indexOf('/')) ? fn : '/' + fn;
+⍝
+⍝    xhttp.open("POST", fn, true);
+⍝    xhttp.setRequestHeader("content-type", "application/json; charset=utf-8");
+⍝
+⍝    xhttp.onreadystatechange = function() {
+⍝      if (this.readyState == 4){
+⍝        if (this.status == 200) {
+⍝          try {
+⍝            var resp = "<pre><code>" + JSON.stringify(JSON.parse(this.responseText)) + "</code></pre>";;
+⍝          }
+⍝          catch(err) {
+⍝            var resp = "<pre><code>" + this.responseText + "</code></pre>";
+⍝          }
+⍝        } else {
+⍝          var resp = "<span style='color:red;'>" + this.statusText + "</span> <pre><code>" + this.responseText + "</code></pre>";
+⍝        }
+⍝        document.getElementById("result").innerHTML = resp;
+⍝      }
+⍝    }
+⍝    xhttp.send(document.getElementById("payload").value);
+⍝  }
+⍝}
+⍝</script>
+⍝</div>
+⍝</body>
+⍝</html>
+      endpoints←{⍵/⍨0=CheckFunctionName ⍵}EndPoints CodeLocation
+      :If 0∊⍴endpoints
+          endpoints←'<b>No Endpoints Found</b>'
+      :Else
+          endpoints←∊{'<option value="',⍵,'">',⍵,'</option>'}¨'/'@('.'=⊢)¨endpoints
+          endpoints←'<select id="function" name="function">',endpoints,'</select>'
+      :EndIf
+      r←endpoints{i←⍵⍳'⌹' ⋄ ((i-1)↑⍵),⍺,i↓⍵}r
+      r←'UTF-8'⎕UCS r
     ∇
     :EndSection
 
