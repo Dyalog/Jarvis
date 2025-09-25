@@ -85,7 +85,7 @@
     :Field Public BufferSize←10000                             ⍝ Conga: buffer size
     :Field Public DenyFrom←⍬                                   ⍝ Conga: IP addresses to refuse requests from - empty means deny none
     :Field Public DOSLimit←¯1                                  ⍝ Conga: DOSLimit, ¯1 means use default
-    :Field Public FIFO←1                                       ⍝ Conga: Use FIFO mode?
+    :Field Public FIFO←0                                       ⍝ Conga: Use FIFO mode?
     :Field Public Port←8080                                    ⍝ Conga: Default port to listen on
     :Field Public RootCertDir←''                               ⍝ Conga: Root CA certificate folder
     :field Public Priority←'NORMAL:!CTYPE-OPENPGP'             ⍝ Conga: Priorities for GnuTLS when negotiation connection
@@ -930,7 +930,7 @@
       {}LDRC.Close ServerName,'.',conx
       :Hold '_connections'
           :If 0=_connections.⎕NC conx
-              Log'Attempt to remove non-existent connection ',⍕conx
+⍝             Log'Attempt to remove non-existent connection ',⍕conx
           :Else
               ref←_connections⍎conx
               :If 9=|⌊ref.⎕NC⊂'Req'
@@ -989,6 +989,10 @@
           conx←,⊆conx
           {}⎕TGET ⎕TPOOL∩TokenForConnection¨{⊃¯1↑⍵(≠⊆⊣)'.'}¨conx
       :EndIf
+    ∇
+
+    ∇ r←Connections
+      :Access public
     ∇
 
     :Section RequestHandling
@@ -1077,8 +1081,13 @@
      
               fn←1↓'.'@('/'∘=)ns.Req.Endpoint
      
-              fn RequestHandler ns ⍝ RequestHandler is either HandleJSONRequest or HandleRESTRequest
-     
+              :Trap 0 DebugLevel 1 ⍝ last ditch to catch any errors in handlers
+                  fn RequestHandler ns ⍝ RequestHandler is either HandleJSONRequest or HandleRESTRequest
+              :Else
+                  Log'HandleRequest: ',4↓∊(⊂' on '),⍪2↑⎕DMX.DM
+                  ns.Req.Response.Payload←''
+                  'Error handling request'ns.Req.Fail 500
+              :EndTrap
      resp:
               ⍝ if HTML interface is enabled, and there's a problem with the request, and we haven't already set a payload
               :If _htmlEnabled∧(2=⌊0.01×ns.Req.Response.Status)<0∊⍴ns.Req.Response.Payload
@@ -1092,7 +1101,7 @@
       :EndHold
     ∇
 
-    ∇ ns HandleWsRequest(obj conn);rc;evt;data;cert;hdrs;req
+    ∇ ns HandleWsRequest(obj conn);rc;evt;data;cert;hdrs;req;reqID;payload;valence;nc;fn;resp;ref
     ⍝ Handle WebSocket requests
       :Hold obj
           (rc obj evt data)←⊃⎕TGET conn ⍝ from Conga.Wait
@@ -1137,9 +1146,34 @@
               :EndIf
      
           :Case 'WSReceive'
-              ns.(Payload Complete DataType)←data
-              :If 0∊⍴OnWsReceiveFn ⍝ if no hook function, just log the payload
-                  Log'WSReceive: ',data
+              (reqID←'t',⍕⎕TID)ns.⎕NS''
+              ref←ns⍎reqID
+              ref.(reqID Payload Complete DataType)←(⊂reqID),data
+              :If 0∊⍴OnWsReceiveFn ⍝ if no hook function
+                  :If 1 ¯1∊⍨⊃HTMLInterface ⍝ and using built-in HTMLInterface
+                      :Trap 0 DebugLevel 1
+                          payload←JSONin ref.Payload
+                          fn←1↓'.'@('/'∘=)payload.Endpoint
+                          valence←|⊃CodeLocation.⎕AT fn
+                          nc←CodeLocation.⎕NC⊂fn
+                          :Trap 85
+                              :If (2=valence[2])>3.3=nc ⍝ dyadic and not tacit
+                                  stopIf DebugLevel 2
+                                  resp←(⎕NEW Request){0 CodeLocation.(85⌶)'⍺ ',fn,' ⍵'}payload ⍝ intentional stop for application-level debugging
+                              :Else
+                                  stopIf DebugLevel 2
+                                  resp←{0 CodeLocation.(85⌶)fn,' ⍵'}payload.Payload ⍝ intentional stop for application-level debugging
+                              :EndIf
+                          :Else ⍝ no result from the endpoint
+                              resp←'No result'
+                          :EndTrap
+                          ns.conx WsSend JSONout resp
+                      :Else
+                          ns.conx WsSend JSONout('⍎'~⍨⊃⎕DMX.DM),' while processing request'
+                      :EndTrap
+                  :Else
+                      Log'WSReceive: ',data
+                  :EndIf
               :Else
                   stopIf DebugLevel 2
                   :If ~ns.IsAuthenticated ⍝ are we already authenticated?
@@ -1152,6 +1186,7 @@
                       RemoveConnection ns.conx
                   :EndIf
               :EndIf
+              ns.⎕EX reqID
      
           :Case 'WSClose'
               :If ~0∊⍴OnWsCloseFn
@@ -1159,6 +1194,7 @@
                   {}(CodeLocation⍎OnWsCloseFn)ns
               :EndIf
               RemoveConnection ns.conx
+     
           :Case 'WSError'
               Log'WSError occurred on ',obj
               RemoveConnection ns.conx
@@ -1176,7 +1212,7 @@
           :Select nameClass what
           :Case 9.1 ⍝ namespace
               what←JSONout what
-          :Case 2.1 ⍝ variable (do nothing)                     
+          :Case 2.1 ⍝ variable (do nothing)
           :Else
               →0⊣Log'WsSend: invalid payload'
           :EndSelect
@@ -1185,7 +1221,7 @@
                   conx←conx.conx
               :EndIf
               :If 0≠⊃res←LDRC.Send(ServerName,'.',conx)(what 1)
-                  Log'WsSend: error sending WebSocket message: ',⍷⍕res
+                  Log'WsSend: error sending WebSocket message: ',∊⍕res
               :EndIf
           :EndFor
       :EndIf
@@ -2391,181 +2427,7 @@
       :EndFor
     ∇
 
-    ∇ r←HtmlPage;endpoints;j
-      :Access public
-      →Skip⊣r←ScriptFollows
-⍝<!DOCTYPE html>
-⍝<html>
-⍝<head>
-⍝<meta content="text/html; charset=utf-8" http-equiv="Content-Type">
-⍝<link rel="icon" href="data:,">
-⍝<title>JAWS</title>
-⍝ <style>
-⍝   body {color:#000000;background-color:white;font-family:Verdana;margin-left:0px;margin-top:0px;}
-⍝   button {display:inline-block;font-size:1.1em;}
-⍝   legend {font-size:1.1em;}
-⍝   select {font-size:1.1em;}
-⍝   label  {display:inline-block;margin-bottom:7px;}
-⍝   div {padding:5px;}
-⍝   label input textarea button #result {display:flex;}
-⍝   textarea {width:100%;font-size:18px;}
-⍝   .result {font-size:18px;}
-⍝   .result code {white-space:pre-line;word-wrap:break-word;}
-⍝ </style>
-⍝</head>
-⍝<body>
-⍝<div id="content">
-⍝<fieldset>
-⍝  <legend>Request</legend>
-⍝  <form id="myform">
-⍝    <div>
-⍝      <label for="function">Endpoint:</label>
-⍝      ⌹
-⍝    </div>
-⍝    <div>
-⍝      <label for="payload">JSON Payload:</label>
-⍝      <textarea id="payload" name="payload"></textarea>
-⍝    </div>
-⍝    <div>
-⍝      <button onclick="doit()" type="button">Send via HTTP</button>
-⍝      <button id="wsButton" style="visibility:hidden" onclick="wsdoit()" type="button">Send via WebSocket</button>
-⍝      <button id="wsSubButton" style="visibility:hidden" onclick="wsSubscribe()" type="button">Subscribe</button>
-⍝      <button id="wsUnsubButton" style="visibility:hidden" onclick="wsUnsubscribe()" type="button">Unsubscribe</button>
-⍝    </div>
-⍝  </form>
-⍝</fieldset>
-⍝<fieldset>
-⍝  <legend>Response</legend>
-⍝  <div class="result" id="result">
-⍝  </div>
-⍝</fieldset>
-⍝<fieldset id="wsFields" style="visibility:hidden">
-⍝  <legend>WebSocket Response</legend>
-⍝  <div class="result" id="wsResult">
-⍝  </div>
-⍝</fieldset>
-⍝<fieldset id="wsSubscribeFields" style="visibility:hidden">
-⍝  <legend>WebSocket Subscription</legend>
-⍝  <div id="wsSubscribeDiv">
-⍝  </div>
-⍝</fieldset>
-⍝<script>
-⍝function doit() {
-⍝    document.getElementById("result").innerHTML = "";
-⍝    var payload = document.getElementById("payload").value;
-⍝    var parses = false;
-⍝    try {
-⍝        var json = JSON.parse(payload);
-⍝        parses = true;
-⍝    } finally {
-⍝        if (!parses) {
-⍝            document.getElementById("result").innerHTML = "<span style='color:red;'>Please enter a valid JSON payload</span>";
-⍝        } else {
-⍝            var xhttp = new XMLHttpRequest();
-⍝            var fn = document.getElementById("function").value;
-⍝            fn = (0 == fn.indexOf('/')) ? fn : '/' + fn;
-⍝
-⍝            xhttp.open("POST", fn, true);
-⍝            xhttp.setRequestHeader("content-type", "application/json; charset=utf-8");
-⍝
-⍝            xhttp.onreadystatechange = function () {
-⍝                if (this.readyState == 4) {
-⍝                    if (this.status == 200) {
-⍝                        try {
-⍝                            var resp = "<pre><code>" + JSON.stringify(JSON.parse(this.responseText)) + "</code></pre>";;
-⍝                        }
-⍝                        catch (err) {
-⍝                            var resp = "<pre><code>" + this.responseText + "</code></pre>";
-⍝                        }
-⍝                    } else {
-⍝                        var resp = "<span style='color:red;'>" + this.statusText + "</span> <pre><code>" + this.responseText + "</code></pre>";
-⍝                    }
-⍝                    document.getElementById("result").innerHTML = resp;
-⍝                }
-⍝            }
-⍝            xhttp.send(document.getElementById("payload").value);
-⍝        }
-⍝    }
-⍝}
-⍝function wsdoit() {
-⍝    document.getElementById("wsResult").innerHTML = "";
-⍝    var payload = document.getElementById("payload").value;
-⍝    var parses = false;
-⍝    try {
-⍝        var json = JSON.parse(payload);
-⍝        parses = true;
-⍝    } finally {
-⍝        if (!parses) {
-⍝            document.getElementById("wsResult").innerHTML = "<span style='color:red;'>Please enter a valid JSON payload</span>";
-⍝        } else {
-⍝            var fn = document.getElementById("function").value;
-⍝            fn = (0 == fn.indexOf('/')) ? fn : '/' + fn;
-⍝            var msg = {};
-⍝            msg.Endpoint = fn;
-⍝            msg.Payload = json;
-⍝            msg.Type = "Endpoint";
-⍝            ws.send(JSON.stringify(msg));
-⍝        }
-⍝    }
-⍝}
-⍝function wsSubscribe() {
-⍝  var msg = {};
-⍝  msg.Type = "Subscribe";
-⍝  ws.send(JSON.stringify(msg));
-⍝}
-⍝function wsUnsubscribe() {
-⍝  var msg = {};
-⍝  msg.Type = "Unsubscribe";
-⍝  ws.send(JSON.stringify(msg));
-⍝}
-⍝var ws;                                                                               0
-⍝ws = new WebSocket("ws://localhost:⍴/");
-⍝ws.onopen = function(evt) { onOpen(evt) };
-⍝ws.onclose = function(evt) { onClose(evt) };
-⍝ws.onmessage = function(evt) { onMessage(evt) };
-⍝ws.onerror = function(evt) { onError(evt) };
-⍝
-⍝function onOpen(evt){
-⍝  document.getElementById("wsButton").style.visibility = "visible";
-⍝  document.getElementById("wsFields").style.visibility = "visible";
-⍝  document.getElementById("wsSubButton").style.visibility = "visible";
-⍝  document.getElementById("wsUnsubButton").style.visibility = "visible";
-⍝  document.getElementById("wsSubscribeFields").style.visibility = "visible";};
-⍝function onClose(evt){console.log("WebSocket closed");};
-⍝function onError(evt){console.log("WebSocket error");};
-⍝
-⍝function onMessage(evt){
-⍝  let payload = JSON.parse(evt.data);
-⍝  switch (payload.Type){
-⍝    case "Asynch":
-⍝      document.getElementById("wsResult").innerHTML =  "<br/><pre><code>" + JSON.stringify(payload.Data) + "</code></pre>";
-⍝    break;
-⍝    case "Update":
-⍝      document.getElementById("wsSubscribeDiv").innerHTML = "<br/>" + payload.Data;
-⍝    break;
-⍝    default:
-⍝      document.getElementById("result").innerHTML = "<br/><span style='color:red;'>Invalid message type</span>";
-⍝  }
-⍝}
-⍝</script>
-⍝</div>
-⍝</body>
-⍝</html>
-     Skip:
-      endpoints←({⍵/⍨0=CheckFunctionName ⍵}EndPoints CodeLocation)
-      :If 0∊⍴endpoints
-          endpoints←'<b>No Endpoints Found</b>'
-      :Else
-          endpoints←∊{'<option value="',⍵,'">',⍵,'</option>'}¨'/'@('.'=⊢)¨endpoints
-          endpoints←'<select id="function" name="function">',endpoints,'</select>'
-      :EndIf
-      r←endpoints{i←⍵⍳'⌹' ⋄ ((i-1)↑⍵),⍺,i↓⍵}r
-      r←(⍕Port){i←⍵⍳'⍴' ⋄ ((i-1)↑⍵),⍺,i↓⍵}r
-      r←'UTF-8'⎕UCS r
-    ∇
-
-
-    ∇ r←OldHtmlPage;endpoints
+    ∇ r←HtmlPageOld;endpoints
       :Access public
       r←ScriptFollows
 ⍝<!DOCTYPE html>
@@ -2656,6 +2518,161 @@
       r←endpoints{i←⍵⍳'⌹' ⋄ ((i-1)↑⍵),⍺,i↓⍵}r
       r←'UTF-8'⎕UCS r
     ∇
+
+    ∇ r←HtmlPage;endpoints;j;mask
+      :Access public
+      →Skip⊣r←ScriptFollows
+⍝<!DOCTYPE html>
+⍝<html>
+⍝<head>
+⍝<meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+⍝<link rel="icon" href="data:,">
+⍝<title>JAWS</title>
+⍝ <style>
+⍝   body {color:#000000;background-color:white;font-family:Verdana;margin-left:0px;margin-top:0px;}
+⍝   button {display:inline-block;font-size:1.1em;}
+⍝   legend {font-size:1.1em;}
+⍝   select {font-size:1.1em;}
+⍝   label  {display:inline-block;margin-bottom:7px;}
+⍝   div {padding:5px;}
+⍝   label input textarea button #result {display:flex;}
+⍝   textarea {width:100%;font-size:18px;}
+⍝   .result {font-size:18px;}
+⍝   .result code {white-space:pre-line;word-wrap:break-word;}
+⍝ </style>
+⍝</head>
+⍝<body>
+⍝<div id="content">
+⍝<fieldset>
+⍝  <legend>Request</legend>
+⍝  <form id="myform">
+⍝    <div>
+⍝      <label for="function">Endpoint:</label>
+⍝      ⌹
+⍝    </div>
+⍝    <div>
+⍝      <label for="payload">JSON Payload:</label>
+⍝      <textarea id="payload" name="payload"></textarea>
+⍝    </div>
+⍝    <div>
+⍝      <button onclick="doit()" type="button">Send via HTTP</button>
+⍝⍵      <button id="wsButton" style="visibility:hidden" onclick="wsdoit()" type="button">Send via WebSocket</button>
+⍝    </div>
+⍝  </form>
+⍝</fieldset>
+⍝<fieldset>
+⍝  <legend>Response</legend>
+⍝  <div class="result" id="result">
+⍝  </div>
+⍝</fieldset>
+⍝⍵<fieldset id="wsFields" style="visibility:hidden">
+⍝⍵  <legend>WebSocket Response</legend>
+⍝⍵  <div class="result" id="wsResult">
+⍝⍵  </div>
+⍝⍵</fieldset>
+⍝<script>
+⍝function doit() {
+⍝    document.getElementById("result").innerHTML = "";
+⍝    var payload = document.getElementById("payload").value;
+⍝    var parses = false;
+⍝    try {
+⍝        var json = JSON.parse(payload);
+⍝        parses = true;
+⍝    } finally {
+⍝        if (!parses) {
+⍝            document.getElementById("result").innerHTML = "<span style='color:red;'>Please enter a valid JSON payload</span>";
+⍝        } else {
+⍝            var xhttp = new XMLHttpRequest();
+⍝            var fn = document.getElementById("function").value;
+⍝            fn = (0 == fn.indexOf('/')) ? fn : '/' + fn;
+⍝
+⍝            xhttp.open("POST", fn, true);
+⍝            xhttp.setRequestHeader("content-type", "application/json; charset=utf-8");
+⍝
+⍝            xhttp.onreadystatechange = function () {
+⍝                if (this.readyState == 4) {
+⍝                    if (this.status == 200) {
+⍝                        try {
+⍝                            var resp = "<pre><code>" + JSON.stringify(JSON.parse(this.responseText)) + "</code></pre>";;
+⍝                        }
+⍝                        catch (err) {
+⍝                            var resp = "<pre><code>" + this.responseText + "</code></pre>";
+⍝                        }
+⍝                    } else {
+⍝                        var resp = "<span style='color:red;'>" + this.statusText + "</span> <pre><code>" + this.responseText + "</code></pre>";
+⍝                    }
+⍝                    document.getElementById("result").innerHTML = resp;
+⍝                }
+⍝            }
+⍝            xhttp.send(document.getElementById("payload").value);
+⍝        }
+⍝    }
+⍝}
+⍝⍵function wsdoit() {
+⍝⍵    document.getElementById("wsResult").innerHTML = "";
+⍝⍵    var payload = document.getElementById("payload").value;
+⍝⍵    var parses = false;
+⍝⍵    try {
+⍝⍵        var json = JSON.parse(payload);
+⍝⍵        parses = true;
+⍝⍵    } finally {
+⍝⍵        if (!parses) {
+⍝⍵            document.getElementById("wsResult").innerHTML = "<span style='color:red;'>Please enter a valid JSON payload</span>";
+⍝⍵        } else {
+⍝⍵            var fn = document.getElementById("function").value;
+⍝⍵            fn = (0 == fn.indexOf('/')) ? fn : '/' + fn;
+⍝⍵            var msg = {};
+⍝⍵            msg.Endpoint = fn;
+⍝⍵            msg.Payload = json;
+⍝⍵            msg.Type = "Endpoint";
+⍝⍵            ws.send(JSON.stringify(msg));
+⍝⍵        }
+⍝⍵    }
+⍝⍵}
+⍝⍵var ws;                                                                               0
+⍝⍵ws = new WebSocket("ws://localhost:⍴/");
+⍝⍵ws.onopen = function(evt) { onOpen(evt) };
+⍝⍵ws.onclose = function(evt) { onClose(evt) };
+⍝⍵ws.onmessage = function(evt) { onMessage(evt) };
+⍝⍵ws.onerror = function(evt) { onError(evt) };
+⍝⍵
+⍝⍵function onOpen(evt){
+⍝⍵  document.getElementById("wsButton").style.visibility = "visible";
+⍝⍵  document.getElementById("wsFields").style.visibility = "visible";
+⍝⍵};
+⍝⍵function onClose(evt){console.log("WebSocket closed");};
+⍝⍵function onError(evt){console.log("WebSocket error");};
+⍝⍵
+⍝⍵function onMessage(evt){
+⍝⍵  document.getElementById("wsResult").innerHTML =  "<pre><code>" + evt.data + "</code></pre>";
+⍝⍵}
+⍝</script>
+⍝</div>
+⍝</body>
+⍝</html>
+     Skip:
+      r←r((~∊)⊆⊣)⎕UCS 13 10
+      mask←'⍵'=⊃¨r
+      :If EnableWebSockets∧0∊⍴OnWsReceiveFn
+          r←mask↓¨r
+      :Else
+          r←(~mask)/r
+      :EndIf
+      r←2↓∊(⊂⎕UCS 13 10),¨r
+      endpoints←({⍵/⍨0=CheckFunctionName ⍵}EndPoints CodeLocation)
+      :If 0∊⍴endpoints
+          endpoints←'<b>No Endpoints Found</b>'
+      :Else
+          endpoints←∊{'<option value="',⍵,'">',⍵,'</option>'}¨'/'@('.'=⊢)¨endpoints
+          endpoints←'<select id="function" name="function">',endpoints,'</select>'
+      :EndIf
+      r←endpoints{i←⍵⍳'⌹' ⋄ ((i-1)↑⍵),⍺,i↓⍵}r
+      :If EnableWebSockets
+          r←(⍕Port){i←⍵⍳'⍴' ⋄ ((i-1)↑⍵),⍺,i↓⍵}r
+      :EndIf
+      r←'UTF-8'⎕UCS r
+    ∇
+
     :EndSection
 
 :EndClass
