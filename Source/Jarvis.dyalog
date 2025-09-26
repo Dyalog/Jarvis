@@ -1146,11 +1146,12 @@
               :EndIf
      
           :Case 'WSReceive'
-              (reqID←'t',⍕⎕TID)ns.⎕NS''
-              ref←ns⍎reqID
-              ref.(reqID Payload Complete DataType)←(⊂reqID),data
+              (reqID←'t',⍕⎕TID)ns.⎕NS'' ⍝ create a namespace for this message based on thread id
+              ref←ns⍎reqID ⍝ get its ref
+              ref.(reqID Payload Complete DataType)←(⊂reqID),data ⍝ populate namespace with message information 
               :If 0∊⍴OnWsReceiveFn ⍝ if no hook function
-                  :If 1 ¯1∊⍨⊃HTMLInterface ⍝ and using built-in HTMLInterface
+                  :If 1 ¯1∊⍨⊃HTMLInterface ⍝ and using built-in HTMLInterface  
+              ⍝↓↓↓ the code below is only for the built-in HTMLInterface, though it provides an example of how to use
                       :Trap 0 DebugLevel 1
                           payload←JSONin ref.Payload
                           fn←1↓'.'@('/'∘=)payload.Endpoint
@@ -1159,7 +1160,7 @@
                           :Trap 85
                               :If (2=valence[2])>3.3=nc ⍝ dyadic and not tacit
                                   stopIf DebugLevel 2
-                                  resp←(⎕NEW Request){0 CodeLocation.(85⌶)'⍺ ',fn,' ⍵'}payload ⍝ intentional stop for application-level debugging
+                                  resp←ref{0 CodeLocation.(85⌶)'⍺ ',fn,' ⍵'}payload.Payload ⍝ intentional stop for application-level debugging
                               :Else
                                   stopIf DebugLevel 2
                                   resp←{0 CodeLocation.(85⌶)fn,' ⍵'}payload.Payload ⍝ intentional stop for application-level debugging
@@ -1182,7 +1183,7 @@
                           RemoveConnection ns.conx
                       :EndIf
                   :EndIf
-                  :If 0≠(CodeLocation⍎OnWsReceiveFn)ns
+                  :If 0≠(CodeLocation⍎OnWsReceiveFn)ref
                       RemoveConnection ns.conx
                   :EndIf
               :EndIf
