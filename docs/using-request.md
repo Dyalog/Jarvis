@@ -30,5 +30,6 @@ or more succinctly `Authenticate←{0∊⍴⍵.UserID:1 ⋄ ⍵.UserID≢⌽⍵.
 [3]    r←'<h1>',string,'</h1>'
      ∇
 ```
+If you are sending files in the response payload, you can spe
 
        

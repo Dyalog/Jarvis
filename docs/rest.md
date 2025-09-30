@@ -30,7 +30,7 @@ It doesn't matter what the client is - it could be a browser, an app on a phone,
 When `Jarvis` receives the request, it verifies that the request is well-formed. If there is a problem parsing the request, `Jarvis` will respond to the client with a 400-series HTTP status code and message.
 
 ### `Jarvis` calls your method function
-`Jarvis` passes the [`Request`](./reference.md#request) object as the right argument to the function appropriate for the HTTP method being used. It is up to your function to parse `Request.Endpoint` to determine the resource being requested. As noted above, if the response payload's `content-type` is `'application/json'` your function can return an APL array which `Jarvis` will automatically convert to JSON. Otherwise, your function is responsible for setting the `Request.Response.Payload` and `Request.ContentType` appropriately.
+`Jarvis` passes the [`Request`](./request.md) object as the right argument to the function appropriate for the HTTP method being used. It is up to your function to parse `Request.Endpoint` to determine the resource being requested. As noted above, if the response payload's `content-type` is `'application/json'` your function can return an APL array which `Jarvis` will automatically convert to JSON. Otherwise, your function is responsible for setting the `Request.Response.Payload` and `Request.ContentType` appropriately.
 
 If the requested resource is not found, or some other issue occurs, your function should fail the request with an appropriate HTTP status code using [`Request.Fail`](request.md#fail). For example, an HTTP status code of 404 means that the requested resource was not found and you would use `Request.Fall 404` to set the status code.
 

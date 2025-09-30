@@ -16,14 +16,14 @@ It doesn't matter what the client is - it could be a browser, an app on a phone,
 
 !!! tip "Advanced Usage"
 
-    * The [`AllowGETs`](./settings-operational.md#allowgets) setting will enable HTTP GET method to be used as well - by default `AllowGETs` is disabled. 
-    * The [`AllowFormData`](./settings-operational.md#allowformdata) setting will enable `Jarvis` to receive payloads that use `content-type: multipart/form-data` - by default `AllowFormData` is disabled.
+    * The [`AllowGETs`](./settings-json.md#allowgets) setting will enable HTTP GET method to be used as well - by default `AllowGETs` is disabled. 
+    * The [`AllowFormData`](./settings-json.md#allowformdata) setting will enable `Jarvis` to receive payloads that use `content-type: multipart/form-data` - by default `AllowFormData` is disabled.
 
 ### `Jarvis` receives the request
 When `Jarvis` receives the request, it verifies that the request is well-formed. If there is a problem parsing the request, `Jarvis` will respond to the client with a 400-series HTTP status code and message. Assuming the request is well-formed, `Jarvis` will convert the request's JSON payload to an APL array using `⎕JSON`.
 
 ### `Jarvis` calls your endpoint function
-`Jarvis` passes the APL array as the right argument to your endpoint function.  If your function is dyadic or ambivalent, `Jarvis` will pass the [`HttpRequest`](./reference.md#httprequest) object as the left argument. Your function should return an APL array result.
+`Jarvis` passes the APL array as the right argument to your endpoint function.  If your function is dyadic or ambivalent, `Jarvis` will pass the [`HttpRequest`](./request.md) object as the left argument. Your function should return an APL array result.
 
 !!! tip "Advanced Usage"
     **Jarvis** has a few specific places where you can "inject" your own APL code to perform actions like additional request validation, authentication, and so on. Two such places are available after `Jarvis` receives the request, but before calling your endpoint function.  These are:

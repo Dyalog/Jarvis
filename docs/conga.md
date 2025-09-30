@@ -21,7 +21,7 @@ When first run, `Jarvis` will attempt to find or copy the Conga API and then ini
 * If the API was found or successfully copied, `Jarvis` will initialize Conga as follows:
     * If the `Conga` version of the API is used, `Jarvis` will initialize it with a root name of `'Jarvis'`.
     * If the `DRC` version of the API is used, `Jarvis` will simply initialize it. As `DRC` does not support multiple roots, care should be taken if other Conga-using utilities also reside in the workspace.
-* If the API was successfully initialized, a reference to the API root can be found in the shared [`LDRC`](./settings-shared#ldrc) field.
+* If the API was successfully initialized, a reference to the API root can be found in the shared [`LDRC`](./settings-shared.md#ldrc) field.
 
 ### Overriding Default Locations
 There are two methods to tell `Jarvis`'s default behavior, both of which involve setting a shared public field in the `Jarvis` class.
