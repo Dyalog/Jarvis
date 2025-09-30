@@ -1,7 +1,9 @@
- r←OnWsReceive ns;payload;endpoint;res;j;resp
+ r←OnWsReceive tns;payload;cns;j;endpoint;res;resp
+ ⍝ tns is the connection's namespace for this thread (message)
  r←0
- payload←⎕JSON ns.Payload
- j←ns.Server
+ payload←⎕JSON tns.Payload
+ cns←tns.##   ⍝ parent connection namespace
+ j←cns.Server ⍝ ref to the Jarvis server
  :Select {6::⍵ ⋄ payload.Type}''
  :Case 'Endpoint'
      endpoint←(⍕j.CodeLocation),'.'@(=∘'/')⊢payload.Endpoint
@@ -11,13 +13,17 @@
          res←⎕DMX.EM,' occurred on call to "',endpoint,'"'
      :EndTrap
      resp←⎕NS''
-     resp.Type←'Asynch'
+     resp.Type←'Result'
      resp.Data←res
-     ns j.WsSend resp
+     cns j.WsSend resp
  :Case 'Subscribe'
-     Subscriptions,←ns.conx
+     Subscribe cns.conx
  :Case 'Unsubscribe'
-     Subscriptions~←ns.conx
+     Unsubscribe cns.conx
+     resp←⎕NS''
+     resp.Type←'Update'
+     resp.Data←'Unsubscribed'
+     cns cns.Server.WsSend resp
  :Else
      ⎕←'Unknown payload type'
      ⎕←⎕JSON payload

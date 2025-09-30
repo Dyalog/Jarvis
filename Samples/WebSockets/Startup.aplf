@@ -1,4 +1,5 @@
 r←Startup jarvis
 Subscriptions←⍬
 SubscriptionThread←SubscriptionWatcher&jarvis
+⎕←'Subscription watcher started'
 r←0

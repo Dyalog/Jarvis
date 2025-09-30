@@ -1,0 +1,4 @@
+r←OnWsClose ns
+⍝ ns is the connection namespace
+Unsubscribe ns.conx
+r←0

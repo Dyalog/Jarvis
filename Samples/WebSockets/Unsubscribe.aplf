@@ -1,0 +1,5 @@
+ Unsubscribe conx
+ ⍝ conx is the connection name
+ :Hold 'Subscriptions'
+     Subscriptions~←⊂conx
+ :EndHold

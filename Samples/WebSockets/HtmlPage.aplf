@@ -7,7 +7,7 @@
 ⍝<head>
 ⍝<meta content="text/html; charset=utf-8" http-equiv="Content-Type">
 ⍝<link rel="icon" href="data:,">
-⍝<title>JAWS</title>
+⍝<title>Jarvis and WebSocket Sample</title>
 ⍝ <style>
 ⍝   body {color:#000000;background-color:white;font-family:Verdana;margin-left:0px;margin-top:0px;}
 ⍝   button {display:inline-block;font-size:1.1em;}
@@ -54,7 +54,7 @@
 ⍝</fieldset>
 ⍝<fieldset id="wsSubscribeFields" style="visibility:hidden">
 ⍝  <legend>WebSocket Subscription</legend>
-⍝  <div id="wsSubscribeDiv">
+⍝  <div id="wsSubscribeDiv">Not Subscribed
 ⍝  </div>
 ⍝</fieldset>
 ⍝<script>
@@ -145,14 +145,14 @@
 ⍝function onMessage(evt){
 ⍝  let payload = JSON.parse(evt.data);
 ⍝  switch (payload.Type){
-⍝    case "Asynch":
-⍝      document.getElementById("wsResult").innerHTML =  "<br/><pre><code>" + JSON.stringify(payload.Data) + "</code></pre>";
+⍝    case "Result":
+⍝      document.getElementById("wsResult").innerHTML =  "<pre><code>" + JSON.stringify(payload.Data) + "</code></pre>";
 ⍝    break;
 ⍝    case "Update":
-⍝      document.getElementById("wsSubscribeDiv").innerHTML = "<br/>" + payload.Data;
+⍝      document.getElementById("wsSubscribeDiv").innerHTML = payload.Data;
 ⍝    break;
 ⍝    default:
-⍝      document.getElementById("result").innerHTML = "<br/><span style='color:red;'>Invalid message type</span>";
+⍝      document.getElementById("result").innerHTML = "<span style='color:red;'>Invalid message type</span>";
 ⍝  }
 ⍝}
 ⍝</script>
@@ -169,4 +169,4 @@ Skip:
  :EndIf
  r←endpoints{i←⍵⍳'⍠' ⋄ ((i-1)↑⍵),⍺,i↓⍵}r
  r←(⍕j.Port){i←⍵⍳'⍴' ⋄ ((i-1)↑⍵),⍺,i↓⍵}r
- r←⎕UCS'UTF-8'⎕UCS r
+ r←'UTF-8'⎕UCS r

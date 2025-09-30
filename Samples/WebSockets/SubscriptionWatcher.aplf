@@ -1,8 +1,12 @@
- SubscriptionWatcher jarvis;update
+ SubscriptionWatcher jarvis;update;mask
  :While 1
      {}⎕DL 2
-     update←⎕NS ''
+     update←⎕NS''
      update.Type←'Update'
      update.Data←⍕⎕TS
-     Subscriptions jarvis.WsSend update
+     :Hold 'Subscriptions'
+         :If ~∧/mask←0=Subscriptions jarvis.WsSend update
+             Subscriptions/⍨←mask
+         :EndIf
+     :EndHold
  :EndWhile

@@ -1,0 +1,6 @@
+ Subscribe conx
+ :If ~(⊂conx)∊Subscriptions
+     :Hold 'Subscriptions'
+         Subscriptions,←⊂conx
+     :EndHold
+ :EndIf

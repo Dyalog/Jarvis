@@ -1,3 +1,4 @@
  r←Shutdown
  ⎕TKILL SubscriptionThread
+ ⎕←'Subscription watcher shut down'
  r←0

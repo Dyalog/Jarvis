@@ -1,0 +1,13 @@
+ Start
+ sum←{⊃+/⍵}  ⍝ define some endpoints
+ delay←⎕DL
+
+ j←Jarvis.New''                 ⍝ create a new Jarvis instance
+ j.EnableWebSockets←1           ⍝ enable WebSockets
+ j.CodeLocation←⎕THIS           ⍝ point to this namespace for code
+ j.HTMLInterface←'' 'HtmlPage'  ⍝ the HTML interface is supplied by the HtmlPage function
+ j.OnWsReceiveFn←'OnWsReceive'  ⍝ function to call when we receive a WebSocket message
+ j.OnWsCloseFn←'OnWsClose'      ⍝ function to call when a websocket closes
+ j.AppInitFn←'Startup'          ⍝ function to run when we start
+ j.AppCloseFn←'Shutdown'        ⍝ function to run when we stop
+ j.Start                        ⍝ start the Jarvis instance
