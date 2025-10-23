@@ -55,7 +55,6 @@
    ⍝ JSON mode settings
     :Field Public AllowFormData←0                              ⍝ do we allow POST form data in JSON paradigm?
     :Field Public AllowGETs←0                                  ⍝ do we allow calling endpoints with HTTP GETs?
-    :Field Public HTMLInterface←¯1                             ⍝ ¯1=unassigned, 0/1=dis/allow the HTML interface, 'Path to HTML[/home-page]', or '' 'fn'
     :Field Public JSONInputFormat←'D'                          ⍝ set this to 'M' to have Jarvis convert JSON request payloads to the ⎕JSON matrix format
 
    ⍝ REST mode settings
@@ -98,6 +97,55 @@
         ∇
     :EndProperty
 
+    :Property HTMLInterface ⍝ ¯1=unassigned, 0/1=dis/allow the HTML interface, 'Path to HTML[/home-page]', or '' 'fn'
+    :Access public
+        ∇ r←get
+          r←_htmlInterface
+        ∇
+
+        ∇ set args;html;t;old_htmlInterface;old_htmlFolder;old_htmlDefaultPage
+          old_htmlInterface←_htmlInterface
+          :Select ⊃_htmlInterface←args.NewValue
+          :Case 0 ⍝ explicitly no HTML interface, carry on
+              _htmlEnabled←0
+          :Case 1 ⍝ explicitly turned on
+              :If Paradigm≢'JSON'
+                  Log'HTML interface is only available using JSON paradigm'
+              :Else
+                  _htmlEnabled←1
+              :EndIf
+          :Case ¯1 ⍝ turn on if JSON paradigm
+              _htmlEnabled←Paradigm≡'JSON' ⍝ if not specified, HTML interface is enabled for JSON paradigm
+          :Else
+              :If 1<|≡_htmlInterface ⍝ is it '' 'function'?
+                  t←2⊃_htmlInterface
+                  :If 1 1 0≡⊃CodeLocation.⎕AT t
+                      _htmlRootFn←t
+                      _htmlEnabled←1
+                  :Else
+                      →0 If(rc msg)←¯1('HTML root function "',(⍕CodeLocation),'.',t,'" is not a monadic, result-returning function.')
+                  :EndIf
+              :Else ⍝  otherwise it's 'file/folder'
+                  _htmlEnabled←1
+                  html←1 ⎕NPARTS((isRelPath _htmlInterface)/_rootFolder),_htmlInterface
+         
+                  (old_htmlFolder old_htmlDefaultPage)←_htmlFolder _htmlDefaultPage
+                  :If isDir∊html
+                      _htmlFolder←{⍵,('/'=⊢/⍵)↓'/'}∊html
+                  :Else
+                      _htmlFolder←1⊃html
+                      _htmlDefaultPage←∊1↓html
+                  :EndIf
+                  _homePage←⎕NEXISTS html←_htmlFolder,_htmlDefaultPage
+                  :If ~_homePage
+                      (_htmlInterface _htmlFolder _htmlDefaultPage)←old_htmlInterface old_htmlFolder old_htmlDefaultPage
+                      Log'HTML home page file "',(∊html),'" not found.'
+                  :EndIf
+              :EndIf
+          :EndSelect
+        ∇
+    :EndProperty
+
   ⍝ IncludeFns/ExcludeFns Properties
     :Property IncludeFns, ExcludeFns
     ⍝ IncludeFns and ExcludeFns are vectors the defined endpoint (function) names to expose or hide respectively
@@ -120,9 +168,11 @@
     :Field _rootFolder←''                ⍝ root folder for relative file paths
     :Field _codeSource←''                ⍝ file or folder that code was loaded from, if applicable
     :Field _configLoaded←0               ⍝ indicates whether config was already loaded by Autostart
+    :Field _homePage←1                   ⍝ default is to use built-in home page
     :Field _htmlFolder←''                ⍝ folder containing HTML interface files, if any
     :Field _htmlDefaultPage←'index.html' ⍝ default page name if HTMLInterface is set to serve from a folder
     :Field _htmlEnabled←0                ⍝ is the HTML interface enabled?
+    :Field _htmlInterface←¯1             ⍝ ¯1=unassigned, 0/1=dis/allow the HTML interface, 'Path to HTML[/home-page]', or '' 'fn'
     :Field _htmlRootFn←''                ⍝ function name if serving HTML root from a function rather than file
     :Field _stop←0                       ⍝ set to 1 to stop server
     :Field _started←0                    ⍝ is the server started
@@ -273,7 +323,7 @@
       r←(r(rc msg))
     ∇
 
-    ∇ (rc msg)←Start;html;homePage;t
+    ∇ (rc msg)←Start;html
       :Access public
       :Trap 0 DebugLevel 1
           Log'Starting ',⍕2↑Version
@@ -312,40 +362,7 @@
               TokenBase←⎕TALLOC 1 'Jarvis'
           :EndIf
      
-          homePage←1 ⍝ default is to use built-in home page
-          :Select ⊃HTMLInterface
-          :Case 0 ⍝ explicitly no HTML interface, carry on
-              _htmlEnabled←0
-          :Case 1 ⍝ explicitly turned on
-              :If Paradigm≢'JSON'
-                  Log'HTML interface is only available using JSON paradigm'
-              :Else
-                  _htmlEnabled←1
-              :EndIf
-          :Case ¯1 ⍝ turn on if JSON paradigm
-              _htmlEnabled←Paradigm≡'JSON' ⍝ if not specified, HTML interface is enabled for JSON paradigm
-          :Else
-              :If 1<|≡HTMLInterface ⍝ is it '' 'function'?
-                  t←2⊃HTMLInterface
-                  :If 1 1 0≡⊃CodeLocation.⎕AT t
-                      _htmlRootFn←t
-                      _htmlEnabled←1
-                  :Else
-                      →0 If(rc msg)←¯1('HTML root function "',(⍕CodeLocation),'.',t,'" is not a monadic, result-returning function.')
-                  :EndIf
-              :Else ⍝  otherwise it's 'file/folder'
-                  _htmlEnabled←1
-                  html←1 ⎕NPARTS((isRelPath HTMLInterface)/_rootFolder),HTMLInterface
-                  :If isDir∊html
-                      _htmlFolder←{⍵,('/'=⊢/⍵)↓'/'}∊html
-                  :Else
-                      _htmlFolder←1⊃html
-                      _htmlDefaultPage←∊1↓html
-                  :EndIf
-                  homePage←⎕NEXISTS html←_htmlFolder,_htmlDefaultPage
-                  Log(~homePage)/'HTML home page file "',(∊html),'" not found.'
-              :EndIf
-          :EndSelect
+          HTMLInterface←_htmlInterface ⍝ because _rootFolder might have been set after the property
      
           :If EnableCORS ⍝ if we've enabled CORS
           :AndIf ¯1∊CORS_Methods ⍝ but not set any pre-flighted methods
@@ -362,7 +379,7 @@
      
           Log'Jarvis starting in "',Paradigm,'" mode on port ',⍕Port
           Log'Serving code in ',(⍕CodeLocation),(CodeSource≢'')/' (populated with code from "',CodeSource,'")'
-          Log(_htmlEnabled∧homePage)/'Click http',(~Secure)↓'s://',MyAddr,':',(⍕Port),' to access web interface'
+          Log(_htmlEnabled∧_homePage)/'Click http',(~Secure)↓'s://',MyAddr,':',(⍕Port),' to access web interface'
      
       :Else ⍝ :Trap
           (rc msg)←¯1 ⎕DMX.EM
