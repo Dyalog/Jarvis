@@ -6,7 +6,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.20.6' '2025-09-02'
+      r←'Jarvis' '1.21.0' '2025-10-23'
     ∇
 
     ∇ Documentation
@@ -105,6 +105,7 @@
 
         ∇ set args;html;t;old_htmlInterface;old_htmlFolder;old_htmlDefaultPage
           old_htmlInterface←_htmlInterface
+          (_htmlEnabled _htmlRootFn _htmlFolder _htmlDefaultPage _homePage)←0 '' '' 'index.html' 1 ⍝ reset original field values
           :Select ⊃_htmlInterface←args.NewValue
           :Case 0 ⍝ explicitly no HTML interface, carry on
               _htmlEnabled←0
