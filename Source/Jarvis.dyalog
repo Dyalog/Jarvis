@@ -6,7 +6,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.21.0' '2025-10-23'
+      r←'Jarvis' '1.21.1' '2025-10-29'
     ∇
 
     ∇ Documentation
@@ -138,7 +138,8 @@
                       _htmlDefaultPage←∊1↓html
                   :EndIf
                   _homePage←⎕NEXISTS html←_htmlFolder,_htmlDefaultPage
-                  :If ~_homePage
+                  :If _started
+                  :AndIf ~_homePage
                       (_htmlInterface _htmlFolder _htmlDefaultPage)←old_htmlInterface old_htmlFolder old_htmlDefaultPage
                       Log'HTML home page file "',(∊html),'" not found.'
                   :EndIf
