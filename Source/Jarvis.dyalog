@@ -2091,7 +2091,7 @@
           :AndIf 'file://'≡7↑rarg
           :AndIf '.apla'≡lc⊃⌽p←⎕NPARTS f←7↓rarg
               :If larg=2
-                  r←ref⍎(2⊃p),'←',0 Deserialise⊃⎕NGET f
+                  r←ref((2⊃p){⍺⍎⍺⍺,'←⍵'})1 Deserialise⊃⎕NGET f
               :Else
                   r←ref⍎0 Deserialise⊃⎕NGET f
               :EndIf
