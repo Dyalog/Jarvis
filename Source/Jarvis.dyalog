@@ -6,7 +6,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.21.1' '2025-10-29'
+      r←'Jarvis' '1.21.2' '2025-11-04'
     ∇
 
     ∇ Documentation
@@ -1533,6 +1533,7 @@
           :Implements constructor
          
           (Method Input HTTPVersion Headers)←args
+          HTTPVersion←deb HTTPVersion
           Headers[;1]←lc Headers[;1]  ⍝ header names are case insensitive
           Method←lc Method
          
@@ -1615,6 +1616,7 @@
         ∇ params←ParseQueryString query
           params←0 2⍴⊂''
           →0⍴⍨0∊⍴query
+          query←'UTF-8' ⎕UCS ⎕UCS query
           :If '='∊query ⍝ contains name=value?
               params←URLDecode¨2↑[2]↑'='(≠⊆⊢)¨'&'(≠⊆⊢)query
           :Else
@@ -2091,7 +2093,7 @@
           :AndIf 'file://'≡7↑rarg
           :AndIf '.apla'≡lc⊃⌽p←⎕NPARTS f←7↓rarg
               :If larg=2
-                  r←ref⍎(2⊃p),'←',0 Deserialise⊃⎕NGET f
+                  r←(2⊃p)ref.{⍎⍺,'←⍵'}1 Deserialise⊃⎕NGET f
               :Else
                   r←ref⍎0 Deserialise⊃⎕NGET f
               :EndIf
