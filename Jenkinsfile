@@ -9,7 +9,7 @@ node ('Docker') {
     withDockerRegistry(credentialsId: '0435817a-5f0f-47e1-9dcc-800d85e5c335') {
         stage ('Build Jarvis Containers (Dyalog v19.0)') {
             if (BRANCH == 'master') {
-                jarvis=docker.build('dyalog/jarvis', '--no-cache .') // :latest
+                jarvis=docker.build('dyalog/jarvis:dyalog-v19.0', '--no-cache .') // :latest
                 jarvis_d20=docker.build('dyalog/jarvis:dyalog-v20.0', '-f Dockerfile.20.0 --no-cache .')
             } else {
                 jarvis=docker.build("dyalog/jarvis:${BRANCH}-v19.0", '--no-cache .')
@@ -18,7 +18,7 @@ node ('Docker') {
         }
         stage ('Publish Jarvis Containers (Dyalog v19.0)') {
             if ((BRANCH ==~ /^v\d.*/) || (BRANCH == 'master')) {
-                jarvis.push()
+//                jarvis.push()
             } else {
                 echo 'Not publishing containers for this checkout.'
                 return   
@@ -34,11 +34,19 @@ node ('Docker') {
                     fi
                 '''
                 // Build and publish multiarch container
-                sh 'docker buildx build --file ./Dockerfile.20.0 --no-cache --pull --platform linux/amd64,linux/arm64 --tag dyalog/jarvis:dyalog-v20.0 --progress=plain --push .'
+                sh 'docker buildx build --file ./Dockerfile.20.0 --no-cache --pull --platform linux/amd64,linux/arm64 --tag dyalog/jarvis:dyalog-v20.0 --tag dyalog/jarvis:latest --progress=plain --push .'
             } else {
                 echo 'Not publishing containers for this checkout.'
                 return   
             }
+    }
+    stage ('Update DockerHub README file') {
+        withCredentials([usernamePassword(credentialsId: '0435817a-5f0f-47e1-9dcc-800d85e5c335', passwordVariable: 'DOCKER_PASS', usernameVariable: 'DOCKER_USER')]) {
+            sh '''
+            cd $WORKSPACE
+            docker pushrm -f Docker/README.md dyalog/jarvis
+            '''
+        }
     }
     stage ('Cleanup') {
         sh 'docker image prune -f'

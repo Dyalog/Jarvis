@@ -1,5 +1,7 @@
 ## Jarvis web service framework
 
+THE PUBLIC CONTAINERS ARE NOT INTENDED FOR PRODUCTION USE.
+
 Jarvis is Dyalog's web service framework, written in Dyalog APL. For more information about Jarvis, see [the Jarvis GitHub repository](https://github.com/Dyalog/jarvis). The `dyalog/jarvis` container is built from the Docker subdirectory in that repository, and is designed to make it very easy to deploy Jarvis-based applications.
 
 Jarvis documentation can be found [here](https://dyalog.github.io/jarvis).
