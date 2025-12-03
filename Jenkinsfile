@@ -18,7 +18,7 @@ node ('Docker') {
         }
         stage ('Publish Jarvis Containers (Dyalog v19.0)') {
             if ((BRANCH ==~ /^v\d.*/) || (BRANCH == 'master')) {
-//                jarvis.push()
+                jarvis.push()
             } else {
                 echo 'Not publishing containers for this checkout.'
                 return   
