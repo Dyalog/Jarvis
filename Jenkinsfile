@@ -34,7 +34,7 @@ node ('Docker') {
                     fi
                 '''
                 // Build and publish multiarch container
-                sh 'docker buildx build --file ./Dockerfile.20.0 --no-cache --pull --platform linux/amd64,linux/arm64 --tag dyalog/jarvis:dyalog-v20.0 --tag dyalog/jarvis:latest --progress=plain --push .'
+                sh 'docker buildx build --file ./Dockerfile.20.0 --no-cache --pull --provenance=true --sbom=true --platform linux/amd64,linux/arm64 --tag dyalog/jarvis:dyalog-v20.0 --tag dyalog/jarvis:latest --progress=plain --push .'
             } else {
                 echo 'Not publishing containers for this checkout.'
                 return   
