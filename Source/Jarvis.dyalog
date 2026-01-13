@@ -6,7 +6,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.21.2' '2025-11-04'
+      r←'Jarvis' '1.22.0' '2026-01-08'
     ∇
 
     ∇ Documentation
@@ -59,6 +59,7 @@
 
    ⍝ REST mode settings
     :Field Public ParsePayload←1                               ⍝ 1=parse request payload based on content-type header (REST only)
+    :Field Public RESTFailProcessing←0                         ⍝ 0 - don't do anything on failed request, 1 - process response payload as "normal"
     :Field Public RESTMethods←'Get,Post,Put,Delete,Patch,Options'
 
   ⍝ CORS settings
@@ -1312,7 +1313,7 @@
           {}{1(85⌶)'PostProcess ⍵'}ns.Req ⍝ call postprocessing
       :EndTrap
      
-      →0 If 2≠⌊0.01×ns.Req.Response.Status
+      →0 If (0=RESTFailProcessing)∧2≠⌊0.01×ns.Req.Response.Status
       :If (ns.Req.(Response.Headers GetHeader'content-type')≡'')∧~0∊⍴DefaultContentType
           'content-type'ns.Req.SetHeader DefaultContentType
       :EndIf
