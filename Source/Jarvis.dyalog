@@ -6,7 +6,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.22.0' '2026-01-08'
+      r←'Jarvis' '1.22.1' '2026-01-15'
     ∇
 
     ∇ Documentation
@@ -1304,8 +1304,8 @@
           →0⊣ns.Req.Fail 500
       :EndTrap
      
-      :If (0∊⍴ns.Req.Response.Payload)>0∊⍴resp ⍝ if the endpoint returned a response, and there isn't already a response payload...
-          ns.Req.Response.Payload←resp
+      :If 0∊⍴ns.Req.Response.Payload ⍝ if the endpoint set Response.Payload, use it
+          ns.Req.Response.Payload←resp ⍝ otherwise, use whatever was returned by the endpoint
       :EndIf
      
       stopIf DebugLevel 2×~0∊⍴PostProcessFn
