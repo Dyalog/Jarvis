@@ -1960,7 +1960,7 @@
 
     ∇ r←fmtCongaEvent evt
     ⍝ formats the result of LDRC.Wait
-      r←(⍕3↑evt),' ',{500≥≢⍵:⍵ ⋄ (⍕≢⍵),'⍴ ',(250↑⍵),' ... ',(¯250↑⍵)}4⊃evt
+      r←(⍕3↑evt),' ',{500≥≢⍵:⍵ ⋄ (⍕≢⍵),'⍴ ',(250↑⍵),' ... ',(¯250↑⍵)}4⊃evt,'' '' ⍝ ensure evt has a 4th element  
     ∇
 
     ∇ r←InTerm;system
