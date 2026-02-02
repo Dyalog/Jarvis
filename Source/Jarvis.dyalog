@@ -6,7 +6,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.22.1' '2026-01-15'
+      r←'Jarvis' '1.22.2' '2026-02-02'
     ∇
 
     ∇ Documentation
@@ -844,7 +844,7 @@
      
                   :Else ⍝ unhandled event
                       Log'Server: Unhandled Conga event:'
-                      Log⍕wres
+                      Log fmtCongaEvent wres
                   :EndSelect ⍝ evt
      
               :Case 1010 ⍝ Object Not found
@@ -854,7 +854,7 @@
                   :EndIf
               :Else
                   Log'Server: Conga wait failed:'
-                  Log wres
+                  Log fmtCongaEvent wres
               :EndSelect ⍝ rc
      
               CleanupConnections
@@ -1313,7 +1313,7 @@
           {}{1(85⌶)'PostProcess ⍵'}ns.Req ⍝ call postprocessing
       :EndTrap
      
-      →0 If (0=RESTFailProcessing)∧2≠⌊0.01×ns.Req.Response.Status
+      →0 If(0=RESTFailProcessing)∧2≠⌊0.01×ns.Req.Response.Status
       :If (ns.Req.(Response.Headers GetHeader'content-type')≡'')∧~0∊⍴DefaultContentType
           'content-type'ns.Req.SetHeader DefaultContentType
       :EndIf
@@ -1399,8 +1399,8 @@
       close∨←2≠⌊0.01×res.Status ⍝ close the connection on non-2XX status
      
       UseZip ContentEncode ns.Req
-      stopIf DebugLevel 16 
-
+      stopIf DebugLevel 16
+     
       :Select 1⊃z←LDRC.Send obj(status,res.Headers res.Payload)close
       :Case 0 ⍝ everything okay, nothing to do
       :Case 1008 ⍝ Wrong object class likely caused by socket being closed during the request
@@ -1617,7 +1617,7 @@
         ∇ params←ParseQueryString query
           params←0 2⍴⊂''
           →0⍴⍨0∊⍴query
-          query←'UTF-8' ⎕UCS ⎕UCS query
+          query←'UTF-8'⎕UCS ⎕UCS query
           :If '='∊query ⍝ contains name=value?
               params←URLDecode¨2↑[2]↑'='(≠⊆⊢)¨'&'(≠⊆⊢)query
           :Else
@@ -1956,6 +1956,11 @@
 
     ∇ r←Now
       r←DateToIDNX ⎕TS
+    ∇
+
+    ∇ r←fmtCongaEvent evt
+    ⍝ formats the result of LDRC.Wait
+      r←(⍕3↑evt),' ',{500≥≢⍵:⍵ ⋄ (⍕≢⍵),'⍴ ',(250↑⍵),' ... ',(¯250↑⍵)}4⊃evt,'' '' ⍝ ensure evt has a 4th element  
     ∇
 
     ∇ r←InTerm;system
