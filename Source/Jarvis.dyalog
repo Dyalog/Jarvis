@@ -1630,7 +1630,7 @@
           →0⍴⍨0∊⍴query
           query←'UTF-8'⎕UCS ⎕UCS query
           :If '='∊query ⍝ contains name=value?
-              params←URLDecode¨↑,∘(⊂'')¨@(1=≢¨)'='(≠⊆⊢)¨'&'(≠⊆⊢)
+              params←URLDecode¨↑{1 ¯1↓¨'='(≠⊆⊢)1⌽'  ',⍵}¨'&'(≠⊆⊢)query
           :Else
               params←URLDecode query
           :EndIf
