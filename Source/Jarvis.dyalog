@@ -6,7 +6,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.22.5' '2026-07-03'
+      r←'Jarvis' '1.22.6' '2026-07-22'
     ∇
 
     ∇ Documentation
@@ -1629,8 +1629,8 @@
           params←0 2⍴⊂''
           →0⍴⍨0∊⍴query
           query←'UTF-8'⎕UCS ⎕UCS query
-          :If '='∊query ⍝ contains name=value?
-              params←URLDecode¨↑{1 ¯1↓¨'='(≠⊆⊢)1⌽'  ',⍵}¨'&'(≠⊆⊢)query
+          :If ∨/'=&'∊query ⍝ contains name/value or parameter separator?
+              params←URLDecode¨↑{2↑1↓¨'='(=⊂⊢)1⌽'==',⍵}¨'&'(≠⊆⊢)query
           :Else
               params←URLDecode query
           :EndIf
@@ -2034,7 +2034,7 @@
     ⍝ resolve filename to an absolute path even if it contains . .. or symbolic links
     ⍝ under Windows 1 ⎕NPARTS does this, but not on non-Windows
     ⍝ so, on non-Windows, we try to use the "realpath" command
-    ⍝ NB: realpath might need to be installed if you're running on AIX     
+    ⍝ NB: realpath might need to be installed if you're running on AIX
       :If isWin
           r←∊1 ⎕NPARTS filename
       :Else
