@@ -706,21 +706,21 @@
       Validate←{0} ⍝ dummy validation function
       →0 If⊃(rc msg)←ValidateRequestFn CheckHookFn 1(1 ¯2)0 ⍝ result-returning monadic or ambivalent?
       :If ~0∊⍴ValidateRequestFn  ⍝ Request validation function specified?
-              Validate←CodeLocation⍎ValidateRequestFn
-          :Else
-              →0⊣(rc msg)←8('"',(⍕CodeLocation),'.',ValidateRequestFn,'" is not a monadic result-returning function')
-          :EndIf
+          Validate←CodeLocation⍎ValidateRequestFn
+      :Else
+          →0⊣(rc msg)←8('"',(⍕CodeLocation),'.',ValidateRequestFn,'" is not a monadic result-returning function')
+      :EndIf
      
       Authenticate←{0} ⍝ dummy authentication function
       →0 If⊃(rc msg)←AuthenticateFn CheckHookFn 1(1 ¯2)0 ⍝ result-returning monadic or ambivalent?
       :If ~0∊⍴AuthenticateFn  ⍝ authentication function specified?
-              Authenticate←CodeLocation⍎AuthenticateFn
+          Authenticate←CodeLocation⍎AuthenticateFn
       :EndIf
      
       PostProcess←{} ⍝ dummy postprocessing function
       →0 If⊃(rc msg)←PostProcessFn CheckHookFn(0 1)(1 ¯2)0 ⍝ non-result-returning monadic or ambivalent?
       :If ~0∊⍴PostProcessFn ⍝ postprocessing function specified?
-              PostProcess←CodeLocation⍎PostProcessFn
+          PostProcess←CodeLocation⍎PostProcessFn
       :EndIf
      
       :If EnableWebSockets
@@ -886,7 +886,7 @@
                               Log'Server: Object "_connections.',conx,'" was not found on ',evt,', closing Conga onject'
                               {0:: ⋄ {}LDRC.Close ⍵}obj
                           :Else
-                      RemoveConnection conx
+                              RemoveConnection conx
                           :EndIf
                       :Else
                           ref←_connections⍎conx   ⍝ get its reference
@@ -985,34 +985,34 @@
 
     ∇ CleanupConnections;conxNames;timedOut;dead;kids;connecting;connected;killed
       :If ConnectionTimeout≥0
-      :If _connections.lastCheck<⎕AI[3]-ConnectionTimeout×1000
-          killed←⍬
-          :Hold '_connections'
-              connecting←connected←⍬
-              :If ~0∊⍴kids←2 2⊃LDRC.Tree ServerName ⍝ retrieve children of server
+          :If _connections.lastCheck<⎕AI[3]-ConnectionTimeout×1000
+              killed←⍬
+              :Hold '_connections'
+                  connecting←connected←⍬
+                  :If ~0∊⍴kids←2 2⊃LDRC.Tree ServerName ⍝ retrieve children of server
               ⍝ LDRC.Tree
               ⍝ connecting → status 3 1 - incoming connection
               ⍝ connected  → status 3 4 - connected connection
-                  (connecting connected)←2↑{((2 2⍴3 1 3 4)⍪⍵[;2 3]){⊂1↓⍵}⌸'' '',⍵[;1]}↑⊃¨kids
-              :EndIf
-              conxNames←_connections.index[1;]~connecting
+                      (connecting connected)←2↑{((2 2⍴3 1 3 4)⍪⍵[;2 3]){⊂1↓⍵}⌸'' '',⍵[;1]}↑⊃¨kids
+                  :EndIf
+                  conxNames←_connections.index[1;]~connecting
               ⍝↓↓↓ exclude WebSocket Connections
                   timedOut←_connections.index[1;]/⍨(_connections.index[3;]=0)∧ConnectionTimeout<0.001×⎕AI[3]-_connections.index[2;]
-              :If ∨/{~0∊⍴⍵}¨connected conxNames
-                  :If ~0∊⍴timedOut
-                      timedOut/⍨←{6::1 ⋄ 0=(_connections⍎⍵).⎕NC⊂'Req'}¨timedOut
-                  :EndIf
-                  :If ~0∊⍴dead←(connected~conxNames),timedOut ⍝ (connections not in the index), timed out
-                      {0∊⍴⍵: ⋄ {}LDRC.Close ServerName,'.',⍵}¨dead ⍝ attempt to close them
-                  :EndIf
+                  :If ∨/{~0∊⍴⍵}¨connected conxNames
+                      :If ~0∊⍴timedOut
+                          timedOut/⍨←{6::1 ⋄ 0=(_connections⍎⍵).⎕NC⊂'Req'}¨timedOut
+                      :EndIf
+                      :If ~0∊⍴dead←(connected~conxNames),timedOut ⍝ (connections not in the index), timed out
+                          {0∊⍴⍵: ⋄ {}LDRC.Close ServerName,'.',⍵}¨dead ⍝ attempt to close them
+                      :EndIf
                ⍝ remove timed out, or connections that are
-                  _connections.⎕EX killed←(conxNames~connected~dead),timedOut
-                  _connections.index/⍨←_connections.index[1;]∊_connections.⎕NL ¯9
-              :EndIf
-              _connections.lastCheck←⎕AI[3]
-          :EndHold
-          CleanupTokens killed
-      :EndIf
+                      _connections.⎕EX killed←(conxNames~connected~dead),timedOut
+                      _connections.index/⍨←_connections.index[1;]∊_connections.⎕NL ¯9
+                  :EndIf
+                  _connections.lastCheck←⎕AI[3]
+              :EndHold
+              CleanupTokens killed
+          :EndIf
       :EndIf
     ∇
 
@@ -1111,7 +1111,7 @@
               fn←1↓'.'@('/'∘=)ns.Req.Endpoint
      
               :Trap 0 DebugLevel 1 ⍝ last ditch to catch any errors in handlers
-              fn RequestHandler ns ⍝ RequestHandler is either HandleJSONRequest or HandleRESTRequest
+                  fn RequestHandler ns ⍝ RequestHandler is either HandleJSONRequest or HandleRESTRequest
               :Else
                   Log'HandleRequest: ',4↓∊(⊂' on '),⍪2↑⎕DMX.DM
                   ns.Req.Response.Payload←''
@@ -1569,7 +1569,7 @@
     ⍝ Convert Unicode chars to \uXXXX
       ⎕IO←0
       →0⍴⍨0∊⍴i←⍸127<c←⎕UCS w
-      w[i]←{⊂'\u','0123456789ABCDEF'[16 16 16 16⊤⍵]}¨c[i]
+      w[i]←↓⍉'\'⍪'u'⍪'0123456789ABCDEF'[16 16 16 16⊤c[i]]
       w←∊w
     ∇
 
