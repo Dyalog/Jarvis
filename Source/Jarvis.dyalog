@@ -24,7 +24,7 @@
 
    ⍝ Operational settings
     :Field Public CodeLocation←'#'                             ⍝ reference to application code location, if the user specifies a folder or file, that value is saved in CodeSource
-    :Field Public ConnectionTimeout←30                         ⍝ HTTP/1.1 connection timeout in seconds
+    :Field Public ConnectionTimeout←30                         ⍝ HTTP/1.1 connection timeout in seconds, ¯1 = no timeout
     :Field Public Debug←0                                      ⍝ 0 = all errors are trapped, 1 = stop on an error, 2 = stop on intentional error before processing request, 4 = Jarvis framework debugging, 8 = Conga event logging, 16 = just before response
     :Field Public DefaultContentType←'application/json; charset=utf-8'
     :Field Public ErrorInfoLevel←1                             ⍝ level of information to provide if an APL error occurs, 0=none, 1=⎕EM, 2=⎕SI
@@ -56,6 +56,17 @@
     :Field Public AllowFormData←0                              ⍝ do we allow POST form data in JSON paradigm?
     :Field Public AllowGETs←0                                  ⍝ do we allow calling endpoints with HTTP GETs?
     :Field Public JSONInputFormat←'D'                          ⍝ set this to 'M' to have Jarvis convert JSON request payloads to the ⎕JSON matrix format
+
+   ⍝ WebSocket settings
+    :Field Public EnableWebSockets←0                           ⍝ 1 = enable WebSockets
+    :Field Public WsTimeout←5                                  ⍝ minutes before a WebSocket connection times out, 0 for no timeout
+    :Field Public WsAutoUpgrade←1                              ⍝ for now, this will always be 1. Eventually we'll add websocket validation
+    :Field Public OnWsUpgradeFn←''                             ⍝ WSUpgrade event hook function
+    :Field Public OnWsReceiveFn←''                             ⍝ WSReceive event hook function
+    :Field Public OnWsCloseFn←''                               ⍝ Close (on WebSocket) event hook function
+    :Field Public OnWsErrorFn←''                               ⍝ Error (on WebSocket) event hook function
+    :Field Public OnWsUpgradeReqFn←''                          ⍝ WSUpgradeReq event hook function
+    :Field Public WsAuthenticateFn←''                          ⍝ WebSocket authentication hook function
 
    ⍝ REST mode settings
     :Field Public ParsePayload←1                               ⍝ 1=parse request payload based on content-type header (REST only)
@@ -202,6 +213,8 @@
     :Field _includeRegex←''              ⍝ private compiled regex from _IncludeFns
     :Field _excludeRegex←''              ⍝ private compiled regex from _ExcludeFns
     :Field _connections                  ⍝ namespace containing open connections
+    :Field _userHookFns                  ⍝ list of user hook functions, set in CheckCodeLocation
+    :Field _startTime                    ⍝ time the server was started
 
     ∇ r←Config
     ⍝ returns current configuration
@@ -337,7 +350,7 @@
       r←(r(rc msg))
     ∇
 
-    ∇ (rc msg)←Start;html
+    ∇ (rc msg)←Start;html;homePage;t
       :Access public
       :Trap 0 DebugLevel 1
           Log'Starting ',⍕2↑Version
@@ -394,6 +407,7 @@
           Log'Jarvis starting in "',Paradigm,'" mode on port ',⍕Port
           Log'Serving code in ',(⍕CodeLocation),(CodeSource≢'')/' (populated with code from "',CodeSource,'")'
           Log(_htmlEnabled∧_homePage)/'Click http',(~Secure)↓'s://',MyAddr,':',(⍕Port),' to access web interface'
+          _startTime←Now
      
       :Else ⍝ :Trap
           (rc msg)←¯1 ⎕DMX.EM
@@ -494,7 +508,7 @@
           :EndIf
           _configLoaded←1
       :Else
-          →0⊣(rc msg)←⎕DMX.EN ⎕DMX.(EM,(~0∊⍴Message)/' (',Message,')')
+          →0⊣(rc msg)←⎕DMX.EN ⎕DMX.('Error loading configuration: ',EM,(~0∊⍴Message)/' (',Message,')')
       :EndTrap
     ∇
 
@@ -663,63 +677,80 @@
           →0⊣(rc msg)←5 'CodeLocation is not valid, it should be either a namespace/class reference or a file path'
       :EndSelect
      
-      :For fn :In AppInitFn AppCloseFn ValidateRequestFn AuthenticateFn PostProcessFn SessionInitFn _htmlRootFn~⊂''
+      ⍝ save list of all user hook functions, saves maintenance when we add new hooks
+      _userHookFns←AppInitFn AppCloseFn ValidateRequestFn AuthenticateFn PostProcessFn SessionInitFn
+      _userHookFns,←OnWsUpgradeFn OnWsReceiveFn OnWsCloseFn OnWsErrorFn OnWsUpgradeReqFn WsAuthenticateFn
+     
+      :For fn :In _userHookFns~⊂''
           :If 3≠CodeLocation.⎕NC fn
               msg,←(0∊⍴msg)↓',"CodeLocation.',fn,'" was not found '
           :EndIf
       :EndFor
       →0 If rc←8×~0∊⍴msg
      
+      →0 If⊃(rc msg)←AppInitFn CheckHookFn 1(0 1) ⍝ result returning niladic or monadic?
       :If ~0∊⍴AppInitFn  ⍝ initialization function specified?
-          :Select ⊃CodeLocation.⎕AT AppInitFn
-          :Case 1 0 0 ⍝ result-returning niladic?
-              stopIf DebugLevel 2
+          stopIf DebugLevel 2
+          :If 0=2⊃⊃CodeLocation.⎕AT AppInitFn ⍝ niladic?
               res←CodeLocation⍎AppInitFn        ⍝ run it
-          :Case 1 1 0 ⍝ result-returning monadic?
-              stopIf DebugLevel 2
+          :Else ⍝ monadic
               res←(CodeLocation⍎AppInitFn)⎕THIS ⍝ run it
-          :Else
-              →0⊣(rc msg)←8('"',(⍕CodeLocation),'.',AppInitFn,'" is not a niladic or monadic result-returning function')
-          :EndSelect
+          :EndIf
           :If 0≠⊃res
               →0⊣(rc msg)←2↑res,(≢res)↓¯1('"',(⍕CodeLocation),'.',AppInitFn,'" did not return a 0 return code')
           :EndIf
       :EndIf
      
-     
-      :If ~0∊⍴AppCloseFn ⍝ application close function specified?
-          :If 1 0 0≢⊃CodeLocation.⎕AT AppCloseFn ⍝ result-returning niladic?
-              →0⊣(rc msg)←8('"',(⍕CodeLocation),'.',AppCloseFn,'" is not a niladic result-returning function')
-          :EndIf
-      :EndIf
+      →0 If⊃(rc msg)←AppCloseFn CheckHookFn 1 0 0 ⍝ result-returning niladic?
      
       Validate←{0} ⍝ dummy validation function
+      →0 If⊃(rc msg)←ValidateRequestFn CheckHookFn 1(1 ¯2)0 ⍝ result-returning monadic or ambivalent?
       :If ~0∊⍴ValidateRequestFn  ⍝ Request validation function specified?
-          :If ∧/(⊃CodeLocation.⎕AT ValidateRequestFn)∊¨1(1 ¯2)0 ⍝ result-returning monadic or ambivalent?
               Validate←CodeLocation⍎ValidateRequestFn
           :Else
               →0⊣(rc msg)←8('"',(⍕CodeLocation),'.',ValidateRequestFn,'" is not a monadic result-returning function')
           :EndIf
-      :EndIf
      
       Authenticate←{0} ⍝ dummy authentication function
+      →0 If⊃(rc msg)←AuthenticateFn CheckHookFn 1(1 ¯2)0 ⍝ result-returning monadic or ambivalent?
       :If ~0∊⍴AuthenticateFn  ⍝ authentication function specified?
-          :If ∧/(⊃CodeLocation.⎕AT AuthenticateFn)∊¨1(1 ¯2)0 ⍝ result-returning monadic or ambivalent?
               Authenticate←CodeLocation⍎AuthenticateFn
-          :Else
-              →0⊣(rc msg)←8('"',(⍕CodeLocation),'.',AuthenticateFn,'" is not a monadic result-returning function')
-          :EndIf
       :EndIf
      
       PostProcess←{} ⍝ dummy postprocessing function
+      →0 If⊃(rc msg)←PostProcessFn CheckHookFn(0 1)(1 ¯2)0 ⍝ non-result-returning monadic or ambivalent?
       :If ~0∊⍴PostProcessFn ⍝ postprocessing function specified?
-          :If ∧/(⊃CodeLocation.⎕AT PostProcessFn)∊¨(0 1)(1 ¯2)0 ⍝ non-result-returning monadic or ambivalent?
               PostProcess←CodeLocation⍎PostProcessFn
-          :Else
-              →0⊣(rc msg)←8('"',(⍕CodeLocation),'.',PostProcessFn,'" is not a monadic non-result-returning function')
+      :EndIf
+     
+      :If EnableWebSockets
+          WsAuthenticate←{0}
+          →0 If⊃(rc msg)←OnWsUpgradeFn CheckHookFn 1(1 ¯2)0 ⍝ result-returning monadic or ambivalent?
+          →0 If⊃(rc msg)←OnWsReceiveFn CheckHookFn 1(1 ¯2)0 ⍝ result-returning monadic or ambivalent?
+          →0 If⊃(rc msg)←OnWsCloseFn CheckHookFn 1(1 ¯2)0 ⍝ result-returning monadic or ambivalent?
+          →0 If⊃(rc msg)←OnWsErrorFn CheckHookFn 1(1 ¯2)0 ⍝ result-returning monadic or ambivalent?
+          →0 If⊃(rc msg)←WsAuthenticateFn CheckHookFn 1(1 ¯2)0 ⍝ result-returning monadic or ambivalent?
+          :If ~0∊⍴WsAuthenticateFn
+              WsAuthenticate←CodeLocation⍎WsAuthenticateFn
+          :EndIf
+      :EndIf
+     
+    ∇
+
+    ∇ (rc msg)←fn CheckHookFn attr;res;val
+    ⍝ check that the valence of a specified hook function is what we expect
+      (rc msg)←0 ''
+      :If ~0∊⍴fn
+          attr←3↑attr,0
+          attr[2]←⊆∪{¯2∊⍵:⍵ ⋄ ⍵,¯2/⍨∨/1 2∊⍵}2⊃attr
+          :If ~∧/(⊃CodeLocation.⎕AT fn)∊¨attr
+              res←' ','result-returning',⍨(~|1⊃attr)/'non-'
+              val←{3↓∊' or '∘,¨'niladic' 'monadic' 'dyadic' 'ambivalent'/⍨∨⌿⍵∘.∊0 1 2 ¯2}2⊃attr
+              (rc msg)←8('"',(⍕CodeLocation),'.',fn,'" is not a',val,res,' function')
           :EndIf
       :EndIf
     ∇
+
 
     ∇ (rc msg)←Setup
     ⍝ perform final setup before starting server
@@ -751,7 +782,7 @@
       options←''
      
       :If 3.3≤CongaVersion ⍝ can we set DecodeBuffers at server creation?
-          options←⊂'Options'(5+32×FIFO) ⍝ WSAutoAccept (1) + DecodeBuffers (4) + EnableFifo (32)
+          options←⊂'Options'(WsAutoUpgrade+4+32×FIFO) ⍝ WSAutoUpgrade + DecodeBuffers (4) + EnableFifo (32)
       :EndIf
      
       :If 3.4≤CongaVersion ⍝ DOSLimit support started with v3.4
@@ -762,7 +793,7 @@
       :EndIf
      
       _connections←⎕NS''
-      _connections.index←2 0⍴'' 0  ⍝ row-oriented for faster lookup
+      _connections.index←3 0⍴'' 0 0 ⍝ conx, last activity time, websocket?
       _connections.lastCheck←0
      
       :If 0=rc←1⊃r←LDRC.Srv ServerName''Port'http'BufferSize,secureParams,accept,deny,options
@@ -770,7 +801,7 @@
           :If 3.3>CongaVersion
               {}LDRC.SetProp ServerName'FIFOMode'FIFO ⍝ deprecated in Conga v3.2
               {}LDRC.SetProp ServerName'DecodeBuffers' 15 ⍝ 15 ⍝ decode all buffers
-              {}LDRC.SetProp ServerName'WSFeatures' 1 ⍝ auto accept WS requests
+              {}LDRC.SetProp ServerName'WSFeatures'WsAutoUpgrade ⍝ auto accept WS requests?
           :EndIf
           :If 0∊⍴Hostname ⍝ if Host hasn't been set, set it to the default
               Hostname←'http',(~Secure)↓'s://',(2 ⎕NQ'.' 'TCPGetHostID'),((~Port∊80 443)/':',⍕Port),'/'
@@ -842,10 +873,26 @@
                           ref←_connections⍎conx
                           wres ⎕TPUT conn
                           _taskThreads←⎕TNUMS∩_taskThreads,ref{⍺ HandleRequest ⍵}&(obj conn)
-                          ref.Time←⎕AI[3]
+                          UpdateConnectionTime conx
                       :Else
                           Log'Server: Object ''_connections.',conx,''' was not found.'
                           {0:: ⋄ {}LDRC.Close ⍵}obj
+                      :EndIf
+     
+                  :CaseList 'WSUpgrade' 'WSUpgradeReq' 'WSReceive' 'WSClose' 'WSError'
+                      :If ~EnableWebSockets
+                          Log'Server: attempted ',evt,' on connection "',conx,'" but WebSockets are not enabled'
+                          :If 0=_connections.⎕NC conx ⍝ connection doesn't exist?
+                              Log'Server: Object "_connections.',conx,'" was not found on ',evt,', closing Conga onject'
+                              {0:: ⋄ {}LDRC.Close ⍵}obj
+                          :Else
+                      RemoveConnection conx
+                          :EndIf
+                      :Else
+                          ref←_connections⍎conx   ⍝ get its reference
+                          wres ⎕TPUT conn
+                          _taskThreads←⎕TNUMS∩_taskThreads,ref{⍺ HandleWsRequest ⍵}&(obj conn)
+                          UpdateConnectionTime conx
                       :EndIf
      
                   :Case 'Closed'
@@ -901,21 +948,22 @@
     ∇ obj AddConnection conx;IP;res
       :Hold '_connections'
           conx _connections.⎕NS''
-          _connections.index,←conx(⎕AI[3])
+          _connections.index,←conx(⎕AI[3])0
           IP←''
           :Trap 0 DebugLevel 1
               :If 0=⊃res←LDRC.GetProp obj'PeerAddr'
                   IP←2⊃2⊃res
               :EndIf
           :EndTrap
-          (_connections⍎conx).IP←IP
+          (_connections⍎conx).(IP conx IsWebSocket)←IP conx 0
       :EndHold
     ∇
 
     ∇ RemoveConnection conx;ref
+      {}LDRC.Close ServerName,'.',conx
       :Hold '_connections'
           :If 0=_connections.⎕NC conx
-              Log'Attempt to remove non-existent connection ',⍕conx
+⍝             Log'Attempt to remove non-existent connection ',⍕conx
           :Else
               ref←_connections⍎conx
               :If 9=|⌊ref.⎕NC⊂'Req'
@@ -929,7 +977,14 @@
       CleanupTokens conx
     ∇
 
+    ∇ UpdateConnectionTime conx
+      :Hold '_connections'
+          _connections.index[2;_connections.index[1;]⍳⊂conx]←⎕AI[3]
+      :EndHold
+    ∇
+
     ∇ CleanupConnections;conxNames;timedOut;dead;kids;connecting;connected;killed
+      :If ConnectionTimeout≥0
       :If _connections.lastCheck<⎕AI[3]-ConnectionTimeout×1000
           killed←⍬
           :Hold '_connections'
@@ -941,7 +996,8 @@
                   (connecting connected)←2↑{((2 2⍴3 1 3 4)⍪⍵[;2 3]){⊂1↓⍵}⌸'' '',⍵[;1]}↑⊃¨kids
               :EndIf
               conxNames←_connections.index[1;]~connecting
-              timedOut←_connections.index[1;]/⍨ConnectionTimeout<0.001×⎕AI[3]-_connections.index[2;]
+              ⍝↓↓↓ exclude WebSocket Connections
+                  timedOut←_connections.index[1;]/⍨(_connections.index[3;]=0)∧ConnectionTimeout<0.001×⎕AI[3]-_connections.index[2;]
               :If ∨/{~0∊⍴⍵}¨connected conxNames
                   :If ~0∊⍴timedOut
                       timedOut/⍨←{6::1 ⋄ 0=(_connections⍎⍵).⎕NC⊂'Req'}¨timedOut
@@ -956,6 +1012,7 @@
               _connections.lastCheck←⎕AI[3]
           :EndHold
           CleanupTokens killed
+      :EndIf
       :EndIf
     ∇
 
@@ -1053,8 +1110,13 @@
      
               fn←1↓'.'@('/'∘=)ns.Req.Endpoint
      
+              :Trap 0 DebugLevel 1 ⍝ last ditch to catch any errors in handlers
               fn RequestHandler ns ⍝ RequestHandler is either HandleJSONRequest or HandleRESTRequest
-     
+              :Else
+                  Log'HandleRequest: ',4↓∊(⊂' on '),⍪2↑⎕DMX.DM
+                  ns.Req.Response.Payload←''
+                  'Error handling request'ns.Req.Fail 500
+              :EndTrap
      resp:
               ⍝ if HTML interface is enabled, and there's a problem with the request, and we haven't already set a payload
               :If _htmlEnabled∧(2=⌊0.01×ns.Req.Response.Status)<0∊⍴ns.Req.Response.Payload
@@ -1066,6 +1128,151 @@
      
           :EndIf
       :EndHold
+    ∇
+
+    ∇ ns HandleWsRequest(obj conn);rc;evt;data;cert;hdrs;req;reqID;payload;valence;nc;fn;resp;ref
+    ⍝ Handle WebSocket requests
+      :Hold obj
+          (rc obj evt data)←⊃⎕TGET conn ⍝ from Conga.Wait
+          :Select evt
+          :CaseList 'WSUpgrade' 'WSUpgradeReq'
+              ns.Thread←⎕TID
+              ns.PeerCert←''
+              ns.PeerAddr←2⊃2⊃LDRC.GetProp obj'PeerAddr'
+              ns.Server←⎕THIS
+              ns.IsWebSocket←1
+              ns.IsAuthenticated←0
+              ns.AcceptHeaders←''  ⍝ additional headers, if any, to send back with 'WSAccept'
+              _connections.index[3;_connections.index[1;]⍳⊂ns.conx]←1 ⍝ mark this connection as a WebSocket
+              :If Secure
+                  (rc cert)←2↑LDRC.GetProp obj'PeerCert'
+                  :If rc=0
+                      ns.PeerCert←cert
+                  :Else
+                      ns.PeerCert←'Could not obtain certificate'
+                  :EndIf
+              :EndIf
+              (req hdrs)←1(⊃{⍺ ⍵}↓)(⊃data splitOn crlf,crlf)splitOn crlf
+              ns.(Command Path HttpVersion)←req splitOn' '
+              ns.Headers←↑dlb¨¨hdrs splitOnFirst¨':'
+              ns.Headers[;1]←lc ns.Headers[;1]
+              :If evt≡'WSUpgrade'
+                  :If ~0∊⍴OnWsUpgradeFn
+                      stopIf DebugLevel 2
+                      :If 0≠(CodeLocation⍎OnWsUpgradeFn)ns
+                          RemoveConnection ns.conx
+                      :EndIf
+                  :EndIf
+              :Else
+                  :If ~0∊⍴OnWsUpgradeReqFn
+                      stopIf DebugLevel 2
+                      :If 0≠(CodeLocation⍎OnWsUpgradeReqFn)ns
+                          RemoveConnection ns.conx
+                      :Else
+                          LDRC.SetProp obj'WSAccept'(data(formatAcceptHeaders ns.AcceptHeaders))
+                      :EndIf
+                  :EndIf
+              :EndIf
+     
+          :Case 'WSReceive'
+              (reqID←'t',⍕⎕TID)ns.⎕NS'' ⍝ create a namespace for this message based on thread id
+              ref←ns⍎reqID ⍝ get its ref
+              ref.(reqID Payload Complete DataType)←(⊂reqID),data ⍝ populate namespace with message information
+              :If 0∊⍴OnWsReceiveFn ⍝ if no hook function
+                  :If 1 ¯1∊⍨⊃HTMLInterface ⍝ and using built-in HTMLInterface
+              ⍝↓↓↓ the code below is only for the built-in HTMLInterface, though it provides an example of how to use
+                      :Trap 0 DebugLevel 1
+                          payload←JSONin ref.Payload
+                          fn←1↓'.'@('/'∘=)payload.Endpoint
+                          valence←|⊃CodeLocation.⎕AT fn
+                          nc←CodeLocation.⎕NC⊂fn
+                          :Trap 85
+                              :If (2=valence[2])>3.3=nc ⍝ dyadic and not tacit
+                                  stopIf DebugLevel 2
+                                  resp←ref{0 CodeLocation.(85⌶)'⍺ ',fn,' ⍵'}payload.Payload ⍝ intentional stop for application-level debugging
+                              :Else
+                                  stopIf DebugLevel 2
+                                  resp←{0 CodeLocation.(85⌶)fn,' ⍵'}payload.Payload ⍝ intentional stop for application-level debugging
+                              :EndIf
+                          :Else ⍝ no result from the endpoint
+                              resp←'No result'
+                          :EndTrap
+                          ns.conx WsSend JSONout resp
+                      :Else
+                          ns.conx WsSend JSONout('⍎'~⍨⊃⎕DMX.DM),' while processing request'
+                      :EndTrap
+                  :Else
+                      Log'WSReceive: ',data
+                  :EndIf
+              :Else
+                  stopIf DebugLevel 2
+                  :If ~ns.IsAuthenticated ⍝ are we already authenticated?
+                      :If 0≠WsAuthenticate ns ⍝
+                          Log'WSReceive: Authentication failed... closing connection'
+                          RemoveConnection ns.conx
+                      :EndIf
+                  :EndIf
+                  :If 0≠(CodeLocation⍎OnWsReceiveFn)ref
+                      RemoveConnection ns.conx
+                  :EndIf
+              :EndIf
+              ns.⎕EX reqID
+     
+          :Case 'WSClose'
+              :If ~0∊⍴OnWsCloseFn
+                  stopIf DebugLevel 2
+                  {}(CodeLocation⍎OnWsCloseFn)ns
+              :EndIf
+              RemoveConnection ns.conx
+     
+          :Case 'WSError'
+              Log'WSError occurred on ',obj
+              RemoveConnection ns.conx
+          :Else
+              Log'Unexpected HandleWsRequest event: ',evt,'???'
+          :EndSelect
+      :EndHold
+    ∇
+
+    ∇ {r}←where WsSend what;conx;res;obj
+    ⍝ Send a WebSocket payload
+    ⍝ where is the Conga connection
+      :Access public
+      r←⍬
+      :If ~0∊⍴where
+          :Select nameClass what
+          :Case 9.1 ⍝ namespace
+              what←JSONout what
+          :Case 2.1 ⍝ variable (do nothing)
+          :Else
+              →0⊣Log'WsSend: invalid payload'
+          :EndSelect
+          :For conx :In ,⊆where
+              :If 9.1=nameClass conx
+                  conx←conx.conx
+              :EndIf
+              :If 0≠r,←⊃res←LDRC.Send(obj←ServerName,'.',conx)(what 1)
+                  Log'WsSend: error sending WebSocket message: ',∊⍕obj res
+              :EndIf
+          :EndFor
+      :EndIf
+    ∇
+
+    ∇ headers←formatAcceptHeaders headers
+      :If ~0∊⍴headers
+          :Select |≡headers
+          :Case 1 ⍝ simple vector?
+              →0⊣headers,←(crlf≢¯2↑headers)/crlf ⍝ ensure trailing CRLF
+          :Case 2 ⍝ vector of vectors
+              headers←,⍕¨headers
+              headers←(2,⍨⌊0.5×≢,headers)⍴headers
+          :Case |3 ⍝ vector of pairs of vectors
+              headers←↑⍕¨¨headers
+          :Else
+              Log'formatAcceptHeaders: invalid header format'
+          :EndSelect
+          headers←∊(⊂crlf),⍨¨{1↓∊⍵}¨↓':',¨headers
+      :EndIf
     ∇
 
     ∇ rc←type Unzip req;n
@@ -1315,8 +1522,8 @@
           →0⊣ns.Req.Fail 500
       :EndTrap
      
-      :If 0∊⍴ns.Req.Response.Payload ⍝ if the endpoint set Response.Payload, use it
-          ns.Req.Response.Payload←resp ⍝ otherwise, use whatever was returned by the endpoint
+      :If (0∊⍴ns.Req.Response.Payload)>0∊⍴resp ⍝ if the endpoint returned a response, and there isn't already a response payload...
+          ns.Req.Response.Payload←resp
       :EndIf
      
       stopIf DebugLevel 2×~0∊⍴PostProcessFn
@@ -1467,7 +1674,7 @@
           r←CheckFunctionName¨fn
       :Else
           fn←⊆,fn
-          →0 If r←404×fn∊AppInitFn AppCloseFn ValidateRequestFn AuthenticateFn PostProcessFn SessionInitFn _htmlRootFn
+          →0 If r←404×fn∊_userHookFns
           :If ~0∊⍴_includeRegex
               →0 If r←404×0∊⍴(_includeRegex ⎕S'%')fn
           :EndIf
@@ -1875,7 +2082,7 @@
     ⍝ assumes :Hold 'Sessions' is set in calling environment
     ⍝ removes session from _sessions and marks it as time out in _sessionsInfo
       _sessions~←_sessionsInfo[ind;5]
-      _sessionsInfo⌿←ind≠⍳≢_sessionsInfo
+      _sessionsInfo⌿⍨←ind≠⍳≢_sessionsInfo
     ∇
 
     ∇ ref←GetSession req;id
@@ -1935,6 +2142,7 @@
     begins←{⍺≡(⍴⍺)↑⍵} ⍝ does ⍺ begin with ⍵?
     ends←{⍺≡(-≢⍺)↑⍵} ⍝ does ⍺ end with ⍵?
     match←{⍺ (≡nocase) ⍵} ⍝ case insensitive ≡
+    isJSON←{~0 2∊⍨10|⎕DR ⍵:0 ⋄ ~(⊃⍵)∊'-{["',⎕D:0 ⋄ {0::0 ⋄1⊣0 ⎕JSON ⍵}⍵} ⍝ test for JSONableness fails on APL that looks like JSON (e.g. '"abc"')
     sins←{0∊⍴⍺:⍵ ⋄ ⍺} ⍝ set if not set
     stopIf←{1∊⍵:-⎕TRAP←0 'C' '⎕←''Stopped for debugging... (Press Ctrl-Enter)''' ⋄ shy←0} ⍝ faster alternative to setting ⎕STOP
     show←{(2⊃⎕SI),'[',(⍕2⊃⎕LC),'] ',⍵} ⍝ debugging utility
@@ -2242,6 +2450,7 @@
 
     :Section HTML
     ∇ r←ScriptFollows
+      :Access public
     ⍝ return the subsequent block of comments as a text script
       r←{⍵/⍨'⍝'≠⊃¨⍵}{1↓¨⍵/⍨∧\'⍝'=⊃¨⍵}{⍵{((∨\⍵)∧⌽∨\⌽⍵)/⍺}' '≠⍵}¨(1+2⊃⎕LC)↓↓(180⌶)2⊃⎕XSI
       r←2↓∊(⎕UCS 13 10)∘,¨r
@@ -2258,7 +2467,7 @@
       :EndFor
     ∇
 
-    ∇ r←HtmlPage;endpoints
+    ∇ r←HtmlPageOld;endpoints
       :Access public
       r←ScriptFollows
 ⍝<!DOCTYPE html>
@@ -2349,6 +2558,161 @@
       r←endpoints{i←⍵⍳'⌹' ⋄ ((i-1)↑⍵),⍺,i↓⍵}r
       r←'UTF-8'⎕UCS r
     ∇
+
+    ∇ r←HtmlPage;endpoints;j;mask
+      :Access public
+      →Skip⊣r←ScriptFollows
+⍝<!DOCTYPE html>
+⍝<html>
+⍝<head>
+⍝<meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+⍝<link rel="icon" href="data:,">
+⍝<title>JAWS</title>
+⍝ <style>
+⍝   body {color:#000000;background-color:white;font-family:Verdana;margin-left:0px;margin-top:0px;}
+⍝   button {display:inline-block;font-size:1.1em;}
+⍝   legend {font-size:1.1em;}
+⍝   select {font-size:1.1em;}
+⍝   label  {display:inline-block;margin-bottom:7px;}
+⍝   div {padding:5px;}
+⍝   label input textarea button #result {display:flex;}
+⍝   textarea {width:100%;font-size:18px;}
+⍝   .result {font-size:18px;}
+⍝   .result code {white-space:pre-line;word-wrap:break-word;}
+⍝ </style>
+⍝</head>
+⍝<body>
+⍝<div id="content">
+⍝<fieldset>
+⍝  <legend>Request</legend>
+⍝  <form id="myform">
+⍝    <div>
+⍝      <label for="function">Endpoint:</label>
+⍝      ⌹
+⍝    </div>
+⍝    <div>
+⍝      <label for="payload">JSON Payload:</label>
+⍝      <textarea id="payload" name="payload"></textarea>
+⍝    </div>
+⍝    <div>
+⍝      <button onclick="doit()" type="button">Send via HTTP</button>
+⍝⍵      <button id="wsButton" style="visibility:hidden" onclick="wsdoit()" type="button">Send via WebSocket</button>
+⍝    </div>
+⍝  </form>
+⍝</fieldset>
+⍝<fieldset>
+⍝  <legend>Response</legend>
+⍝  <div class="result" id="result">
+⍝  </div>
+⍝</fieldset>
+⍝⍵<fieldset id="wsFields" style="visibility:hidden">
+⍝⍵  <legend>WebSocket Response</legend>
+⍝⍵  <div class="result" id="wsResult">
+⍝⍵  </div>
+⍝⍵</fieldset>
+⍝<script>
+⍝function doit() {
+⍝    document.getElementById("result").innerHTML = "";
+⍝    var payload = document.getElementById("payload").value;
+⍝    var parses = false;
+⍝    try {
+⍝        var json = JSON.parse(payload);
+⍝        parses = true;
+⍝    } finally {
+⍝        if (!parses) {
+⍝            document.getElementById("result").innerHTML = "<span style='color:red;'>Please enter a valid JSON payload</span>";
+⍝        } else {
+⍝            var xhttp = new XMLHttpRequest();
+⍝            var fn = document.getElementById("function").value;
+⍝            fn = (0 == fn.indexOf('/')) ? fn : '/' + fn;
+⍝
+⍝            xhttp.open("POST", fn, true);
+⍝            xhttp.setRequestHeader("content-type", "application/json; charset=utf-8");
+⍝
+⍝            xhttp.onreadystatechange = function () {
+⍝                if (this.readyState == 4) {
+⍝                    if (this.status == 200) {
+⍝                        try {
+⍝                            var resp = "<pre><code>" + JSON.stringify(JSON.parse(this.responseText)) + "</code></pre>";;
+⍝                        }
+⍝                        catch (err) {
+⍝                            var resp = "<pre><code>" + this.responseText + "</code></pre>";
+⍝                        }
+⍝                    } else {
+⍝                        var resp = "<span style='color:red;'>" + this.statusText + "</span> <pre><code>" + this.responseText + "</code></pre>";
+⍝                    }
+⍝                    document.getElementById("result").innerHTML = resp;
+⍝                }
+⍝            }
+⍝            xhttp.send(document.getElementById("payload").value);
+⍝        }
+⍝    }
+⍝}
+⍝⍵function wsdoit() {
+⍝⍵    document.getElementById("wsResult").innerHTML = "";
+⍝⍵    var payload = document.getElementById("payload").value;
+⍝⍵    var parses = false;
+⍝⍵    try {
+⍝⍵        var json = JSON.parse(payload);
+⍝⍵        parses = true;
+⍝⍵    } finally {
+⍝⍵        if (!parses) {
+⍝⍵            document.getElementById("wsResult").innerHTML = "<span style='color:red;'>Please enter a valid JSON payload</span>";
+⍝⍵        } else {
+⍝⍵            var fn = document.getElementById("function").value;
+⍝⍵            fn = (0 == fn.indexOf('/')) ? fn : '/' + fn;
+⍝⍵            var msg = {};
+⍝⍵            msg.Endpoint = fn;
+⍝⍵            msg.Payload = json;
+⍝⍵            msg.Type = "Endpoint";
+⍝⍵            ws.send(JSON.stringify(msg));
+⍝⍵        }
+⍝⍵    }
+⍝⍵}
+⍝⍵var ws;                                                                               0
+⍝⍵ws = new WebSocket("ws://localhost:⍴/");
+⍝⍵ws.onopen = function(evt) { onOpen(evt) };
+⍝⍵ws.onclose = function(evt) { onClose(evt) };
+⍝⍵ws.onmessage = function(evt) { onMessage(evt) };
+⍝⍵ws.onerror = function(evt) { onError(evt) };
+⍝⍵
+⍝⍵function onOpen(evt){
+⍝⍵  document.getElementById("wsButton").style.visibility = "visible";
+⍝⍵  document.getElementById("wsFields").style.visibility = "visible";
+⍝⍵};
+⍝⍵function onClose(evt){console.log("WebSocket closed");};
+⍝⍵function onError(evt){console.log("WebSocket error");};
+⍝⍵
+⍝⍵function onMessage(evt){
+⍝⍵  document.getElementById("wsResult").innerHTML =  "<pre><code>" + evt.data + "</code></pre>";
+⍝⍵}
+⍝</script>
+⍝</div>
+⍝</body>
+⍝</html>
+     Skip:
+      r←r((~∊)⊆⊣)⎕UCS 13 10
+      mask←'⍵'=⊃¨r
+      :If EnableWebSockets∧0∊⍴OnWsReceiveFn
+          r←mask↓¨r
+      :Else
+          r←(~mask)/r
+      :EndIf
+      r←2↓∊(⊂⎕UCS 13 10),¨r
+      endpoints←({⍵/⍨0=CheckFunctionName ⍵}EndPoints CodeLocation)
+      :If 0∊⍴endpoints
+          endpoints←'<b>No Endpoints Found</b>'
+      :Else
+          endpoints←∊{'<option value="',⍵,'">',⍵,'</option>'}¨'/'@('.'=⊢)¨endpoints
+          endpoints←'<select id="function" name="function">',endpoints,'</select>'
+      :EndIf
+      r←endpoints{i←⍵⍳'⌹' ⋄ ((i-1)↑⍵),⍺,i↓⍵}r
+      :If EnableWebSockets
+          r←(⍕Port){i←⍵⍳'⍴' ⋄ ((i-1)↑⍵),⍺,i↓⍵}r
+      :EndIf
+      r←'UTF-8'⎕UCS r
+    ∇
+
     :EndSection
 
 :EndClass
