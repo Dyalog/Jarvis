@@ -6,7 +6,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.22.6' '2026-07-22'
+      r←'Jarvis' '1.23.60' '2026-08-21'
     ∇
 
     ∇ Documentation
@@ -707,8 +707,6 @@
       →0 If⊃(rc msg)←ValidateRequestFn CheckHookFn 1(1 ¯2)0 ⍝ result-returning monadic or ambivalent?
       :If ~0∊⍴ValidateRequestFn  ⍝ Request validation function specified?
           Validate←CodeLocation⍎ValidateRequestFn
-      :Else
-          →0⊣(rc msg)←8('"',(⍕CodeLocation),'.',ValidateRequestFn,'" is not a monadic result-returning function')
       :EndIf
      
       Authenticate←{0} ⍝ dummy authentication function
@@ -733,8 +731,7 @@
           :If ~0∊⍴WsAuthenticateFn
               WsAuthenticate←CodeLocation⍎WsAuthenticateFn
           :EndIf
-      :EndIf
-     
+      :EndIf     
     ∇
 
     ∇ (rc msg)←fn CheckHookFn attr;res;val
