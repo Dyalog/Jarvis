@@ -731,7 +731,7 @@
           :If ~0∊⍴WsAuthenticateFn
               WsAuthenticate←CodeLocation⍎WsAuthenticateFn
           :EndIf
-      :EndIf     
+      :EndIf
     ∇
 
     ∇ (rc msg)←fn CheckHookFn attr;res;val
@@ -1562,11 +1562,14 @@
       :EndTrap
     ∇
 
-    ∇ w←SafeJSON w;i;c;⎕IO
-    ⍝ Convert Unicode chars to \uXXXX
+    ∇ w←SafeJSON w;i;c;hex;esc;⎕IO
+    ⍝ Convert Unicode chars to \uXXXX (chars beyond the BMP are UTF-16 surrogate-pair encoded per the JSON spec)
+      :Access public shared
       ⎕IO←0
       →0⍴⍨0∊⍴i←⍸127<c←⎕UCS w
-      w[i]←↓⍉'\'⍪'u'⍪'0123456789ABCDEF'[16 16 16 16⊤c[i]]
+      hex←{'0123456789ABCDEF'[16 16 16 16⊤⍵]}
+      esc←{65535≥⍵:'\u',hex ⍵ ⋄ ('\u',hex 55296+⌊1024÷⍨⍵-65536),'\u',hex 56320+1024|⍵-65536}
+      w[i]←esc¨c[i]
       w←∊w
     ∇
 
@@ -1830,11 +1833,12 @@
         ∇
 
         ∇ params←ParseQueryString query
+          :Access public shared
           params←0 2⍴⊂''
           →0⍴⍨0∊⍴query
           query←'UTF-8'⎕UCS ⎕UCS query
           :If ∨/'=&'∊query ⍝ contains name/value or parameter separator?
-              params←URLDecode¨↑{2↑1↓¨'='(=⊂⊢)1⌽'==',⍵}¨'&'(≠⊆⊢)query
+              params←URLDecode¨↑'='∘split¨'&'(≠⊆⊢)query ⍝ split each on the FIRST '=' only, so '=' can appear in the value
           :Else
               params←URLDecode query
           :EndIf
@@ -2113,7 +2117,7 @@
     ⍝ we have a valid session, refresh the cookie or set the header
           :If SessionUseCookie
               SessionIdHeader req.SetCookie id,(SessionTimeout>0)/'; Max-Age=',⍕⌈60×SessionTimeout
-          :ElseIf
+          :Else
               SessionIdHeader req.SetHeader id
           :EndIf
           _sessionsInfo[ind;4]←Now
