@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Simple SSE Client</title>
+
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        background: #f5f5f5;
+        padding: 20px;
+      }
+
+      #log {
+        background: white;
+        border: 1px solid #ccc;
+        padding: 15px;
+        height: 300px;
+        overflow-y: auto;
+        font-family: Consolas, monospace;
+      }
+
+      .msg {
+        padding: 5px 0;
+        border-bottom: 1px solid #eee;
+      }
+
+      #status {
+        font-weight: bold;
+        margin-bottom: 10px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h2>Simple SSE Client</h2>
+
+    <div id="status">Connecting…</div>
+    <div id="log"></div>
+
+    <script>
+      // Change this to your SSE endpoint
+      const clientId = "Brian"; // or any unique ID
+      const url = `/events?clientId=${clientId}`;
+
+      const status = document.getElementById("status");
+      const log = document.getElementById("log");
+
+      function addMessage(text) {
+        const div = document.createElement("div");
+        div.className = "msg";
+        div.textContent = text;
+        log.appendChild(div);
+        log.scrollTop = log.scrollHeight;
+      }
+
+      const sse = new EventSource(url);
+
+      sse.onopen = () => {
+        status.textContent = "Connected";
+        addMessage("[system] Connection opened");
+      };
+
+      sse.onerror = () => {
+        status.textContent = "Disconnected (retrying…)";
+        addMessage("[system] Connection lost — browser will retry");
+      };
+
+      sse.onmessage = (e) => {
+        addMessage(`[message] ${e.data}`);
+      };
+
+      // Example of listening for custom event types:
+      sse.addEventListener("ping", (e) => {
+        addMessage(`[ping] ${e.data}`);
+      });
+    </script>
+  </body>
+</html>

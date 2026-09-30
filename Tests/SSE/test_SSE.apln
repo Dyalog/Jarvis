@@ -1,0 +1,498 @@
+:Namespace test_SSE
+⍝ Server-Sent Events (SSE) tests for Jarvis
+⍝ Usage:
+⍝   From the shell (repository root):  dyalogscript Tests/SSE/run.apls
+⍝   From an APL session with #.Jarvis loaded:  #.test_SSE.Run
+⍝ Run returns a vector of failure messages; empty means every test passed.
+⍝ Each test starts its own Jarvis on its own port, and uses a raw Conga client (Jarvis's own LDRC, in Text mode)
+⍝ so that the event stream can be read incrementally.
+⍝ See docs/plans/sse.md, Phase 2, for the cases these tests cover.
+
+    (⎕IO ⎕ML)←1 1
+    CRLF←⎕UCS 13 10
+    LF←⎕UCS 10
+    BOM←⎕UCS 65279
+    BasePort←8190
+    Verbose←1                ⍝ 1 = print each test's name and result as it runs
+
+    TJarvisSource←':Class TJarvis: #.Jarvis' ':Field Public Logged←⍬' '∇ {msg}←{level}Log msg' ':Access public override' 'Logged,←⊂,⍕msg' '∇' ':EndClass'
+
+    ∇ r←Run;tests;t;res
+      :Access public
+    ⍝ run every test_* function, returning a vector of failure messages
+      r←⍬
+      :If 9≠#.⎕NC'Jarvis'
+          →0⊣r←,⊂'#.Jarvis is not loaded'
+      :EndIf
+      ⎕FIX TJarvisSource
+      tests←{⍵/⍨'test_'∘≡¨5↑¨⍵}⎕NL ¯3
+      :For t :In tests
+          App←MakeApp
+          (Servers Clients)←⍬ ⍬
+          :Trap 0
+              res←⍎t
+          :Else
+              res←,⊂'errored: ',⊃⎕DMX.DM
+          :EndTrap
+          StopAll
+          r,←(⊂t,': '),¨res
+          :If Verbose
+              ⎕←t,': ',(1+0∊⍴res)⊃('FAILED (',(⍕≢res),')')'passed'
+              ⎕←⍪res
+          :EndIf
+      :EndFor
+    ∇
+
+⍝ ─── the application code (CodeLocation) used by the tests ─────────────────────────
+
+    ∇ app←MakeApp
+      app←⎕NS''
+      app.Reqs←⍬
+      app.⎕FX'r←events req' 'Reqs,←req' 'r←0'
+      app.⎕FX'r←alerts req' 'Reqs,←req' 'r←0'
+      app.⎕FX'r←closer req' 'r←1'
+      app.⎕FX'r←broken req' 'r←÷0'
+      app.⎕FX'{r}←shy req' 'r←0'
+      app.⎕FX'nores req' 'Reqs,←req'
+      app.⎕FX'r←a dyadic b' 'r←0'
+      app.a←⎕NS''
+      app.a.⎕FX'r←b req' 'r←0'
+      app.avar←42
+      app.⎕FX'r←Authenticate req' 'r←~''secret''≡req.GetHeader''x-token'''
+    ∇
+
+⍝ ─── helpers ───────────────────────────────────────────────────────────────────────
+
+    Expect←{⍺:0⍴⊂'' ⋄ ,⊂⍵}                 ⍝ cond Expect 'message'  →  ⍬ if cond, else the message
+    Show←{∊{⍵=LF:'<LF>' ⋄ ⍵=⎕UCS 13:'<CR>' ⋄ ⍵}¨,⍕⍵}   ⍝ make line breaks visible in messages
+    Contains←{∨/⍺⍷⍵}                        ⍝ 'needle' Contains 'haystack'
+    LoggedMatch←{∨/∨/¨(⊂⍵)⍷¨⍺.Logged}       ⍝ j LoggedMatch 'text'
+
+    ∇ j←NewServer endpoints
+    ⍝ create (but don't start) a test server on its own port
+      j←⎕NEW TJarvis
+      j.Port←BasePort+1+≢Servers
+      j.CodeLocation←App
+      j.SSEEndpoints←endpoints
+      j.DYALOG_JARVIS_THREAD←'debug'
+      j.SSEHeartbeatInterval←0
+      j.WaitTimeout←1000
+      Servers,←j
+    ∇
+
+    ∇ StopAll;j;c
+    ⍝ stop every server this test started and close its clients
+      :For j :In Servers
+          :Trap 0
+              {}j.Stop
+              {}j.LDRC.Close j.ServerName ⍝ in case the server was Reset rather than stopped
+          :EndTrap
+      :EndFor
+      :For c :In Clients
+          :Trap 0 ⋄ {}#.Jarvis.LDRC.Close c ⋄ :EndTrap
+      :EndFor
+      (Servers Clients)←⍬ ⍬
+    ∇
+
+    ∇ c←j Connect path
+    ⍝ open a raw client to server j and send a GET for path with an SSE Accept header
+      c←j Request('GET'path(,⊂'Accept' 'text/event-stream'))
+    ∇
+
+    ∇ c←j Request(method path headers);rc;req
+    ⍝ open a raw client to server j and send one HTTP request; c is the client name
+      (rc c)←2↑j.LDRC.Clt'' 'localhost'j.Port'Text'
+      'Could not connect'⎕SIGNAL 11/⍨rc≠0
+      Clients,←⊂c
+      req←method,' ',path,' HTTP/1.1',CRLF,'Host: localhost',CRLF
+      req,←∊{⍺,': ',⍵,CRLF}/¨headers
+      req,←(method≢'GET')/'Content-Length: 0',CRLF
+      req,←CRLF
+      {}j.LDRC.Send c req
+    ∇
+
+    ∇ (data closed)←j Read(c until ms);end;res;rc;evt
+    ⍝ read from client c until the text "until" has been received (or, if until is 1, until the data ends with a
+    ⍝ blank line), the connection closes, or ms milliseconds have passed
+      data←'' ⋄ closed←0 ⋄ end←ms+⎕AI[3]
+      :While ⎕AI[3]<end
+          res←j.LDRC.Wait c 100
+          (rc evt)←(4↑res,4⍴⊂'')[1 3]
+          :If rc=0
+              :If (⊂evt)∊'Block' 'BlockLast'
+                  data,←4⊃res
+              :EndIf
+              :If (⊂evt)∊'BlockLast' 'Closed' 'Error'
+                  closed←1 ⋄ :Leave
+              :EndIf
+          :ElseIf rc≠100 ⍝ 100 = timeout; anything else (e.g. 1010 object not found) means the connection is gone
+              closed←1 ⋄ :Leave
+          :EndIf
+          :If until≡1
+              :If LF LF≡¯2↑data ⋄ :Leave ⋄ :EndIf
+          :ElseIf ~0∊⍴until
+              :If until Contains data ⋄ :Leave ⋄ :EndIf
+          :EndIf
+      :EndWhile
+    ∇
+
+    ∇ (status headers body)←ParseResponse data;i;head;lines
+    ⍝ split a raw HTTP response into status code, header matrix (lower-case names) and body
+      status←0 ⋄ headers←0 2⍴⊂'' ⋄ body←''
+      →0⍴⍨0∊⍴i←⍸(CRLF,CRLF)⍷data
+      head←(¯1+⊃i)↑data
+      body←(3+⊃i)↓data
+      lines←{⍵~⎕UCS 13}¨(head≠⎕UCS 10)⊆head
+      status←⊃(//)⎕VFI 2⊃' '(≠⊆⊢)⊃lines
+      headers←↑{i←⍵⍳':' ⋄ (⎕C(i-1)↑⍵)({⍵↓⍨+/∧\' '=⍵}i↓⍵)}¨1↓lines
+    ∇
+
+    ∇ r←headers Header name
+      r←(headers[;1]⍳⊂⎕C name)⊃headers[;2],⊂''
+    ∇
+
+    ∇ (status headers body closed)←j Open path;data
+    ⍝ connect to an SSE endpoint and read the response headers and the initial ": connected" comment
+    ⍝ the client's name is left in Last, for the caller's later Reads
+      Last←j Connect path
+      (data closed)←j Read Last(': connected',LF,LF)3000
+      (status headers body)←ParseResponse data
+    ∇
+
+    ∇ r←WaitGone(j conx);end
+    ⍝ wait up to 3 seconds for conx to disappear from j.SSEConnections''; r is 1 if it did
+      end←3000+⎕AI[3]
+      :Repeat
+          :If ~(⊂conx)∊j.SSEConnections''
+              →0⊣r←1
+          :EndIf
+          {}⎕DL 0.1
+      :Until ⎕AI[3]>end
+      r←0
+    ∇
+
+⍝ ─── tests ─────────────────────────────────────────────────────────────────────────
+
+    ∇ r←test_Startup;j;rc;msg
+    ⍝ start-up checks of SSEEndpoints and the endpoint functions (plan §2.1, §4.7)
+      r←⍬
+      j←NewServer'events nofn'
+      (rc msg)←j.Start
+      r,←(rc=0)Expect'Start with a function and a missing function failed: ',⍕msg
+      {}j.Stop
+
+      j←NewServer'shy nores events'
+      (rc msg)←j.Start
+      r,←(rc=0)Expect'shy, no-result and explicit-result endpoint functions should be accepted: ',⍕msg
+      {}j.Stop
+
+      j←NewServer'dyadic'
+      (rc msg)←j.Start
+      r,←(rc≠0)Expect'a dyadic endpoint function should be rejected'
+      r,←('is not a'Contains⍕msg)Expect'dyadic rejection message is not readable: ',⍕msg
+
+      j←NewServer'avar'
+      (rc msg)←j.Start
+      r,←(rc≠0)Expect'a variable with an endpoint''s name should make Start fail (§4.7)'
+      r,←('avar'Contains⍕msg)Expect'the Start failure message should name the variable: ',⍕msg
+    ∇
+
+    ∇ r←test_Shutdown;j;t;res
+    ⍝ Start then Stop returns promptly, with and without SSE endpoints
+      r←⍬
+      :For j :In (NewServer'')(NewServer'events')
+          :If 0≠⊃res←j.Start
+              r,←⊂'Start failed: ',⍕res ⋄ :Continue
+          :EndIf
+          t←⎕AI[3]
+          res←j.Stop
+          r,←(res≡0 'Server stopped')Expect'Stop returned ',⍕res
+          r,←(5000>⎕AI[3]-t)Expect'Stop took ',(⍕⎕AI[3]-t),'ms'
+      :EndFor
+    ∇
+
+    ∇ r←test_Handshake;j;status;headers;body;closed
+    ⍝ GET returns 200, the SSE headers, and a ": connected" comment
+      r←⍬
+      j←NewServer'events'
+      →0↓⍨0∊⍴r←(0=⊃j.Start)Expect'Start failed'
+      (status headers body closed)←j Open'/events'
+      r,←(status=200)Expect'status ',(⍕status),', expected 200; body: ',Show body
+      r,←('text/event-stream; charset=utf-8'≡headers Header'content-type')Expect'content-type: ',headers Header'content-type'
+      r,←('no-cache'≡headers Header'cache-control')Expect'cache-control: ',headers Header'cache-control'
+      r,←('no'≡headers Header'x-accel-buffering')Expect'x-accel-buffering: ',headers Header'x-accel-buffering'
+      r,←((': connected',LF,LF)≡body)Expect'body should be ": connected" + blank line, got: ',Show body
+      r,←(~closed)Expect'stream closed unexpectedly'
+      r,←(1=≢j.SSEConnections'events')Expect'SSEConnections ''events'' should list 1 connection'
+    ∇
+
+    ∇ r←test_Rejections;j;c;status;headers;body;data;closed
+    ⍝ wrong method, unacceptable Accept header, no Accept header, CORS, authentication
+      r←⍬
+      j←NewServer'events'
+      →0↓⍨0∊⍴r←(0=⊃j.Start)Expect'Start failed'
+
+      c←j Request('POST' '/events'⍬)
+      (status headers body)←ParseResponse⊃j Read c(CRLF,CRLF)3000
+      r,←(status=405)Expect'POST: status ',(⍕status),', expected 405'
+
+      c←j Request('GET' '/events'(,⊂'Accept' 'application/json'))
+      (status headers body)←ParseResponse⊃j Read c(CRLF,CRLF)3000
+      r,←(status=406)Expect'Accept: application/json: status ',(⍕status),', expected 406'
+
+      c←j Request('GET' '/events'⍬)
+      (status headers body)←ParseResponse⊃j Read c(': connected',LF,LF)3000
+      r,←(status=200)Expect'no Accept header: status ',(⍕status),', expected 200'
+
+      c←j Request('OPTIONS' '/events'(('Origin' 'http://example.com')('Access-Control-Request-Method' 'GET')))
+      (status headers body)←ParseResponse⊃j Read c(CRLF,CRLF)3000
+      r,←(status=204)Expect'CORS preflight: status ',(⍕status),', expected 204'
+      r,←(~0∊⍴headers Header'access-control-allow-origin')Expect'CORS preflight: no Access-Control-Allow-Origin header'
+
+      c←j Request('GET' '/events'(('Origin' 'http://example.com')('Accept' 'text/event-stream')))
+      (status headers body)←ParseResponse⊃j Read c(': connected',LF,LF)3000
+      r,←(status=200)Expect'CORS GET: status ',(⍕status),', expected 200'
+      r,←((,'*')≡headers Header'access-control-allow-origin')Expect'CORS GET: Access-Control-Allow-Origin is "',(headers Header'access-control-allow-origin'),'"'
+      {}j.Stop
+
+      j←NewServer'events'
+      j.AuthenticateFn←'Authenticate'
+      →0↓⍨0∊⍴r,←(0=⊃j.Start)Expect'Start with AuthenticateFn failed'
+      c←j Connect'/events'
+      (data closed)←j Read c(CRLF,CRLF)3000
+      (status headers body)←ParseResponse data
+      r,←(status=401)Expect'no credentials: status ',(⍕status),', expected 401'
+      r,←(~'event-stream'Contains headers Header'content-type')Expect'authentication failure should not start a stream'
+      c←j Request('GET' '/events'(('Accept' 'text/event-stream')('x-token' 'secret')))
+      (status headers body)←ParseResponse⊃j Read c(': connected',LF,LF)3000
+      r,←(status=200)Expect'valid credentials: status ',(⍕status),', expected 200'
+    ∇
+
+    ∇ r←test_EndpointNames;cases;case;setting;paths;path;j;status;headers;body;closed
+    ⍝ every accepted form of SSEEndpoints routes to the right endpoints (normalizeEndpoint)
+      r←⍬
+      cases←⍬
+      cases,←⊂'events'(,⊂'/events')
+      cases,←⊂'/events'(,⊂'/events')
+      cases,←⊂'a.b'(,⊂'/a/b')
+      cases,←⊂'/a/b'(,⊂'/a/b')
+      cases,←⊂'/events, a/b'('/events' '/a/b')
+      cases,←⊂('/events' 'a/b')('/events' '/a/b')
+      :For (setting paths) :In cases
+          j←NewServer setting
+          :If 0≠⊃j.Start
+              r,←⊂'SSEEndpoints←',(Show setting),': Start failed' ⋄ :Continue
+          :EndIf
+          :For path :In paths
+              (status headers body closed)←j Open path
+              r,←((status=200)∧'event-stream'Contains headers Header'content-type')Expect'SSEEndpoints←',(Show setting),': GET ',path,' gave status ',⍕status
+          :EndFor
+          {}j.Stop
+      :EndFor
+    ∇
+
+    ∇ r←test_EndpointFunction;j;status;headers;body;closed;data
+    ⍝ result 0 keeps the stream open, non-zero closes it, an error closes it and is logged
+      r←⍬
+      j←NewServer'events closer broken'
+      →0↓⍨0∊⍴r←(0=⊃j.Start)Expect'Start failed'
+
+      (status headers body closed)←j Open'/events'
+      (data closed)←j Read Last''1500
+      r,←(~closed)Expect'events (result 0): stream should stay open'
+      r,←(1=≢App.Reqs)Expect'events: the endpoint function should have been called once'
+
+      (status headers body closed)←j Open'/closer'
+      :If ~closed ⋄ (data closed)←j Read Last''3000 ⋄ :EndIf
+      r,←closed Expect'closer (result 1): stream should be closed'
+
+      (status headers body closed)←j Open'/broken'
+      :If ~closed ⋄ (data closed)←j Read Last''3000 ⋄ :EndIf
+      r,←closed Expect'broken (error): stream should be closed'
+      r,←(j LoggedMatch'Error in SSE handler for endpoint broken')Expect'broken: the error should be logged'
+    ∇
+
+    ∇ r←test_Sending;j;c1;c2;n1;n2;data;closed;res
+    ⍝ SendSSE by connection name and by Request; broadcasts via SSEConnections
+      r←⍬
+      j←NewServer'events alerts'
+      →0↓⍨0∊⍴r←(0=⊃j.Start)Expect'Start failed'
+      {}j Open'/events' ⋄ c1←Last
+      {}j Open'/alerts' ⋄ c2←Last
+      n1←j.SSEConnections'events'
+      n2←j.SSEConnections'/alerts'
+      r,←(1 1≡≢¨n1 n2)Expect'SSEConnections should list one connection per endpoint, got ',⍕≢¨n1 n2
+      →0↓⍨0∊⍴r
+
+      res←n1 j.SendSSE'by name'
+      (data closed)←j Read c1 1 2000
+      r,←(('data: by name',LF,LF)≡data)Expect'send by name: got ',Show data
+      r,←(res≡,0)Expect'send by name: result ',⍕res
+
+      res←(⊃App.Reqs)j.SendSSE'by request'
+      (data closed)←j Read c1 1 2000
+      r,←(('data: by request',LF,LF)≡data)Expect'send by Request: got ',Show data
+
+      res←(j.SSEConnections'')j.SendSSE'everyone'
+      r,←(res≡0 0)Expect'broadcast to all: result ',⍕res
+      r,←(('data: everyone',LF,LF)≡⊃j Read c1 1 2000)Expect'broadcast to all: events client did not receive it'
+      r,←(('data: everyone',LF,LF)≡⊃j Read c2 1 2000)Expect'broadcast to all: alerts client did not receive it'
+
+      {}(j.SSEConnections'alerts')j.SendSSE'alerts only'
+      r,←(('data: alerts only',LF,LF)≡⊃j Read c2 1 2000)Expect'per-endpoint broadcast: alerts client did not receive it'
+      r,←(0∊⍴⊃j Read c1 1 700)Expect'per-endpoint broadcast: events client should not receive it'
+
+      r,←(2=≢j.SSEConnections'events, /alerts')Expect'SSEConnections with two endpoints should list 2 connections'
+    ∇
+
+    ∇ r←test_Payloads;j;c;conx;cases;what;expected;data;closed;ns
+    ⍝ what SendSSE actually puts on the wire for each kind of payload (plan §4.2)
+      r←⍬
+      j←NewServer'events'
+      →0↓⍨0∊⍴r←(0=⊃j.Start)Expect'Start failed'
+      {}j Open'/events' ⋄ c←Last
+      conx←j.SSEConnections'events'
+      ns←⎕NS'' ⋄ ns.a←1
+      cases←⍬
+      cases,←⊂('event: e',LF,'data: x',LF,LF)('event: e',LF,'data: x',LF,LF)   ⍝ pre-formatted: byte for byte
+      cases,←⊂'hello'('data: hello',LF,LF)
+      cases,←⊂('l1' 'l2')('data: l1',LF,'data: l2',LF,LF)
+      cases,←⊂(2 2⍴'abcd')('data: ab',LF,'data: cd',LF,LF)
+      cases,←⊂(BOM,'data: x',LF,LF)('data: x',LF,LF)                          ⍝ BOM stripped
+      cases,←⊂''(':',LF,LF)                                                    ⍝ empty → keep-alive comment
+      cases,←⊂BOM(':',LF,LF)                                                   ⍝ lone BOM → keep-alive comment
+      cases,←⊂42('data: 42',LF,LF)                                             ⍝ plan §3 item 1
+      cases,←⊂ns('data: {"a":1}',LF,LF)                                        ⍝ plan §3 item 1
+      cases,←⊂(1 2 3)('data: [1,2,3]',LF,LF)
+      cases,←⊂'a'('data: a',LF,LF)                                             ⍝ character scalar, plan §3 item 2
+      :For (what expected) :In cases
+          {}conx j.SendSSE what
+          (data closed)←j Read c 1 2000
+          r,←(expected≡data)Expect'payload ',(Show what),': expected ',(Show expected),', got ',Show data
+          :If closed ⋄ r,←⊂'stream closed after payload ',Show what ⋄ :Leave ⋄ :EndIf
+      :EndFor
+    ∇
+
+    ∇ r←test_NonSSETarget;j;res
+    ⍝ SendSSE to a connection that isn't an open SSE connection returns ¯1, sends nothing, and logs it
+      r←⍬
+      j←NewServer'events'
+      →0↓⍨0∊⍴r←(0=⊃j.Start)Expect'Start failed'
+      res←'CON99999999'j.SendSSE'nobody'
+      r,←(res≡,¯1)Expect'SendSSE to an unknown connection returned ',⍕res
+      r,←(j LoggedMatch'non-SSE or closed connection')Expect'SendSSE to an unknown connection was not logged'
+    ∇
+
+    ∇ r←test_Disconnect;j;conx;res
+    ⍝ closing the client removes the connection, and a later SendSSE to it fails
+      r←⍬
+      j←NewServer'events'
+      →0↓⍨0∊⍴r←(0=⊃j.Start)Expect'Start failed'
+      {}j Open'/events'
+      →0↓⍨0∊⍴r←(1=≢j.SSEConnections'events')Expect'no SSE connection was opened'
+      conx←⊃j.SSEConnections'events'
+      {}j.LDRC.Close Last
+      r,←(WaitGone j conx)Expect'connection ',conx,' still listed 3s after the client closed'
+      res←conx j.SendSSE'too late'
+      r,←(0≠⊃res)Expect'SendSSE to a closed connection returned 0'
+    ∇
+
+    ∇ r←test_Heartbeat;j;data;closed;t
+    ⍝ heartbeat comments arrive at the configured interval, and not at all when it's 0
+      r←⍬
+      j←NewServer'events'
+      j.SSEHeartbeatInterval←1
+      →0↓⍨0∊⍴r←(0=⊃j.Start)Expect'Start failed'
+      {}j Open'/events'
+      (data closed)←j Read Last(':',LF,LF)3000
+      r,←((':',LF,LF)≡data)Expect'SSEHeartbeatInterval←1: no heartbeat within 3s, got ',Show data
+      t←⎕AI[3]
+      {}j.Stop
+      r,←(5000>⎕AI[3]-t)Expect'Stop with the heartbeat running took ',(⍕⎕AI[3]-t),'ms'
+
+      j←NewServer'events'
+      →0↓⍨0∊⍴r,←(0=⊃j.Start)Expect'Start (interval 0) failed'
+      {}j Open'/events'
+      (data closed)←j Read Last''2500
+      r,←(0∊⍴data)Expect'SSEHeartbeatInterval←0: unexpected data ',Show data
+
+      r,←(30≡(⎕NEW TJarvis).SSEHeartbeatInterval)Expect'SSEHeartbeatInterval should default to 30'
+    ∇
+
+    ∇ r←test_Timeouts;j;data;closed;conx
+    ⍝ an SSE connection is not closed by ConnectionTimeout
+      r←⍬
+      j←NewServer'events'
+      j.(ConnectionTimeout WaitTimeout)←1 200
+      →0↓⍨0∊⍴r←(0=⊃j.Start)Expect'Start failed'
+      {}j Open'/events'
+      (data closed)←j Read Last''3000
+      r,←(~closed)Expect'the SSE stream was closed within 3s with ConnectionTimeout←1'
+      conx←j.SSEConnections'events'
+      {}conx j.SendSSE'still here'
+      (data closed)←j Read Last 1 2000
+      r,←(('data: still here',LF,LF)≡data)Expect'no event received after ConnectionTimeout had passed: ',Show data
+    ∇
+
+    ∇ r←test_BeforeAfter;j
+    ⍝ SSEConnections returns '' before Start, after Stop and after Reset
+      r←⍬
+      j←NewServer'events'
+      r,←(0∊⍴j.SSEConnections'')Expect'before Start: SSEConnections should be empty'
+      →0↓⍨0∊⍴r,←(0=⊃j.Start)Expect'Start failed'
+      {}j Open'/events'
+      r,←(1=≢j.SSEConnections'')Expect'while running: SSEConnections should list 1 connection'
+      {}j.Stop
+      r,←(0∊⍴j.SSEConnections'')Expect'after Stop: SSEConnections should be empty'
+      →0↓⍨0∊⍴r,←(0=⊃j.Start)Expect'restart failed'
+      {}j Open'/events'
+      {}j.Reset
+      r,←(0∊⍴j.SSEConnections'')Expect'after Reset: SSEConnections should be empty'
+    ∇
+
+    ∇ r←test_FormatSSE;J;cases;args;expected;got;ns
+    ⍝ unit cases for the public shared FormatSSE
+      r←⍬
+      J←#.Jarvis
+      cases←⍬
+      cases,←⊂(⊂'hello')('data: hello',LF,LF)
+      cases,←⊂(⊂'a',(⎕UCS 13 10),'b',(⎕UCS 13),'c')('data: a',LF,'data: b',LF,'data: c',LF,LF)
+      cases,←⊂(⊂2 2⍴'abcd')('data: ab',LF,'data: cd',LF,LF)
+      cases,←⊂(⊂'xx' 'yy')('data: xx',LF,'data: yy',LF,LF)
+      cases,←⊂(⊂1 2 3)('data: [1,2,3]',LF,LF)
+      cases,←⊂(⊂'')(':',LF,LF)
+      cases,←⊂(⊂'a')('data: a',LF,LF)                                                   ⍝ plan §3 item 2
+      cases,←⊂('ping' 'x')('event: ping',LF,'data: x',LF,LF)
+      cases,←⊂(('update' '42' '3000')'x')('event: update',LF,'id: 42',LF,'retry: 3000',LF,'data: x',LF,LF)
+      cases,←⊂(('update' '' 'soon')'x')('event: update',LF,'data: x',LF,LF)             ⍝ empty id and bad retry omitted
+      cases,←⊂(('e',LF,'vil')'x')('event: evil',LF,'data: x',LF,LF)                     ⍝ line breaks stripped from fields
+      :For (args expected) :In cases
+          got←{1=≢⍵:J.FormatSSE⊃⍵ ⋄ (⊃⍵)J.FormatSSE 2⊃⍵}args
+          r,←(expected≡got)Expect'FormatSSE ',(Show args),': expected ',(Show expected),', got ',Show got
+      :EndFor
+      ns←⎕NS'' ⋄ ns.(event id retry)←'upd' 7 250
+      got←ns J.FormatSSE'x'
+      r,←(('event: upd',LF,'id: 7',LF,'retry: 250',LF,'data: x',LF,LF)≡got)Expect'FormatSSE with namespace fields: got ',Show got
+    ∇
+
+    ∇ r←test_IsSSEText;J;cases;s;expected
+    ⍝ unit cases for the public shared IsSSEText
+      r←⍬
+      J←#.Jarvis
+      cases←⍬
+      cases,←⊂('data: x',LF,LF)1
+      cases,←⊂('data: x',CRLF,CRLF)1
+      cases,←⊂('data: x',LF)0                        ⍝ unterminated
+      cases,←⊂'hello' 0
+      cases,←⊂(':',LF,LF)1                           ⍝ comment
+      cases,←⊂('foo: x',LF,LF)0                      ⍝ unknown field → wrapped (by design)
+      cases,←⊂('retry: soon',LF,LF)0
+      cases,←⊂42 0
+      cases,←⊂(⊂'data: x')0
+      cases,←⊂('data: a',LF,LF,'event: e',LF,'data: b',LF,LF)1
+      :For (s expected) :In cases
+          r,←(expected≡J.IsSSEText s)Expect'IsSSEText ',(Show s),' should be ',⍕expected
+      :EndFor
+    ∇
+
+:EndNamespace

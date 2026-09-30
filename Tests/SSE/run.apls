@@ -1,0 +1,16 @@
+⍝ Run the Jarvis SSE tests from the shell:
+⍝     dyalogscript Tests/SSE/run.apls
+⍝ Loads Source/Jarvis.dyalog (relative to this script) unless JARVIS_SOURCE names another copy,
+⍝ runs #.test_SSE.Run, prints any failures, and exits with 0 if every test passed, 1 otherwise.
+⎕IO←1
+here←{⊃1 ⎕NPARTS ⍵}⊃{⍵/⍨∨/¨'run.apls'∘⍷¨⍵}2 ⎕NQ'.' 'GetCommandLineArgs'
+src←2 ⎕NQ'.' 'GetEnvironment' 'JARVIS_SOURCE'
+src←(1+0∊⍴src)⊃src(here,'../../Source/Jarvis.dyalog')
+⎕←'Jarvis source: ',src
+{}#.⎕FIX'file://',src
+{}#.⎕FIX'file://',here,'test_SSE.apln'
+failures←#.test_SSE.Run
+⎕←''
+⎕←(⍕≢failures),' failure(s)'
+⎕←⍪failures
+⎕OFF(0≠≢failures)
