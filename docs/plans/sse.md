@@ -1,7 +1,9 @@
 # Server-Sent Events (SSE) support
 
-Status: in progress on branch `SSE` (Jarvis 1.24.0). Last reviewed 2026-09-30 against the working tree
-(thirteenth review: the sample in `Samples/SSE` is written and tested; source and tests unchanged since the twelfth).
+Status: in progress on branch `SSE` (Jarvis 1.24.0). Last reviewed 2026-10-01 against commit `1c34a50` (clean
+working tree). This is the fourteenth review. The only source change since the thirteenth is the `fmtHeaders`/`firstCaps`
+move (§3.1), which is now committed. Every claim and line reference below was re-checked against
+`Source/Jarvis.dyalog`, and `Tests/SSE/test_SSE.apln` still has 23 tests.
 
 ## 1. Goal
 
@@ -17,13 +19,13 @@ existing CORS, validation and authentication.
 | Piece | Where | Notes |
 |---|---|---|
 | Settings | fields | `SSEEndpoints` (comma/space-delimited string, or a vector of names) and `SSEHeartbeatInterval` (seconds, default 30, 0 = off). |
-| Endpoint list | `CheckCodeLocation` | `_SSEEndpoints←normalizeEndpoint SSEEndpoints`. The names are added to `_userHookFns`, so they can't also be called as ordinary JSON/REST functions (404). Each name for which `CodeLocation.⎕NC fn` is non-zero is checked with `CheckHookFn(0 1)(1 ¯2)`: monadic or ambivalent, with an explicit, shy or no result. A variable or namespace with an endpoint's name therefore fails `Start` with a clear message, by design (§4.7). |
+| Endpoint list | `CheckCodeLocation` | `_SSEEndpoints←normalizeEndpoint SSEEndpoints`. The names are added to `_userHookFns`. In practice an SSE endpoint can't be called as an ordinary JSON/REST function anyway, because `HandleRequest` routes every request for its path to `HandleSSERequest` first (any non-`GET` gets 405), so `CheckFunctionName`'s 404 is never reached for these names. Each name for which `CodeLocation.⎕NC fn` is non-zero is checked with `CheckHookFn(0 1)(1 ¯2)`: monadic or ambivalent, with an explicit, shy or no result. A variable or namespace with an endpoint's name therefore fails `Start` with a clear message, by design (§4.7). |
 | `normalizeEndpoint` | private | Splits a string on commas and spaces, or takes a vector of names (from JSON config), then drops leading `/`s, converts `/`→`.`, and removes empties and duplicates. It always returns a vector of names. Produces the same form as `HandleRequest`'s `1↓'.'@('/'∘=)Endpoint` (tested in dyalogscript). |
 | `CheckHookFn` | private | Now compares `|` of the `⎕AT` result code, so a shy result counts as a result for **every** hook. Every hook's call site handles a shy result: `⍎`/direct calls use it as a value, and `PostProcess` is called with `1(85⌶)` inside `:Trap 85`. The error message handles a vector of result codes. |
 | Routing | `HandleRequest` | `fn←1↓'.'@('/'∘=)ns.Req.Endpoint`. If `fn` is in `_SSEEndpoints`, the request goes to `HandleSSERequest` instead of `RequestHandler`. A `state` flag (0 respond / 1 SSE / 2 removed) skips `Respond`. `Req.Connection` is set from `ns.conx`. Request paths are deliberately **not** passed through `normalizeEndpoint` (§4.1). |
 | Request checks | `HandleSSERequest` | CORS, then `GET` only (405), then `Accept` must allow `text/event-stream` (406), then `CheckAuthentication`. A failure falls through to a normal error response. |
-| Stream start | `StartSSE(obj req endpoint)` | Sends a raw, close-delimited `200` response with SSE headers (`text/event-stream; charset=utf-8`, `no-cache`, `Connection: close`, `X-Accel-Buffering: no`). Header lines are built with `fmtHeaders req.Response.Headers`, which capitalises names with `firstCaps` (e.g. `x-app-header` → `X-App-Header`). Records the endpoint number in `_connections.index[4;]` (§4.1), sets `IsSSE` on the connection namespace, and sends a `: connected` comment. |
-| Endpoint function | `HandleSSERequest` | Optional. If `3=CodeLocation.⎕NC endpoint`, it's called with `0 CodeLocation.(85⌶)endpoint,' ⍵'`, so explicit and shy results are used and no result is allowed. Result 0 or no result keeps the stream open, non-zero closes it, and an error is logged and closes it. |
+| Stream start | `StartSSE(obj req endpoint)` | Sets `Server` and `Date` with `SetHeader`, as `Respond` does. Sends a raw, close-delimited `200` response with SSE headers (`text/event-stream; charset=utf-8`, `no-cache`, `Connection: close`, `X-Accel-Buffering: no`). Header lines are built with `fmtHeaders req.Response.Headers`, which capitalises names with `firstCaps` (e.g. `x-app-header` → `X-App-Header`). Records the endpoint number in `_connections.index[4;]` (§4.1), sets `IsSSE` on the connection namespace, and sends a `: connected` comment. |
+| Endpoint function | `HandleSSERequest` | Optional. If `3=CodeLocation.⎕NC endpoint`, it's called with `{85::0 ⋄ 0 CodeLocation.(85⌶)endpoint,' ⍵'}`, so explicit and shy results are used, and no result counts as 0. Result 0 or no result keeps the stream open, non-zero closes it, and an error is logged and closes it. |
 | Timeouts | `CleanupConnections` | SSE connections are excluded from `ConnectionTimeout` (`0∧.=_connections.index[3 4;]`). This exclusion is redundant today, but harmless (§3 item 2). |
 | Header formatting | Jarvis level | `fmtHeaders` and `firstCaps` (lines 2378–2379) sit next to `uc`/`lc`, where both are visible. They're used only by `StartSSE`; `Respond` hands its headers to Conga. |
 | `SSEConnections` | public instance | `''` → all SSE connections. Otherwise the argument goes through `normalizeEndpoint` and connections whose endpoint number is in the result are returned (`∊`), so several endpoints can be requested at once. An unknown endpoint → empty. Before `Start`, `{6::1 ⋄ 0⊣_connections}''` detects the unassigned field, and the function returns `''`. After `Stop` or `Reset`, `_connections` is freshly initialised (`init_connections`), so it returns `''` then too. |
@@ -45,9 +47,10 @@ controls catch the faults they're meant to (§5 Phase 2).
 `Samples/SSE/`: a live server clock and shared chat, with Jarvis serving the page, the stream and a JSON endpoint
 (§5 Phase 3).
 
-### 2.4 Not started
+### 2.4 Documentation (partly written)
 
-- Documentation (`docs/`) and release notes.
+- Written: `docs/settings-sse.md` and `docs/sse.md`, both in `mkdocs.yml` nav and the settings overview (§5 Phase 3).
+- Not started: the reference entries in `methods-instance.md`, `methods-shared.md` and `request.md`, and the release notes.
 
 ## 3. Issues found in review
 
@@ -191,7 +194,9 @@ harmless: the send fails, and `RemoveConnection` on an already-removed connectio
   - `PostProcessFn` (`test_PostProcess`)
   - response compression (`test_NoCompression`)
 - SSE works in both JSON and REST modes (`test_REST`).
-- An SSE endpoint can't also be called as a normal JSON/REST endpoint (404). Not yet tested.
+- An SSE endpoint can't also be called as a normal JSON/REST endpoint: every request for its path is routed to `HandleSSERequest`, so a `POST` gets 405 (the sample's check confirms this). There's no 404 path for these names.
+- With `HTMLInterface` enabled, a rejected SSE request (405/406/401) gets the usual HTML error body (`<h3>405 …</h3>`)
+  from `HandleRequest`, because only accepted streams skip `Respond`. Not tested; document it with the rejections.
 - The stream is close-delimited, so it works for HTTP/1.0 and 1.1 (`test_HTTP10`) and ends when either side closes (`test_Disconnect`, `test_EndpointFunction`).
 - On reconnect the browser sends `Last-Event-ID`, which the endpoint reads with `req.GetHeader 'last-event-id'` (`test_LastEventID`).
 
@@ -293,7 +298,7 @@ Sections: §4 (all), §3 "Verified assumption".
 - `SendSSE` by connection namespace: SSE code has no public way to get one (§4.5 open question).
 - Heartbeat with `DYALOG_JARVIS_THREAD` `0`/`1`: those modes block in `RunServer` and then `⎕OFF`, so they can't run inside the test process. Test manually.
 - `normalizeEndpoint` unit cases: it's private, so it's covered indirectly by `test_EndpointNames`. It was checked directly in dyalogscript during review.
-- An SSE endpoint called as an ordinary JSON/REST endpoint returning 404 (§4.6).
+- A `POST` to an SSE endpoint returning 405 in the test suite (§4.6). It's checked by hand with the sample only.
 - A shy-result `ValidateRequestFn` (or another non-SSE hook): belongs in the general tests.
 - The thread-switch window in §4.3: timing-dependent, so it can't be forced reliably.
 
@@ -329,15 +334,24 @@ Sections: §4 (all), §3 "Verified assumption".
 - **Known limitation (documented in the README):** tick ids restart from 1 when the server restarts, because the
   counter is in the workspace. Replaying missed events is out of scope (§6).
 
-**Documentation (not started):**
-- Docs:
-  - Settings: add `SSEEndpoints` (both accepted forms) and `SSEHeartbeatInterval` to a settings page (a new `settings-sse.md`, or the operational settings page) and to `mkdocs.yml` nav.
+**Documentation (partly written):**
+- Done:
+  - `docs/settings-sse.md`: `SSEEndpoints` (both accepted forms, name normalisation, start-up check, 405) and
+    `SSEHeartbeatInterval`. Added to `mkdocs.yml` nav (under Settings, after CORS) and to `settings-overview.md`.
+  - `docs/sse.md` (Advanced Topics, "Server-Sent Events"): a first example; how requests flow and what does and doesn't
+    carry over (§4.6, including HTML error bodies and that `Req.IsSSE` is still 0 in `ValidateRequestFn`); the endpoint
+    function and the disconnect/`KillOnDisconnect` note (§3 item 1); `SendSSE` with the §4.2 payload rule and result
+    codes; `SSEConnections`; `FormatSSE`; `IsSSEText` with the unknown-field rule and `IsSSEText ''`; heartbeats;
+    reconnecting and `Last-Event-ID`; authentication with `EventSource` (no custom headers: cookies or query tokens);
+    limits (browser connections per origin, proxies, no send queues); and a pointer to `Samples/SSE`. The
+    `FormatSSE`/`IsSSEText` examples were run against the current source in dyalogscript.
+  - Connection namespaces are left out of `docs/sse.md` for now: `SendSSE`'s targets are documented as connection names
+    and `Request` objects only (§4.5).
+- Still to do:
   - `methods-instance.md`: `SendSSE` (including the §4.2 payload rule), `SSEConnections` (including multiple endpoints).
   - `methods-shared.md`: `FormatSSE`, `IsSSEText` (including the unknown-field rule and `IsSSEText ''`, §3 item 1).
-  - `request.md`: `Connection`, `IsSSE`, `AddHeader`.
-  - The connection namespace's `IsSSE` flag, next to wherever `IsWebSocket` is documented (§4.5).
-  - A short concepts section on how SSE requests flow (§4.6) and the disconnect/`KillOnDisconnect` note (§3 item 1).
-  - Point to `Samples/SSE` as the worked example.
+  - `request.md`: `Connection`, `AddHeader`. (`IsSSE` is done: description, an `AuthenticateFn` example, and when it's set relative to `ValidateRequestFn`.)
+  - The connection namespace's `IsSSE` flag, next to wherever `IsWebSocket` is documented (§4.5). Deferred with the §4.5 question.
 - `release-notes.md`: a 1.24.0 entry, including shy results now being accepted for all hook functions (§3 item 1).
 
 ## 6. Out of scope
@@ -362,3 +376,6 @@ Sections: §4 (all), §3 "Verified assumption".
 - 2026-09-30: the `fmtHeaders` fix went in as recommended: `fmtHeaders`/`firstCaps` moved to the Jarvis level (§3.1).
 - 2026-09-30: test servers get unique ports within a run; reusing ports across tests caused a flaky "Server seems stuck" from `Stop` (§5 Phase 2).
 - 2026-09-30: the SSE sample is `Samples/SSE/` (`SSEDemo.apln` + `web/index.html`), using named `tick` and `chat` events (§5 Phase 3).
+- 2026-10-01: fourteenth review, against commit `1c34a50`. The plan matched the source; only the status line and two small details were updated (§2.1 `StartSSE` and endpoint-function rows, §4.6 HTML error bodies).
+- 2026-10-01: SSE docs written as `settings-sse.md` (reference) and `sse.md` (Advanced Topics). Connection namespaces aren't documented as `SendSSE` targets until §4.5 is decided (§5 Phase 3).
+- 2026-10-01: corrected the earlier claim that an SSE endpoint called as a JSON/REST function gets 404; routing sends every request for the path to the SSE handler, so non-`GET` gets 405 (§2.1, §4.6).

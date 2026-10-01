@@ -46,6 +46,13 @@ Most `Request` fields should be considered read-only and are intended to convey 
 |Default|`''`|
 |Notes|In JSON mode, this will normally be `POST`. In REST mode, the HTTP method specifies the function to be called to service the request as specified in [`RESTMethods`](./settings-rest.md#restmethods).|
 
+### `IsSSE`
+|--|--|
+|Description|`IsSSE` is a Boolean that indicates whether the request is for one of the [Server-Sent Events](./sse.md) endpoints named in [`SSEEndpoints`](./settings-sse.md#sseendpoints). Valid values are:<ul><li>`0` - an ordinary request</li><li>`1` - a request for an SSE endpoint</li></ul>|
+|Default|`0`|
+|Example(s)|An [`AuthenticateFn`](./settings-hooks.md#authenticatefn) that checks event streams differently, because the browser's `EventSource` can't send an `Authorization` header. `CheckToken` and `CheckLogin` stand for your own functions, returning `0` for success:<br><br>&emsp;&emsp;&emsp;`∇ r←Authenticate req`<br>`[1]    :If req.IsSSE`<br>`[2]        r←CheckToken req ⍝ e.g. a token in req.QueryParams`<br>`[3]    :Else`<br>`[4]        r←CheckLogin req`<br>`[5]    :EndIf`<br>&emsp;&emsp;&emsp;`∇`|
+|Notes|`Jarvis` sets `IsSSE` after calling [`ValidateRequestFn`](./settings-hooks.md#validaterequestfn), just before it handles the SSE request. So it's always `0` in `ValidateRequestFn`, and `1` in `AuthenticateFn`, [`SessionInitFn`](./settings-hooks.md#sessioninitfn) and the SSE endpoint function. To recognise an SSE request in `ValidateRequestFn`, check [`Endpoint`](#endpoint) instead.|
+
 ### `Password`
 |--|--|
 |Description||

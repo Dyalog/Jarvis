@@ -79,6 +79,7 @@ nav:
         - 'User Hooks Settings' : 'settings-hooks.md' # complete
         - 'Conga-Related Settings': 'settings-conga.md' # complete
         - 'CORS Settings': 'settings-cors.md' # complete
+        - 'SSE Settings': 'settings-sse.md'
         - 'Container Settings': 'settings-container.md' # complete
         - 'Shared Settings': settings-shared.md # complete
       - 'Methods':
@@ -89,6 +90,7 @@ nav:
       - 'Jarvis and Conga': 'conga.md' # complete
       - 'Security' : 'security.md'
       - 'Using Sessions' : 'sessions.md'
+      - 'Server-Sent Events' : 'sse.md'
       - 'Docker Integration' : 'docker.md'
 #      - 'Running as a Windows Service' : 'winservice.md'
 #      - 'Into the Cloud' : 'cloud.md'
