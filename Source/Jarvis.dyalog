@@ -686,7 +686,7 @@
      
       ⍝ save list of all user hook functions, saves maintenance when we add new hooks
       _userHookFns←AppInitFn AppCloseFn ValidateRequestFn AuthenticateFn PostProcessFn SessionInitFn
-      _userHookFns,←OnWsUpgradeFn OnWsReceiveFn OnWsCloseFn OnWsErrorFn OnWsUpgradeReqFn WsAuthenticateFn
+      _userHookFns,←OnWsUpgradeFn OnWsReceiveFn OnWsCloseFn OnWsErrorFn OnWsUpgradeReqFn WsAuthenticateFn _htmlRootFn
      
       :For fn :In _userHookFns~⊂''
           :If 3≠CodeLocation.⎕NC fn
@@ -1189,119 +1189,130 @@
     ⍝ Handle WebSocket requests
       :Hold obj
           (rc obj evt data)←⊃⎕TGET conn ⍝ from Conga.Wait
-          :Select evt
-          :CaseList 'WSUpgrade' 'WSUpgradeReq'
-              ns.Thread←⎕TID
-              ns.PeerCert←''
-              ns.PeerAddr←2⊃2⊃LDRC.GetProp obj'PeerAddr'
-              ns.Server←⎕THIS
-              ns.IsWebSocket←1
-              ns.IsAuthenticated←0
-              ns.AcceptHeaders←''  ⍝ additional headers, if any, to send back with 'WSAccept'
-              _connections.index[3;_connections.index[1;]⍳⊂ns.conx]←1 ⍝ mark this connection as a WebSocket
-              :If Secure
-                  (rc cert)←2↑LDRC.GetProp obj'PeerCert'
-                  :If rc=0
-                      ns.PeerCert←cert
-                  :Else
-                      ns.PeerCert←'Could not obtain certificate'
-                  :EndIf
-              :EndIf
-              (req hdrs)←1(⊃{⍺ ⍵}↓)(⊃data splitOn crlf,crlf)splitOn crlf
-              ns.(Command Path HttpVersion)←req splitOn' '
-              ns.Headers←↑dlb¨¨hdrs splitOnFirst¨':'
-              ns.Headers[;1]←lc ns.Headers[;1]
-              :If evt≡'WSUpgrade'
-                  :If ~0∊⍴OnWsUpgradeFn
-                      stopIf DebugLevel 2
-                      :If 0≠(CodeLocation⍎OnWsUpgradeFn)ns
-                          RemoveConnection ns.conx
+          :Trap 0 DebugLevel 1
+              :Select evt
+              :CaseList 'WSUpgrade' 'WSUpgradeReq'
+                  ns.Thread←⎕TID
+                  ns.PeerCert←''
+                  ns.PeerAddr←2⊃2⊃LDRC.GetProp obj'PeerAddr'
+                  ns.Server←⎕THIS
+                  ns.IsWebSocket←1
+                  ns.IsAuthenticated←0
+                  ns.AcceptHeaders←''  ⍝ additional headers, if any, to send back with 'WSAccept'
+                  _connections.index[3;_connections.index[1;]⍳⊂ns.conx]←1 ⍝ mark this connection as a WebSocket
+                  :If Secure
+                      (rc cert)←2↑LDRC.GetProp obj'PeerCert'
+                      :If rc=0
+                          ns.PeerCert←cert
+                      :Else
+                          ns.PeerCert←'Could not obtain certificate'
                       :EndIf
                   :EndIf
-              :Else
-                  :If ~0∊⍴OnWsUpgradeReqFn
-                      stopIf DebugLevel 2
-                      :If 0≠(CodeLocation⍎OnWsUpgradeReqFn)ns
-                          RemoveConnection ns.conx
+                  (req hdrs)←1(⊃{⍺ ⍵}↓)(⊃data splitOn crlf,crlf)splitOn crlf
+                  ns.(Command Path HttpVersion)←req splitOn' '
+                  ns.Headers←↑dlb¨¨hdrs splitOnFirst¨':'
+                  ns.Headers[;1]←lc ns.Headers[;1]
+                  :If evt≡'WSUpgrade'
+                      :If ~0∊⍴OnWsUpgradeFn
+                          stopIf DebugLevel 2
+                          :If 0≠(CodeLocation⍎OnWsUpgradeFn)ns
+                              RemoveConnection ns.conx
+                          :EndIf
+                      :EndIf
+                  :Else
+                      :If ~0∊⍴OnWsUpgradeReqFn
+                          stopIf DebugLevel 2
+                          :If 0≠(CodeLocation⍎OnWsUpgradeReqFn)ns
+                              RemoveConnection ns.conx
+                          :Else
+                              LDRC.SetProp obj'WSAccept'(data(formatAcceptHeaders ns.AcceptHeaders))
+                          :EndIf
                       :Else
                           LDRC.SetProp obj'WSAccept'(data(formatAcceptHeaders ns.AcceptHeaders))
                       :EndIf
-                  :Else
-                      LDRC.SetProp obj'WSAccept'(data(formatAcceptHeaders ns.AcceptHeaders))
                   :EndIf
-              :EndIf
      
-          :Case 'WSReceive'
-              (reqID←'t',⍕⎕TID)ns.⎕NS'' ⍝ create a namespace for this message based on thread id
-              ref←ns⍎reqID ⍝ get its ref
-              ref.(reqID Payload Complete DataType)←(⊂reqID),data ⍝ populate namespace with message information
-              :If 0∊⍴OnWsReceiveFn ⍝ if no hook function
-                  :If 1 ¯1∊⍨⊃HTMLInterface ⍝ and using built-in HTMLInterface
+              :Case 'WSReceive'
+                  (reqID←'t',⍕⎕TID)ns.⎕NS'' ⍝ create a namespace for this message based on thread id
+                  ref←ns⍎reqID ⍝ get its ref
+                  ref.(reqID Payload Complete DataType)←(⊂reqID),data ⍝ populate namespace with message information
+                  :If 0∊⍴OnWsReceiveFn ⍝ if no hook function
+                      :If 1 ¯1∊⍨⊃HTMLInterface ⍝ and using built-in HTMLInterface
               ⍝↓↓↓ the code below is only for the built-in HTMLInterface, though it provides an example of how to use
-                      :Trap 0 DebugLevel 1
-                          payload←JSONin ref.Payload
-                          fn←1↓'.'@('/'∘=)payload.Endpoint
-                          :If 404=CheckFunctionName fn
-                              resp←'Invalid Endpoint: "',fn,'"'
-                          :Else
-                              valence←|⊃CodeLocation.⎕AT fn
-                              nc←CodeLocation.⎕NC⊂fn
-                              :Trap 85
-                                  :If (2=valence[2])>3.3=nc ⍝ dyadic and not tacit
-                                      stopIf DebugLevel 2
-                                      resp←ref{0 CodeLocation.(85⌶)'⍺ ',fn,' ⍵'}payload.Payload ⍝ intentional stop for application-level debugging
+                          :If ns.IsAuthenticated
+                          :OrIf 0=WsAuthenticate
+                              ns.IsAuthenticated←1
+                              :Trap 0 DebugLevel 1
+                                  payload←JSONin ref.Payload
+                                  fn←1↓'.'@('/'∘=)payload.Endpoint
+                                  :If 404=CheckFunctionName fn
+                                      resp←'Invalid Endpoint: "',fn,'"'
                                   :Else
-                                      stopIf DebugLevel 2
-                                      resp←{0 CodeLocation.(85⌶)fn,' ⍵'}payload.Payload ⍝ intentional stop for application-level debugging
+                                      valence←|⊃CodeLocation.⎕AT fn
+                                      nc←CodeLocation.⎕NC⊂fn
+                                      :Trap 85
+                                          :If (2=valence[2])>3.3=nc ⍝ dyadic and not tacit
+                                              stopIf DebugLevel 2
+                                              resp←ref{0 CodeLocation.(85⌶)'⍺ ',fn,' ⍵'}payload.Payload ⍝ intentional stop for application-level debugging
+                                          :Else
+                                              stopIf DebugLevel 2
+                                              resp←{0 CodeLocation.(85⌶)fn,' ⍵'}payload.Payload ⍝ intentional stop for application-level debugging
+                                          :EndIf
+                                      :Else ⍝ no result from the endpoint
+                                          resp←''
+                                      :EndTrap
                                   :EndIf
-                              :Else ⍝ no result from the endpoint
-                                  resp←''
+                                  ns.conx WsSend JSONout resp
+                              :Else
+                                  ns.conx WsSend JSONout'WSReceive Error: ',ErrorInfo
                               :EndTrap
+                          :Else
+                              Log'WSReceive: Authentication failed... closing connection'
+                              RemoveConnection ns.conx
                           :EndIf
-                          ns.conx WsSend JSONout resp
                       :Else
-                          ns.conx WsSend JSONout'WSReceive Error: ',ErrorInfo
-                      :EndTrap
-                  :Else
-                      Log'WSReceive: ',data
-                  :EndIf
-              :Else
-                  stopIf DebugLevel 2
-                  :If ns.IsAuthenticated ⍝ are we already authenticated?
-                      :If 0≠(CodeLocation⍎OnWsReceiveFn)ref
-                          RemoveConnection ns.conx
+                          Log'WSReceive: ',data
                       :EndIf
                   :Else
-                      :If 0=WsAuthenticate ns ⍝ authentication passed or wasn't necessary?
-                          ns.IsAuthenticated←1
+                      stopIf DebugLevel 2
+                      :If ns.IsAuthenticated ⍝ are we already authenticated?
                           :If 0≠(CodeLocation⍎OnWsReceiveFn)ref
                               RemoveConnection ns.conx
                           :EndIf
                       :Else
-                          Log'WSReceive: Authentication failed... closing connection'
-                          RemoveConnection ns.conx
+                          :If 0=WsAuthenticate ns ⍝ authentication passed or wasn't necessary?
+                              ns.IsAuthenticated←1
+                              :If 0≠(CodeLocation⍎OnWsReceiveFn)ref
+                                  RemoveConnection ns.conx
+                              :EndIf
+                          :Else
+                              Log'WSReceive: Authentication failed... closing connection'
+                              RemoveConnection ns.conx
+                          :EndIf
                       :EndIf
                   :EndIf
-              :EndIf
-              ns.⎕EX reqID
+                  ns.⎕EX reqID
      
-          :Case 'WSClose'
-              :If ~0∊⍴OnWsCloseFn
-                  stopIf DebugLevel 2
-                  {}(CodeLocation⍎OnWsCloseFn)ns
-              :EndIf
-              RemoveConnection ns.conx
+              :Case 'WSClose'
+                  :If ~0∊⍴OnWsCloseFn
+                      stopIf DebugLevel 2
+                      {}(CodeLocation⍎OnWsCloseFn)ns
+                  :EndIf
+                  RemoveConnection ns.conx
      
-          :Case 'WSError'
-              :If ~0∊⍴OnWsErrorFn
-                  stopIf DebugLevel 2
-                  {}(CodeLocation⍎OnWsErrorFn)ns
-              :EndIf
-              Log'WSError occurred on ',obj,': ',∊⍕data
-              RemoveConnection ns.conx
+              :Case 'WSError'
+                  :If ~0∊⍴OnWsErrorFn
+                      stopIf DebugLevel 2
+                      {}(CodeLocation⍎OnWsErrorFn)ns
+                  :EndIf
+                  Log'WSError occurred on ',obj,': ',∊⍕data
+                  RemoveConnection ns.conx
+              :Else
+                  Log'Unexpected HandleWsRequest event: ',evt,'???'
+              :EndSelect
           :Else
-              Log'Unexpected HandleWsRequest event: ',evt,'???'
-          :EndSelect
+              Log'Error occurred processing event "',evt,'": ',ErrorInfo
+          :EndTrap
       :EndHold
     ∇
 
