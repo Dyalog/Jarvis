@@ -59,8 +59,7 @@
 
    ⍝ WebSocket settings
     :Field Public EnableWebSockets←0                           ⍝ 1 = enable WebSockets
-    :Field Public WsTimeout←5                                  ⍝ minutes before a WebSocket connection times out, 0 for no timeout
-    :Field Public WsAutoUpgrade←1                              ⍝ for now, this will always be 1. Eventually we'll add websocket validation
+    :Field Public WsAutoUpgrade←1                              ⍝ automatically accept WebSocket upgrades?
     :Field Public OnWsUpgradeFn←''                             ⍝ WSUpgrade event hook function
     :Field Public OnWsReceiveFn←''                             ⍝ WSReceive event hook function
     :Field Public OnWsCloseFn←''                               ⍝ Close (on WebSocket) event hook function
@@ -747,6 +746,7 @@
           →0 If⊃(rc msg)←OnWsCloseFn CheckHookFn 1(1 ¯2)0 ⍝ result-returning monadic or ambivalent?
           →0 If⊃(rc msg)←OnWsErrorFn CheckHookFn 1(1 ¯2)0 ⍝ result-returning monadic or ambivalent?
           →0 If⊃(rc msg)←WsAuthenticateFn CheckHookFn 1(1 ¯2)0 ⍝ result-returning monadic or ambivalent?
+          →0 If⊃(rc msg)←OnWsUpgradeReqFn CheckHookFn 1(1 ¯2)0 ⍝ result-returning monadic or ambivalent?
           :If ~0∊⍴WsAuthenticateFn
               WsAuthenticate←CodeLocation⍎WsAuthenticateFn
           :EndIf
@@ -1198,9 +1198,7 @@
               ns.IsWebSocket←1
               ns.IsAuthenticated←0
               ns.AcceptHeaders←''  ⍝ additional headers, if any, to send back with 'WSAccept'
-              :Hold '_connections'
-                  _connections.index[3;_connections.index[1;]⍳⊂ns.conx]←1 ⍝ mark this connection as a WebSocket
-              :EndHold
+              _connections.index[3;_connections.index[1;]⍳⊂ns.conx]←1 ⍝ mark this connection as a WebSocket
               :If Secure
                   (rc cert)←2↑LDRC.GetProp obj'PeerCert'
                   :If rc=0
@@ -1228,6 +1226,8 @@
                       :Else
                           LDRC.SetProp obj'WSAccept'(data(formatAcceptHeaders ns.AcceptHeaders))
                       :EndIf
+                  :Else
+                      LDRC.SetProp obj'WSAccept'(data(formatAcceptHeaders ns.AcceptHeaders))
                   :EndIf
               :EndIf
      
@@ -1241,36 +1241,46 @@
                       :Trap 0 DebugLevel 1
                           payload←JSONin ref.Payload
                           fn←1↓'.'@('/'∘=)payload.Endpoint
-                          valence←|⊃CodeLocation.⎕AT fn
-                          nc←CodeLocation.⎕NC⊂fn
-                          :Trap 85
-                              :If (2=valence[2])>3.3=nc ⍝ dyadic and not tacit
-                                  stopIf DebugLevel 2
-                                  resp←ref{0 CodeLocation.(85⌶)'⍺ ',fn,' ⍵'}payload.Payload ⍝ intentional stop for application-level debugging
-                              :Else
-                                  stopIf DebugLevel 2
-                                  resp←{0 CodeLocation.(85⌶)fn,' ⍵'}payload.Payload ⍝ intentional stop for application-level debugging
-                              :EndIf
-                          :Else ⍝ no result from the endpoint
-                              resp←'No result'
-                          :EndTrap
+                          :If 404=CheckFunctionName fn
+                              resp←'Invalid Endpoint: "',fn,'"'
+                          :Else
+                              valence←|⊃CodeLocation.⎕AT fn
+                              nc←CodeLocation.⎕NC⊂fn
+                              :Trap 85
+                                  :If (2=valence[2])>3.3=nc ⍝ dyadic and not tacit
+                                      stopIf DebugLevel 2
+                                      resp←ref{0 CodeLocation.(85⌶)'⍺ ',fn,' ⍵'}payload.Payload ⍝ intentional stop for application-level debugging
+                                  :Else
+                                      stopIf DebugLevel 2
+                                      resp←{0 CodeLocation.(85⌶)fn,' ⍵'}payload.Payload ⍝ intentional stop for application-level debugging
+                                  :EndIf
+                              :Else ⍝ no result from the endpoint
+                                  resp←''
+                              :EndTrap
+                          :EndIf
                           ns.conx WsSend JSONout resp
                       :Else
-                          ns.conx WsSend JSONout('⍎'~⍨⊃⎕DMX.DM),' while processing request'
+                          ns.conx WsSend JSONout'WSReceive Error: ',ErrorInfo
                       :EndTrap
                   :Else
                       Log'WSReceive: ',data
                   :EndIf
               :Else
                   stopIf DebugLevel 2
-                  :If ~ns.IsAuthenticated ⍝ are we already authenticated?
-                      :If 0≠WsAuthenticate ns ⍝
+                  :If ns.IsAuthenticated ⍝ are we already authenticated?
+                      :If 0≠(CodeLocation⍎OnWsReceiveFn)ref
+                          RemoveConnection ns.conx
+                      :EndIf
+                  :Else
+                      :If 0=WsAuthenticate ns ⍝ authentication passed or wasn't necessary?
+                          ns.IsAuthenticated←1
+                          :If 0≠(CodeLocation⍎OnWsReceiveFn)ref
+                              RemoveConnection ns.conx
+                          :EndIf
+                      :Else
                           Log'WSReceive: Authentication failed... closing connection'
                           RemoveConnection ns.conx
                       :EndIf
-                  :EndIf
-                  :If 0≠(CodeLocation⍎OnWsReceiveFn)ref
-                      RemoveConnection ns.conx
                   :EndIf
               :EndIf
               ns.⎕EX reqID
@@ -1283,7 +1293,7 @@
               RemoveConnection ns.conx
      
           :Case 'WSError'
-              Log'WSError occurred on ',obj
+              Log'WSError occurred on ',obj,': ',∊⍕data
               RemoveConnection ns.conx
           :Else
               Log'Unexpected HandleWsRequest event: ',evt,'???'
