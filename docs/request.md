@@ -59,68 +59,74 @@ Most `Request` fields should be considered read-only and are intended to convey 
 |Default|`''`|
 |Notes|`Jarvis` sets `Connection` for every request. For a WebSocket, the connection is reached instead through the connection namespace's `conx` (see [Using WebSockets](./websockets.md#the-connection-namespace)).|
 
-### `Password`
+### `QueryParams`
 |--|--|
-|Description||
-|Default||
-|Example(s)||
-|Notes||
+|Description|`QueryParams` is a 2-column matrix of the names and values of the parameters in the request's query string (the part of the URL after `?`).|
+|Default|`0 2⍴0` (no query parameters)|
+|Notes|For example, a request for `/report?from=2026-01-01&fmt=csv` gives `QueryParams` of two rows: `from` `2026-01-01` and `fmt` `csv`. In JSON mode, allowing query-string requests requires [`AllowGETs`](./settings-json.md#allowgets).|
 
 ### `UserID`
 |--|--|
-|Description||
-|Default||
-|Example(s)||
-|Notes||
+|Description|`UserID` is the user name supplied in the request's `Authorization` header when HTTP Basic authentication is used.|
+|Default|`''`|
+|Notes|Set only for a `Basic` `Authorization` header (see [`HTTPAuthentication`](./settings-operational.md#httpauthentication)). Use it in an [`AuthenticateFn`](./settings-hooks.md#authenticatefn) together with [`Password`](#password).|
+
+### `Password`
+|--|--|
+|Description|`Password` is the password supplied in the request's `Authorization` header when HTTP Basic authentication is used.|
+|Default|`''`|
+|Notes|Set only for a `Basic` `Authorization` header. See [`UserID`](#userid) and [Security](./security.md).|
+
+### `Cookies`
+|--|--|
+|Description|`Cookies` is a 2-column matrix of the names and values of the cookies sent with the request.|
+|Default|`0 2⍴⊂''` (no cookies)|
+|Notes|Use the [`GetCookie`](#getcookie) method to read a cookie by name, and [`SetCookie`](#setcookie) to set one on the response.|
 
 ### `PeerCert`
 |--|--|
-|Description||
-|Default||
-|Example(s)||
-|Notes||
+|Description|`PeerCert` is the client's certificate, when the server is running with TLS ([`Secure`](./settings-conga.md#secure)) and the client presented one.|
+|Default|`0 0⍴⊂''` (no certificate)|
+|Notes|For a secure server that couldn't obtain the certificate, `PeerCert` is the text `'Could not obtain certificate'`.|
 
 ### `PeerAddr`
 |--|--|
-|Description||
-|Default||
-|Example(s)||
-|Notes||
+|Description|`PeerAddr` is the IP address of the client that made the request.|
+|Default|`'unknown'`|
 
 ### `Server`
 |--|--|
-|Description||
-|Default||
-|Example(s)||
-|Notes||
+|Description|`Server` is a reference to the `Jarvis` instance handling the request. Use it to reach the instance methods from an endpoint — for example [`Log`](./methods-instance.md#log), [`SendSSE`](./methods-instance.md#sendsse) or [`WsSend`](./methods-instance.md#wssend).|
+|Example(s)|`req.Server.Log 'endpoint called'`|
 
 ### `Session`
 |--|--|
-|Description||
-|Default||
-|Example(s)||
-|Notes||
+|Description|`Session` is a reference to this request's session namespace when the service [uses sessions](./sessions.md), or `⍬` otherwise. Store per-session state in it.|
+|Default|`⍬`|
+|Notes|Sessions are enabled with [`SessionTimeout`](./settings-session.md#sessiontimeout). See [Using Sessions](./sessions.md).|
 
 ### `KillOnDisconnect`
 |--|--|
-|Description||
-|Default||
-|Example(s)||
-|Notes||
+|Description|`KillOnDisconnect` controls what happens to the thread handling this request if the client disconnects before the request finishes. Valid values are:<ul><li>`0` - let the handler run to completion</li><li>`1` - kill the handler's thread as soon as the disconnect is detected</li></ul>|
+|Default|`0`|
+|Notes|An endpoint can set `req.KillOnDisconnect←1` for a long-running request (for example a looping [SSE](./sse.md) endpoint) so its thread is stopped promptly when the client goes away.|
 
 ### `Input`
 |--|--|
-|Description||
-|Default||
-|Example(s)||
-|Notes||
+|Description|`Input` is the raw request target from the request line — the path together with any query string, before URL-decoding and before the query string is split off into [`QueryParams`](#queryparams).|
+|Default|`''`|
+|Notes|[`Endpoint`](#endpoint) is `Input` with the query string removed and URL-decoded.|
+
+### `HTTPVersion`
+|--|--|
+|Description|`HTTPVersion` is the HTTP version from the request line, for example `'HTTP/1.1'`.|
+|Default|`''`|
 
 ### `Payload`
 |--|--|
-|Description||
-|Default||
-|Example(s)||
-|Notes||
+|Description|`Payload` is the request body after any parsing. When the content-type is `application/json` or XML and [`ParsePayload`](./settings-rest.md#parsepayload) is on, `Payload` is the APL array converted from the body; for `multipart/form-data` or `application/x-www-form-urlencoded` it is a namespace of the named parts. Otherwise it is the raw body.|
+|Default|`''`|
+|Notes|The difference between [`Body`](#body) and `Payload` is that `Payload` has undergone any appropriate translation whereas `Body` has not. In JSON mode the parsed payload is passed as the right argument to your endpoint function.|
 
 ### `Response`
 See [`Response` Namespace](#response-namespace).
@@ -137,4 +143,102 @@ See [`Response` Namespace](#response-namespace).
 |`value`|The header value to add if the header isn't already present.|
 |Notes|Returns the header's name and its resulting value — the value just added, or the existing value if the header was already set. `Jarvis` uses `AddHeader` to set the default Server-Sent Event response headers, which an application's [`ValidateRequestFn`](./settings-hooks.md#validaterequestfn) can therefore pre-empt.|
 
+### `GetHeader`
+|--|--|
+|Description|`GetHeader` returns the value of a named request header (or `''` if there is no such header). Header names are matched case-insensitively.|
+|Syntax|`r←{table} req.GetHeader name`|
+|`name`|The header name to look up.|
+|`table`|(optional) a 2-column name/value matrix to search instead of the request's own headers — for example the response headers, `req.Response.Headers`.|
+|Examples|`req.GetHeader 'content-type'`<br>`req.(Response.Headers GetHeader 'content-type')`|
+
+### `SetHeader`
+|--|--|
+|Description|`SetHeader` sets a response header, adding it (or appending another header of the same name). Use [`AddHeader`](#addheader) to set one only if it isn't already present.|
+|Syntax|`{(name value)}←name req.SetHeader value`|
+|`name`|The header name.|
+|`value`|The header value.|
+
+### `DefaultHeader`
+|--|--|
+|Description|`DefaultHeader` sets a response header only if no header of that name is already set. (Like [`AddHeader`](#addheader), but it returns no result.)|
+|Syntax|`name req.DefaultHeader value`|
+
+### `SetContentType`
+|--|--|
+|Description|`SetContentType` is a shortcut that sets the response's `Content-Type` header.|
+|Syntax|`{(name value)}←req.SetContentType contentType`|
+|Examples|`req.SetContentType 'text/csv; charset=utf-8'`|
+
+### `GetCookie`
+|--|--|
+|Description|`GetCookie` returns the value of a named request cookie (or `''` if there is none).|
+|Syntax|`value←req.GetCookie name`|
+|Notes|The request's cookies are also available as the [`Cookies`](#cookies) matrix.|
+
+### `SetCookie`
+|--|--|
+|Description|`SetCookie` adds a `Set-Cookie` response header for a named cookie.|
+|Syntax|`{(name cookie)}←name req.SetCookie cookie`|
+|`name`|The cookie name.|
+|`cookie`|The cookie value, optionally followed by `;`-delimited cookie attributes (for example `'abc123; Path=/; HttpOnly'`).|
+
+### `SetStatus`
+|--|--|
+|Description|`SetStatus` sets the response's HTTP status code (and, optionally, status text). `Jarvis` fills in the standard reason phrase for the code; any text you supply is appended in parentheses.|
+|Syntax|`{status}←{statusText} req.SetStatus status`|
+|`status`|The HTTP status code.|
+|`statusText`|(optional) extra text to append to the standard reason phrase.|
+|Examples|`req.SetStatus 201`<br>`'created in archive' req.SetStatus 201`|
+|Notes|To report a failure, [`Fail`](#fail) is usually more convenient.|
+
+### `Fail`
+|--|--|
+|Description|`Fail` sets the response status (and message) for a failed request, when the status is non-zero. It returns `1` if it set a failure status, `0` otherwise, which makes it convenient to both set and test a condition in one expression.|
+|Syntax|`{r}←{message} req.Fail status`|
+|`status`|The HTTP status code. `0` means "no failure" — nothing is set and the result is `0`.|
+|`message`|(optional) a status message. If omitted, a `500` status uses [`ErrorInfo`](#errorinfo); other statuses use the standard reason phrase.|
+|Examples|`→0 If req.Fail 405×'GET'≢req.Method ⍝ 405 unless it's a GET`|
+
+### `MakeURI`
+|--|--|
+|Description|`MakeURI` builds an absolute URI for a RESTful resource, using [`Hostname`](./settings-operational.md#hostname) and, by default, the request's own [`Endpoint`](#endpoint).|
+|Syntax|`r←{endpoint} req.MakeURI resource`|
+|`resource`|One or more resource path segments (joined with `/`).|
+|`endpoint`|(optional) a base endpoint to use instead of the request's `Endpoint`.|
+|Examples|`req.MakeURI 231 'invoice' 45`|
+
+### `ContentTypeForFile`
+|--|--|
+|Description|`ContentTypeForFile` returns the content-type `Jarvis` associates with a file's extension (or `application/octet-stream` if the extension is unknown).|
+|Syntax|`r←req.ContentTypeForFile filename`|
+|Examples|`req.ContentTypeForFile 'report.csv' ⍝ text/csv`|
+
+### `Config`
+|--|--|
+|Description|`Config` returns the request's fields as a 2-column name/value matrix — useful when debugging an endpoint.|
+|Syntax|`r←req.Config`|
+
+### `ErrorInfo`
+|--|--|
+|Description|`ErrorInfo` returns a description of the most recent APL error, trimmed to the request's [`ErrorInfoLevel`](./settings-operational.md#errorlevelinfo). `Fail 500` uses it by default.|
+|Syntax|`r←req.ErrorInfo`|
+
 ## `Response` Namespace
+
+Every [`Request`](#request-fields) has a `Response` namespace (`req.Response`) holding what `Jarvis` will send back. Set its fields, or use the `Request` methods above ([`SetHeader`](#setheader), [`SetStatus`](#setstatus), [`SetContentType`](#setcontenttype), [`Fail`](#fail)), to shape the response. In many cases you don't touch it at all: `Jarvis` builds the response from your endpoint's result.
+
+### `Response.Status`
+|--|--|
+|Description|The HTTP status code to return. `0` until set; `Jarvis` defaults it (to `200` for a normal response) if your code leaves it `0`. Prefer [`SetStatus`](#setstatus) or [`Fail`](#fail), which also set the status text.|
+
+### `Response.StatusText`
+|--|--|
+|Description|The HTTP reason phrase that accompanies [`Status`](#responsestatus). `SetStatus`/`Fail` set it for you from the status code.|
+
+### `Response.Payload`
+|--|--|
+|Description|The response body. If your endpoint returns a result and you haven't set `Payload`, `Jarvis` uses the result. When the response content-type is `application/json`, `Jarvis` converts `Payload` to JSON before sending.|
+
+### `Response.Headers`
+|--|--|
+|Description|A 2-column matrix of the response's header names and values. Use [`SetHeader`](#setheader), [`AddHeader`](#addheader), [`DefaultHeader`](#defaultheader) or [`SetContentType`](#setcontenttype) to add to it rather than assigning it directly.|
