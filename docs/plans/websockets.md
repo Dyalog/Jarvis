@@ -52,7 +52,7 @@ excluded from the HTTP API (including hook functions) were reachable over WebSoc
 
 Now: the handler calls `:If 404=CheckFunctionName fn` (line 1243) and returns `'Invalid Endpoint: "…"'` instead of
 running the function. `CheckFunctionName` applies `_includeRegex`/`_excludeRegex` and rejects `_userHookFns`, so the
-built-in handler now honours the same restrictions as the HTTP path. **Add a regression test** (§3.8).
+built-in handler now honours the same restrictions as the HTTP path. Covered by `test_BuiltinHandler` (§3.8).
 
 ### 3.2 Built-in handler runs when the HTML interface is only defaulted on (low; verified — decision)
 
@@ -124,11 +124,14 @@ the two message modes (`OnWsReceiveFn` vs the built-in handler), when the built-
 `IncludeFns` (§3.1/§3.2), that WebSocket connections aren't idle-timed-out (§3.4), and the `WsAutoUpgrade` options
 (§3.5).
 
-### 3.8 No tests (medium; read) — still open
+### 3.8 Tests — RESOLVED
 
-`Tests/` has no WebSocket coverage. With the §3.1/§3.3 fixes now in place, tests are the main thing guarding them.
-`Tests/SSE` is a good template (raw Conga client, logging `TJarvis` subclass, one port per test). A Conga client drives
-a WebSocket with `Clt … ('Options' 1)` then `SetProp 'WSUpgrade' …` (I used exactly this to verify §3.1 and §3.9).
+Was (medium; read): `Tests/` had no WebSocket coverage, so the §3.1/§3.3/§3.9 fixes had nothing guarding them.
+
+Now: `Tests/WebSockets/` is written (committed `cb5ec37`) — 9 tests, passing 25/25 consecutive runs, modelled on
+`Tests/SSE/` (raw Conga client upgraded with `Clt … ('Options' 1)` then `SetProp 'WSUpgrade'`, a logging `TJarvis`
+subclass, one port per server). A mutation check confirms the suite catches reverting §3.1, §3.3 and §3.9. See
+**Phase 3** for the test list, the mutation table, and the one gap left to manual/browser testing (`OnWsCloseFn`).
 
 ### 3.9 `IsAuthenticated` was never set to 1 — RESOLVED
 
@@ -137,8 +140,8 @@ Was (medium; verified): `ns.IsAuthenticated` was initialised to 0 at upgrade and
 first.
 
 Now: `ns.IsAuthenticated←1` is set after a successful `WsAuthenticate` (line 1275), so a connection authenticates once
-and later messages take the cached branch (line 1269). This matches the comment's intent. **Add a test** that confirms
-`WsAuthenticateFn` runs once per connection, not once per message (§3.8).
+and later messages take the cached branch (line 1269). This matches the comment's intent. Covered by
+`test_Authentication`, which confirms `WsAuthenticateFn` runs once per connection, not once per message (§3.8).
 
 ## 4. Smaller observations (not necessarily issues)
 
