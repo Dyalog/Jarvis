@@ -53,6 +53,12 @@ Most `Request` fields should be considered read-only and are intended to convey 
 |Example(s)|An [`AuthenticateFn`](./settings-hooks.md#authenticatefn) that checks event streams differently, because the browser's `EventSource` can't send an `Authorization` header. `CheckToken` and `CheckLogin` stand for your own functions, returning `0` for success:<br><br>&emsp;&emsp;&emsp;`∇ r←Authenticate req`<br>`[1]    :If req.IsSSE`<br>`[2]        r←CheckToken req ⍝ e.g. a token in req.QueryParams`<br>`[3]    :Else`<br>`[4]        r←CheckLogin req`<br>`[5]    :EndIf`<br>&emsp;&emsp;&emsp;`∇`|
 |Notes|`Jarvis` sets `IsSSE` after calling [`ValidateRequestFn`](./settings-hooks.md#validaterequestfn), just before it handles the SSE request. So it's always `0` in `ValidateRequestFn`, and `1` in `AuthenticateFn`, [`SessionInitFn`](./settings-hooks.md#sessioninitfn) and the SSE endpoint function. To recognise an SSE request in `ValidateRequestFn`, check [`Endpoint`](#endpoint) instead.|
 
+### `Connection`
+|--|--|
+|Description|`Connection` is the name of the Conga connection the request arrived on. It can be used as a target for [`SendSSE`](./methods-instance.md#sendsse) to push [Server-Sent Events](./sse.md) to this client.|
+|Default|`''`|
+|Notes|`Jarvis` sets `Connection` for every request. For a WebSocket, the connection is reached instead through the connection namespace's `conx` (see [Using WebSockets](./websockets.md#the-connection-namespace)).|
+
 ### `Password`
 |--|--|
 |Description||
@@ -122,5 +128,13 @@ See [`Response` Namespace](#response-namespace).
 
 
 ## `Request` Methods
+
+### `AddHeader`
+|--|--|
+|Description|`AddHeader` adds an HTTP response header, but only if a header with that name is not already set. (Use `SetHeader` to set a header unconditionally, replacing any existing value.)|
+|Syntax|`{(name value)}←name req.AddHeader value`|
+|`name`|The header name.|
+|`value`|The header value to add if the header isn't already present.|
+|Notes|Returns the header's name and its resulting value — the value just added, or the existing value if the header was already set. `Jarvis` uses `AddHeader` to set the default Server-Sent Event response headers, which an application's [`ValidateRequestFn`](./settings-hooks.md#validaterequestfn) can therefore pre-empt.|
 
 ## `Response` Namespace
