@@ -117,12 +117,30 @@ Now:
   `WsSend JSONout ''`, i.e. the client receives `""`. If silence is preferred for a no-result endpoint, skip the send
   when `resp` is empty — a small §3.9-adjacent tidy, not a correctness issue.
 
-### 3.7 No documentation (medium; read) — still open
+### 3.7 Documentation — RESOLVED
 
-No WebSocket page in `docs/`, nothing in `mkdocs.yml`; the settings exist only as field comments. The docs should cover
-the two message modes (`OnWsReceiveFn` vs the built-in handler), when the built-in handler is active and that it honours
-`IncludeFns` (§3.1/§3.2), that WebSocket connections aren't idle-timed-out (§3.4), and the `WsAutoUpgrade` options
-(§3.5).
+Was (medium; read): no WebSocket page in `docs/`, nothing in `mkdocs.yml`; the settings existed only as field comments.
+
+Now: written —
+- `docs/settings-websockets.md`: `EnableWebSockets`, `WsAutoUpgrade`, the hooks (`OnWsUpgradeFn`, `OnWsUpgradeReqFn`,
+  `OnWsReceiveFn`, `OnWsCloseFn`, `OnWsErrorFn`) and `WsAuthenticateFn`.
+- `docs/websockets.md` (Advanced Topics, "Using WebSockets"): the connection lifecycle (upgrade/receive/close/error),
+  the connection namespace, the message namespace, `WsSend`, the two message modes with the built-in handler's
+  `IncludeFns`/hook restrictions (§3.1/§3.2), authentication (§3.9), that connections aren't idle-timed-out (§3.4), and
+  the `WsAutoUpgrade` options (§3.5).
+- Both added to `mkdocs.yml` (Settings, after SSE; Advanced Topics, after Server-Sent Events) and to
+  `settings-overview.md`. A `release-notes.md` 1.24.0 entry covers the behaviour changes. All internal links checked.
+
+### 3.10 `OnWsErrorFn` is declared but never called (medium; read) — being fixed
+
+`OnWsErrorFn` is a public field (line 66), added to `_userHookFns` (line 689) and valence-checked at start-up (line
+747), but the `WSError` handler (line 1296) only logs and `RemoveConnection`s — it never calls `OnWsErrorFn`. So the
+hook has no effect, the same shape of gap as the old `WsTimeout`.
+
+**Decision (2026-10-01):** Brian is wiring it up — add the call in the `WSError` case, mirroring `OnWsCloseFn`:
+`:If ~0∊⍴OnWsErrorFn ⋄ {}(CodeLocation⍎OnWsErrorFn)ns ⋄ :EndIf` before `RemoveConnection`. The docs
+(`settings-websockets.md`, `websockets.md`) already describe `OnWsErrorFn` as a working hook. **To do:** a test for it
+once the client can be made to produce a WebSocket error (may be browser/manual, like `OnWsCloseFn`).
 
 ### 3.8 Tests — RESOLVED
 
@@ -219,11 +237,12 @@ Tests:
   browser. `test_Disconnect` covers the `Closed`→cleanup path instead.
 - A real browser WebSocket client, and the older Conga versions Jarvis supports.
 
-### Phase 4 — Documentation
-- A `docs/websockets.md` concepts/usage page and a `docs/settings-websockets.md` settings page, both in `mkdocs.yml` and
-  the settings overview, in the style of the SSE pages. Cover the points in §3.7.
-- A release-notes entry for the behaviour changes (built-in handler now honours `IncludeFns`; auth no longer dispatches
-  on failure; `WsTimeout` removed; and §3.9's change once made).
+### Phase 4 — Documentation (written)
+- `docs/websockets.md` (concepts/usage) and `docs/settings-websockets.md` (settings), both in `mkdocs.yml` and
+  `settings-overview.md`, in the style of the SSE pages (§3.7).
+- `docs/release-notes.md`: a 1.24.0 entry covering the behaviour changes (built-in handler honours `IncludeFns`; auth
+  no longer dispatches on failure and runs once per connection; `WsAutoUpgrade←0` with no hook accepts; `OnWsErrorFn`
+  now called; `WsTimeout` removed).
 
 ## 6. Open questions
 
@@ -250,3 +269,4 @@ Tests:
   (new `:Else → WSAccept` branch, line 1230), verified with a Conga client. `OnWsUpgradeReqFn` is also now valence-checked
   at start-up (line 749). Only documentation remains for §3.5.
 - 2026-10-01: Phase 3 done — `Tests/WebSockets/` written (9 tests), passing 25/25 consecutive runs. A mutation check confirms the suite catches reverting §3.1, §3.3 and §3.9. `OnWsCloseFn` (the WSClose handshake) is left to browser testing; the raw Conga client can't produce it.
+- 2026-10-01: Phase 4 done — `docs/websockets.md`, `docs/settings-websockets.md`, nav + overview wiring, and a 1.24.0 `release-notes.md` entry. Also found §3.10 (`OnWsErrorFn` never called); Brian is wiring it up, and the docs already describe it as working.
