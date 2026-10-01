@@ -1240,7 +1240,7 @@
                       :If 1 ¯1∊⍨⊃HTMLInterface ⍝ and using built-in HTMLInterface
               ⍝↓↓↓ the code below is only for the built-in HTMLInterface, though it provides an example of how to use
                           :If ns.IsAuthenticated
-                          :OrIf 0=WsAuthenticate
+                          :OrIf 0=WsAuthenticate ns
                               ns.IsAuthenticated←1
                               :Trap 0 DebugLevel 1
                                   payload←JSONin ref.Payload
