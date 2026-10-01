@@ -1,0 +1,332 @@
+:Namespace test_Core
+⍝ Core JSON and REST request-handling tests for Jarvis
+⍝ Usage:
+⍝   From the shell (repository root):  dyalogscript Tests/Core/run.apls
+⍝   From an APL session with #.Jarvis loaded:  #.test_Core.Run
+⍝ Run returns a vector of failure messages; empty means every test passed.
+⍝ Each test starts its own Jarvis on its own port and drives it with a raw Conga client (Jarvis's own LDRC),
+⍝ sending complete HTTP requests with "Connection: close" so the whole response can be read back.
+⍝ Ports: BasePort+1, BasePort+2, ... (8391 and up by default). Set BasePort before Run, or JARVIS_TEST_PORT for run.apls.
+
+    (⎕IO ⎕ML)←1 1
+    CRLF←⎕UCS 13 10
+    BasePort←8390
+    Verbose←1
+
+    TJarvisSource←':Class TJarvis: #.Jarvis' ':Field Public Logged←⍬' '∇ {msg}←{level}Log msg' ':Access public override' 'Logged,←⊂,⍕msg' '∇' ':EndClass'
+
+    ∇ r←Run;tests;t;res
+      :Access public
+      r←⍬
+      :If 9≠#.⎕NC'Jarvis'
+          →0⊣r←,⊂'#.Jarvis is not loaded'
+      :EndIf
+      ⎕FIX TJarvisSource
+      tests←{⍵/⍨'test_'∘≡¨5↑¨⍵}⎕NL ¯3
+      PortsUsed←0
+      :For t :In tests
+          App←MakeApp
+          (Servers Clients)←⍬ ⍬
+          :Trap 0
+              res←⍎t
+          :Else
+              res←,⊂'errored: ',⊃⎕DMX.DM
+          :EndTrap
+          StopAll
+          r,←(⊂t,': '),¨res
+          :If Verbose
+              ⎕←t,': ',(1+0∊⍴res)⊃('FAILED (',(⍕≢res),')')'passed'
+              ⎕←⍪res
+          :EndIf
+      :EndFor
+    ∇
+
+⍝ ─── the application code (CodeLocation) used by the tests ─────────────────────────
+
+    ∇ app←MakeApp
+      app←⎕NS''
+      app.Inited←0 ⋄ app.ClosedFlag←0
+    ⍝ JSON endpoints
+      app.⎕FX'r←echo p' 'r←p'                        ⍝ round-trips the payload
+      app.⎕FX'r←add p' 'r←+/p'                        ⍝ numeric
+      app.⎕FX'r←req withreq p;n' 'n←⎕NS''''' 'n.(method sum)←req.Method(+/p)' 'r←n' ⍝ ambivalent: req as ⍺
+      app.⎕FX'r←boom p' 'r←÷0'                         ⍝ errors → 500
+      app.⎕FX'r←secret p' 'r←''SECRET'''              ⍝ for Include/Exclude
+    ⍝ hooks
+      app.⎕FX'r←Init srv' 'Inited←1' 'r←0'            ⍝ AppInitFn
+      app.⎕FX'r←Closed' 'ClosedFlag←1' 'r←0'          ⍝ AppCloseFn (niladic, result-returning)
+      app.⎕FX'r←Validate req' 'r←''block''≡req.GetHeader''x-validate''' ⍝ ValidateRequestFn → non-zero rejects
+      app.⎕FX'r←Auth req' 'r←~''secret''≡req.GetHeader''x-token''' ⍝ AuthenticateFn → non-zero fails
+      app.⎕FX'r←BasicAuth req' 'r←~(req.UserID req.Password)≡''admin'' ''pw''' ⍝ AuthenticateFn using Basic creds
+      app.⎕FX'AfterReq req' '''x-post''req.SetHeader''1''' ⍝ PostProcessFn (non-result)
+    ⍝ REST method handlers (called monadically with the Request)
+      app.⎕FX'r←Get req;n' 'n←⎕NS''''' 'n.method←''GET''' 'r←n'
+      app.⎕FX'r←Post req;n' 'n←⎕NS''''' 'n.method←''POST''' 'r←n'
+      app.⎕FX'r←handlePut req;n' 'n←⎕NS''''' 'n.method←''handlePut''' 'r←n'
+    ∇
+
+⍝ ─── helpers ───────────────────────────────────────────────────────────────────────
+
+    Expect←{⍺:0⍴⊂'' ⋄ ,⊂⍵}
+    Contains←{∨/⍺⍷⍵}
+    Match←{(,⍺)≡,⍵}                          ⍝ equal, ignoring scalar-vs-1-element-vector
+    LoggedMatch←{∨/∨/¨(⊂⍵)⍷¨⍺.Logged}
+
+    ∇ j←NewServer paradigm
+    ⍝ create (but don't start) a test server on its own port, in the given paradigm
+      j←⎕NEW TJarvis
+      j.Port←BasePort+PortsUsed←PortsUsed+1
+      j.CodeLocation←App
+      j.Paradigm←paradigm
+      j.DYALOG_JARVIS_THREAD←'debug'
+      j.WaitTimeout←5000
+      Servers,←j
+    ∇
+
+    ∇ StopAll;j;c
+      :For j :In Servers
+          :Trap 0 ⋄ {}j.Stop ⋄ {}j.LDRC.Close j.ServerName ⋄ :EndTrap
+      :EndFor
+      :For c :In Clients
+          :Trap 0 ⋄ {}#.Jarvis.LDRC.Close c ⋄ :EndTrap
+      :EndFor
+      (Servers Clients)←⍬ ⍬
+    ∇
+
+    ∇ c←j SendRaw text;rc
+      (rc c)←2↑j.LDRC.Clt'' 'localhost'j.Port'Text'
+      'Could not connect'⎕SIGNAL 11/⍨rc≠0
+      Clients,←⊂c
+      {}j.LDRC.Send c text
+    ∇
+
+    ∇ (status headers body)←j Do args;method;path;headers;body;req;c;data
+    ⍝ args: method path [headers [body]]; headers is a vector of (name value) pairs
+    ⍝ sends one request (Connection: close) and returns the parsed status, header matrix and body
+      (method path headers body)←4↑args,(≢args)↓'' '' ⍬ ''
+      req←method,' ',path,' HTTP/1.1',CRLF,'Host: localhost',CRLF,'Connection: close',CRLF
+      req,←∊{⍺,': ',⍵,CRLF}/¨headers
+      req,←(method≢'GET')/'Content-Length: ',(⍕≢body),CRLF
+      req,←CRLF,body
+      c←j SendRaw req
+      (status headers body)←ParseResponse j ReadAll(c 4000)
+    ∇
+
+    ∇ data←j ReadAll(c ms);end;w;rc;evt
+    ⍝ read until the server closes the connection (or ms pass)
+      data←'' ⋄ end←ms+⎕AI[3]
+      :While ⎕AI[3]<end
+          w←4↑(j.LDRC.Wait c 200),4⍴⊂''
+          (rc evt)←w[1 3]
+          :If rc=0
+              :If (⊂evt)∊'Block' 'BlockLast' ⋄ data,←4⊃w ⋄ :EndIf
+              :If (⊂evt)∊'BlockLast' 'Closed' 'Error' ⋄ :Leave ⋄ :EndIf
+          :ElseIf rc≠100 ⋄ :Leave
+          :EndIf
+      :EndWhile
+    ∇
+
+    ∇ (status headers body)←ParseResponse data;i;head;lines
+      status←0 ⋄ headers←0 2⍴⊂'' ⋄ body←''
+      →0⍴⍨0∊⍴i←⍸(CRLF,CRLF)⍷data
+      head←(¯1+⊃i)↑data
+      body←(3+⊃i)↓data
+      lines←{⍵~⎕UCS 13}¨(head≠⎕UCS 10)⊆head
+      status←⊃(//)⎕VFI 2⊃' '(≠⊆⊢)⊃lines
+      headers←↑{i←⍵⍳':' ⋄ (⎕C(i-1)↑⍵)({⍵↓⍨+/∧\' '=⍵}i↓⍵)}¨1↓lines
+    ∇
+
+    ∇ r←headers Header name
+      r←(headers[;1]⍳⊂⎕C name)⊃headers[;2],⊂''
+    ∇
+
+    JSONhdr←⊂'Content-Type' 'application/json'
+
+⍝ ─── JSON paradigm tests ─────────────────────────────────────────────────────────────
+
+    ∇ r←test_JSONRoundTrip;j;status;headers;body
+    ⍝ a POST with a JSON body reaches the endpoint and the result comes back as JSON
+      r←⍬
+      j←NewServer'JSON'
+      →0↓⍨0∊⍴r←(0=⊃j.Start)Expect'Start failed'
+      (status headers body)←j Do'POST' '/add'JSONhdr'[1,2,3]'
+      r,←(status=200)Expect'POST /add status ',⍕status
+      r,←('6'Match body)Expect'POST /add body ',(⍕body),', expected 6'
+      r,←('application/json'Contains headers Header'content-type')Expect'content-type ',headers Header'content-type'
+      (status headers body)←j Do'POST' '/echo'JSONhdr'{"a":1,"b":[2,3]}'
+      r,←(status=200)Expect'POST /echo status ',⍕status
+      r,←(('"a"'Contains body)∧'"b"'Contains body)Expect'POST /echo should echo the object; got ',body
+    ∇
+
+    ∇ r←test_RequestAsLeftArg;j;status;headers;body
+    ⍝ an ambivalent endpoint receives the Request as its left argument
+      r←⍬
+      j←NewServer'JSON'
+      →0↓⍨0∊⍴r←(0=⊃j.Start)Expect'Start failed'
+      (status headers body)←j Do'POST' '/withreq'JSONhdr'[10,20]'
+      r,←(status=200)Expect'status ',⍕status
+      r,←('"post"'Contains body)Expect'endpoint should see req.Method (lower-cased) =post; got ',body
+      r,←('30'Contains body)Expect'endpoint should see the payload (sum 30); got ',body
+    ∇
+
+    ∇ r←test_NotFound;j;status;headers;body
+    ⍝ an unknown function, and a hook function, both give 404
+      r←⍬
+      j←NewServer'JSON'
+      j.AuthenticateFn←'Auth'
+      →0↓⍨0∊⍴r←(0=⊃j.Start)Expect'Start failed'
+      (status headers body)←j Do'POST' '/nosuchfn'(JSONhdr,⊂'x-token' 'secret')
+      r,←(status=404)Expect'unknown function status ',⍕status
+      (status headers body)←j Do'POST' '/Auth'(JSONhdr,⊂'x-token' 'secret')
+      r,←(status=404)Expect'calling a hook function should be 404; got ',⍕status
+    ∇
+
+    ∇ r←test_IncludeExclude;j;status;headers;body
+    ⍝ IncludeFns restricts the callable endpoints; ExcludeFns hides them
+      r←⍬
+      j←NewServer'JSON'
+      j.IncludeFns←'echo'
+      →0↓⍨0∊⍴r←(0=⊃j.Start)Expect'Start failed'
+      r,←(200=⊃j Do'POST' '/echo'JSONhdr'1')Expect'IncludeFns: /echo should be 200'
+      r,←(404=⊃j Do'POST' '/add'JSONhdr'[1,2]')Expect'IncludeFns: /add should be 404'
+      {}j.Stop
+      j←NewServer'JSON'
+      j.ExcludeFns←'secret'
+      →0↓⍨0∊⍴r,←(0=⊃j.Start)Expect'Start failed (exclude)'
+      r,←(404=⊃j Do'POST' '/secret'JSONhdr'1')Expect'ExcludeFns: /secret should be 404'
+      r,←(200=⊃j Do'POST' '/echo'JSONhdr'1')Expect'ExcludeFns: /echo should be 200'
+    ∇
+
+    ∇ r←test_ContentTypeChecks;j;status;headers;body
+    ⍝ a POST with no Content-Type, or a non-JSON Content-Type, is rejected with 400
+      r←⍬
+      j←NewServer'JSON'
+      →0↓⍨0∊⍴r←(0=⊃j.Start)Expect'Start failed'
+      r,←(400=⊃j Do'POST' '/echo'⍬'123')Expect'POST with no Content-Type should be 400'
+      r,←(400=⊃j Do'POST' '/echo'(,⊂'Content-Type' 'text/plain')'123')Expect'POST text/plain should be 400'
+    ∇
+
+    ∇ r←test_AllowGETs;j
+    ⍝ GETs are refused unless AllowGETs is set
+      r←⍬
+      j←NewServer'JSON'
+      j.HTMLInterface←0 ⍝ so a GET isn't served the HTML interface
+      →0↓⍨0∊⍴r←(0=⊃j.Start)Expect'Start failed'
+      r,←(405=⊃j Do'GET' '/echo'⍬)Expect'GET with AllowGETs=0 should be 405'
+      {}j.Stop
+      j←NewServer'JSON'
+      j.(HTMLInterface AllowGETs)←0 1
+      →0↓⍨0∊⍴r,←(0=⊃j.Start)Expect'Start failed (AllowGETs)'
+      r,←(200=⊃j Do'GET' '/echo'⍬)Expect'GET /echo with AllowGETs=1 should be 200'
+    ∇
+
+    ∇ r←test_Error500;j;status;headers;body
+    ⍝ an error in an endpoint gives 500, with the error name when ErrorInfoLevel≥1
+      r←⍬
+      j←NewServer'JSON'
+      →0↓⍨0∊⍴r←(0=⊃j.Start)Expect'Start failed'
+      (status headers body)←j Do'POST' '/boom'JSONhdr'1'
+      r,←(status=500)Expect'POST /boom status ',⍕status
+    ∇
+
+⍝ ─── hook tests ──────────────────────────────────────────────────────────────────────
+
+    ∇ r←test_AppInitClose;j
+    ⍝ AppInitFn runs at Start, AppCloseFn runs at Stop
+      r←⍬
+      j←NewServer'JSON'
+      j.(AppInitFn AppCloseFn)←'Init' 'Closed'
+      →0↓⍨0∊⍴r←(0=⊃j.Start)Expect'Start failed'
+      r,←(1=App.Inited)Expect'AppInitFn should have run at Start'
+      {}j.Stop
+      r,←(1=App.ClosedFlag)Expect'AppCloseFn should have run at Stop'
+    ∇
+
+    ∇ r←test_Validate;j
+    ⍝ ValidateRequestFn rejects a request with 400
+      r←⍬
+      j←NewServer'JSON'
+      j.ValidateRequestFn←'Validate'
+      →0↓⍨0∊⍴r←(0=⊃j.Start)Expect'Start failed'
+      r,←(400=⊃j Do'POST' '/echo'(JSONhdr,⊂'x-validate' 'block')'1')Expect'a blocked request should be 400'
+      r,←(200=⊃j Do'POST' '/echo'JSONhdr'1')Expect'an accepted request should be 200'
+    ∇
+
+    ∇ r←test_Authenticate;j;status;headers;body
+    ⍝ AuthenticateFn: a bad/absent token gives 401 with a WWW-Authenticate header; a good token gives 200
+      r←⍬
+      j←NewServer'JSON'
+      j.AuthenticateFn←'Auth'
+      →0↓⍨0∊⍴r←(0=⊃j.Start)Expect'Start failed'
+      (status headers body)←j Do'POST' '/echo'JSONhdr'1'
+      r,←(status=401)Expect'no token should be 401; got ',⍕status
+      r,←(~0∊⍴headers Header'www-authenticate')Expect'401 should include a WWW-Authenticate header'
+      r,←(200=⊃j Do'POST' '/echo'(JSONhdr,⊂'x-token' 'secret')'1')Expect'a valid token should be 200'
+    ∇
+
+    ∇ r←test_BasicAuth;j;tok;dummy
+    ⍝ HTTP Basic credentials are decoded into UserID/Password for AuthenticateFn
+      r←⍬
+      dummy←⎕NEW #.Jarvis.Request
+      tok←'Basic ',dummy.Base64Encode'admin:pw'
+      j←NewServer'JSON'
+      j.AuthenticateFn←'BasicAuth'
+      →0↓⍨0∊⍴r←(0=⊃j.Start)Expect'Start failed'
+      r,←(200=⊃j Do'POST' '/echo'(JSONhdr,⊂'Authorization'tok)'1')Expect'correct Basic credentials should be 200'
+      r,←(401=⊃j Do'POST' '/echo'(JSONhdr,⊂'Authorization'('Basic ',dummy.Base64Encode'admin:wrong'))'1')Expect'wrong Basic credentials should be 401'
+    ∇
+
+    ∇ r←test_PostProcess;j;status;headers;body
+    ⍝ PostProcessFn runs after the endpoint and can modify the response
+      r←⍬
+      j←NewServer'JSON'
+      j.PostProcessFn←'AfterReq'
+      →0↓⍨0∊⍴r←(0=⊃j.Start)Expect'Start failed'
+      (status headers body)←j Do'POST' '/echo'JSONhdr'1'
+      r,←(status=200)Expect'status ',⍕status
+      r,←('1'Match headers Header'x-post')Expect'PostProcessFn should add x-post header; got ',⍕headers Header'x-post'
+    ∇
+
+⍝ ─── REST paradigm tests ─────────────────────────────────────────────────────────────
+
+    ∇ r←test_RESTDispatch;j;status;headers;body
+    ⍝ in REST mode the HTTP method selects the handler function; an unlisted method gives 405
+      r←⍬
+      j←NewServer'REST'
+      j.RESTMethods←'Get,Post'
+      →0↓⍨0∊⍴r←(0=⊃j.Start)Expect'Start failed'
+      (status headers body)←j Do'GET' '/'⍬
+      r,←(status=200)Expect'GET status ',⍕status
+      r,←('"GET"'Contains body)Expect'GET should call Get; got ',body
+      (status headers body)←j Do'POST' '/'JSONhdr'1'
+      r,←('"POST"'Contains body)Expect'POST should call Post; got ',body
+      r,←(405=⊃j Do'PUT' '/'JSONhdr'1')Expect'PUT (not in RESTMethods) should be 405'
+    ∇
+
+    ∇ r←test_RESTCustomHandler;j;status;headers;body
+    ⍝ RESTMethods can map a method to a differently-named handler function
+      r←⍬
+      j←NewServer'REST'
+      j.RESTMethods←'Get,put/handlePut'
+      →0↓⍨0∊⍴r←(0=⊃j.Start)Expect'Start failed'
+      (status headers body)←j Do'PUT' '/'JSONhdr'1'
+      r,←(status=200)Expect'PUT status ',⍕status
+      r,←('"handlePut"'Contains body)Expect'PUT should call handlePut; got ',body
+    ∇
+
+⍝ ─── CORS ────────────────────────────────────────────────────────────────────────────
+
+    ∇ r←test_CORS;j;status;headers;body
+    ⍝ a cross-origin request gets Access-Control-Allow-Origin; a preflight gets 204
+      r←⍬
+      j←NewServer'JSON'
+      →0↓⍨0∊⍴r←(0=⊃j.Start)Expect'Start failed'
+      (status headers body)←j Do'POST' '/echo'(JSONhdr,⊂'Origin' 'http://example.com')'1'
+      r,←(status=200)Expect'CORS POST status ',⍕status
+      r,←('*'Match headers Header'access-control-allow-origin')Expect'CORS POST should reflect/allow origin; got ',⍕headers Header'access-control-allow-origin'
+      (status headers body)←j Do'OPTIONS' '/echo'(('Origin' 'http://example.com')('Access-Control-Request-Method' 'POST'))
+      r,←(status=204)Expect'CORS preflight status ',(⍕status),', expected 204'
+      r,←(~0∊⍴headers Header'access-control-allow-origin')Expect'preflight should include Access-Control-Allow-Origin'
+    ∇
+
+:EndNamespace
