@@ -80,6 +80,7 @@ nav:
         - 'Conga-Related Settings': 'settings-conga.md' # complete
         - 'CORS Settings': 'settings-cors.md' # complete
         - 'SSE Settings': 'settings-sse.md'
+        - 'WebSocket Settings': 'settings-websockets.md'
         - 'Container Settings': 'settings-container.md' # complete
         - 'Shared Settings': settings-shared.md # complete
       - 'Methods':
@@ -91,6 +92,7 @@ nav:
       - 'Security' : 'security.md'
       - 'Using Sessions' : 'sessions.md'
       - 'Server-Sent Events' : 'sse.md'
+      - 'Using WebSockets' : 'websockets.md'
       - 'Docker Integration' : 'docker.md'
 #      - 'Running as a Windows Service' : 'winservice.md'
 #      - 'Into the Cloud' : 'cloud.md'
