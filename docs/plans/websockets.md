@@ -131,16 +131,15 @@ Now: written —
 - Both added to `mkdocs.yml` (Settings, after SSE; Advanced Topics, after Server-Sent Events) and to
   `settings-overview.md`. A `release-notes.md` 1.24.0 entry covers the behaviour changes. All internal links checked.
 
-### 3.10 `OnWsErrorFn` is declared but never called (medium; read) — being fixed
+### 3.10 `OnWsErrorFn` was declared but never called — RESOLVED
 
-`OnWsErrorFn` is a public field (line 66), added to `_userHookFns` (line 689) and valence-checked at start-up (line
-747), but the `WSError` handler (line 1296) only logs and `RemoveConnection`s — it never calls `OnWsErrorFn`. So the
-hook has no effect, the same shape of gap as the old `WsTimeout`.
+Was (medium; read): `OnWsErrorFn` was a public field, added to `_userHookFns` and valence-checked at start-up, but the
+`WSError` handler only logged and `RemoveConnection`d — it never called `OnWsErrorFn`, so the hook had no effect (the
+same shape of gap as the old `WsTimeout`).
 
-**Decision (2026-10-01):** Brian is wiring it up — add the call in the `WSError` case, mirroring `OnWsCloseFn`:
-`:If ~0∊⍴OnWsErrorFn ⋄ {}(CodeLocation⍎OnWsErrorFn)ns ⋄ :EndIf` before `RemoveConnection`. The docs
-(`settings-websockets.md`, `websockets.md`) already describe `OnWsErrorFn` as a working hook. **To do:** a test for it
-once the client can be made to produce a WebSocket error (may be browser/manual, like `OnWsCloseFn`).
+Now: the `WSError` case calls `OnWsErrorFn` (mirroring `OnWsCloseFn`) before logging and removing the connection. The
+docs describe it as a working hook. **To do:** a test, once the raw Conga client can be made to produce a WebSocket
+error (may be browser/manual, like `OnWsCloseFn` — §Phase 3 "Not covered").
 
 ### 3.8 Tests — RESOLVED
 
@@ -270,3 +269,4 @@ Tests:
   at start-up (line 749). Only documentation remains for §3.5.
 - 2026-10-01: Phase 3 done — `Tests/WebSockets/` written (9 tests), passing 25/25 consecutive runs. A mutation check confirms the suite catches reverting §3.1, §3.3 and §3.9. `OnWsCloseFn` (the WSClose handshake) is left to browser testing; the raw Conga client can't produce it.
 - 2026-10-01: Phase 4 done — `docs/websockets.md`, `docs/settings-websockets.md`, nav + overview wiring, and a 1.24.0 `release-notes.md` entry. Also found §3.10 (`OnWsErrorFn` never called); Brian is wiring it up, and the docs already describe it as working.
+- 2026-10-01: §3.10 fixed — the `WSError` handler now calls `OnWsErrorFn`. All review items are now resolved except the two manual/browser test gaps (`OnWsCloseFn`, `OnWsErrorFn`) and the optional `WsSend`/`SendSSE` result-convention alignment (§6).

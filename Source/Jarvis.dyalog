@@ -1293,6 +1293,10 @@
               RemoveConnection ns.conx
      
           :Case 'WSError'
+              :If ~0∊⍴OnWsErrorFn
+                  stopIf DebugLevel 2
+                  {}(CodeLocation⍎OnWsErrorFn)ns
+              :EndIf
               Log'WSError occurred on ',obj,': ',∊⍕data
               RemoveConnection ns.conx
           :Else
