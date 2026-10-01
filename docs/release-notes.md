@@ -16,6 +16,6 @@
 - WebSocket authentication ([`WsAuthenticateFn`](./settings-websockets.md#wsauthenticatefn)) now runs once per connection: after it succeeds the connection is marked authenticated. A failed authentication closes the connection *without* dispatching the message to [`OnWsReceiveFn`](./settings-websockets.md#onwsreceivefn) (previously the message was dispatched before the connection was closed).
 - With [`WsAutoUpgrade`](./settings-websockets.md#wsautoupgrade)`←0` and no [`OnWsUpgradeReqFn`](./settings-websockets.md#onwsupgradereqfn), the upgrade is now accepted (previously the connection was left waiting). `OnWsUpgradeReqFn` is now valence-checked at start-up like the other hooks.
 - [`OnWsErrorFn`](./settings-websockets.md#onwserrorfn) is now called when an error occurs on a WebSocket.
-- Errors from the built-in handler are now reported following [`ErrorInfoLevel`](./settings-operational.md#errorlevelinfo), and WebSocket error events are logged with their detail.
+- Errors from the built-in handler are now reported following [`ErrorInfoLevel`](./settings-operational.md#errorinfolevel), and WebSocket error events are logged with their detail.
 - The `WsTimeout` setting, which had no effect, has been removed.
 - New documentation: [Using WebSockets](./websockets.md) and [WebSocket Settings](./settings-websockets.md).

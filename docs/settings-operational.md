@@ -26,9 +26,9 @@
 |Examples|`j.DefaultContentType←'application/xml; charset=utf-8'`|
 |Notes|`DefaultContentType` should only be set when most of the responses from your endpoints will have a content-type other than `'application/json'`. For individual responses that use a different content-type, set `request.ContentType`.| 
 
-### `ErrorLevelInfo`
+### `ErrorInfoLevel`
 |--|--|
-|Description|`ErrorLevelInfo` specifies how much information to include in the HTTP status message when an untrapped error occurs and `Jarvis` returns an HTTP status code of 500. Valid settings are:<ul><li>`0` - do not include any information about the error</li><li>`1` - include the APL error name (for example `VALUE ERROR`)</li><li>`2` - include the function and line number where the error occurred.</li></ul>|
+|Description|`ErrorInfoLevel` specifies how much information to include in the HTTP status message when an untrapped error occurs and `Jarvis` returns an HTTP status code of 500. Valid settings are:<ul><li>`0` - do not include any information about the error</li><li>`1` - include the APL error name (for example `VALUE ERROR`)</li><li>`2` - include the function and line number where the error occurred.</li></ul>|
 |Default|`1`|
 |Examples|`j.ErrorInfoLevel←2 ⍝ include function name and line number`|
 

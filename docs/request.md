@@ -220,7 +220,7 @@ See [`Response` Namespace](#response-namespace).
 
 ### `ErrorInfo`
 |--|--|
-|Description|`ErrorInfo` returns a description of the most recent APL error, trimmed to the request's [`ErrorInfoLevel`](./settings-operational.md#errorlevelinfo). `Fail 500` uses it by default.|
+|Description|`ErrorInfo` returns a description of the most recent APL error, trimmed to the request's [`ErrorInfoLevel`](./settings-operational.md#errorinfolevel). `Fail 500` uses it by default.|
 |Syntax|`r←req.ErrorInfo`|
 
 ## `Response` Namespace
