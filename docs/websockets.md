@@ -116,7 +116,7 @@ If `OnWsReceiveFn` is **not** defined, and the [HTML interface](./settings-json.
 
 `Jarvis` runs the named function in `CodeLocation` with `Payload` as its argument and sends the result back as JSON. This is what the built-in HTML test page's "Send via WebSocket" button uses, and it's a quick way to try an endpoint over a WebSocket.
 
-The built-in handler applies the same restrictions as the HTTP interface: a function is run only if it passes `IncludeFns` / `ExcludeFns` and is not a hook function. A message naming any other function gets `Invalid Endpoint`, and a message that isn't valid JSON gets a `WSReceive Error` whose detail follows [`ErrorInfoLevel`](./settings-operational.md#errorlevelinfo).
+The built-in handler applies the same restrictions as the HTTP interface: a function is run only if it passes [`IncludeFns`](./settings-operational.md#includefns) / [`ExcludeFns`](./settings-operational.md#excludefns) and is not a hook function. A message naming any other function gets `Invalid Endpoint`, and a message that isn't valid JSON gets a `WSReceive Error` whose detail follows [`ErrorInfoLevel`](./settings-operational.md#errorlevelinfo).
 
 Because the built-in handler is active whenever WebSockets are enabled without an `OnWsReceiveFn`, define `OnWsReceiveFn` for any application that has its own WebSocket protocol, so messages go to your code instead.
 

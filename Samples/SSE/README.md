@@ -52,7 +52,7 @@ The settings in `jarvisconfig.json`:
 | `"SSEEndpoints": "clock"` | Makes `GET /clock` an event stream, handled by the `clock` function. |
 | `"SSEHeartbeatInterval": 15` | Jarvis sends a `:` comment every 15 seconds, which keeps proxies from closing an idle stream and detects clients that have gone away. Browsers don't pass comments to the page. |
 | `"HTMLInterface": "web"` | Serves `web/index.html` at `/`, from the same origin as the stream, so no CORS set-up is needed. |
-| `"IncludeFns": "say"` | In JSON mode, every function in `CodeLocation` would otherwise be callable. This allows only `say`. (SSE endpoints and hook functions aren't affected.) |
+| [`"IncludeFns"`](../../docs/settings-operational.md#includefns)`: "say"` | In JSON mode, every function in `CodeLocation` would otherwise be callable. This allows only `say`. (SSE endpoints and hook functions aren't affected.) |
 | `"AppInitFn"`/`"AppCloseFn"` | Start and stop the ticker thread with the server. |
 
 ## Things to try

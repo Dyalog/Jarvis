@@ -57,7 +57,7 @@ The settings in `jarvisconfig.json`:
 | `"EnableWebSockets": 1` | Turns on WebSocket support. |
 | `"OnWsUpgradeFn"`, `"OnWsReceiveFn"`, `"OnWsCloseFn"` | The chat hooks: track connections, handle messages, clean up. |
 | `"HTMLInterface": "web"` | Serves `web/index.html` at `/`, from the same origin as the feed and the WebSocket. |
-| `"IncludeFns": "stats"` | In JSON mode this limits the callable JSON endpoints to `stats`. (SSE endpoints and WebSocket hooks aren't affected.) |
+| [`"IncludeFns"`](../../docs/settings-operational.md#includefns)`: "stats"` | In JSON mode this limits the callable JSON endpoints to `stats`. (SSE endpoints and WebSocket hooks aren't affected.) |
 | `"AppInitFn"`, `"AppCloseFn"` | Start and stop the ticker thread with the server. |
 
 ## Things to try
