@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Jarvis SSE Demo</title>
+  <style>
+    :root {
+      --bg: #f4f5f7; --card: #ffffff; --text: #1d2330; --muted: #667085; --border: #dde1e7;
+      --accent: #2f6fdb; --ok: #1a7f4b; --warn: #b26b00; --bad: #b42318; --code: #f0f2f5;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #14171c; --card: #1d2128; --text: #e6e8eb; --muted: #9aa3af; --border: #2e343d;
+        --accent: #6b9cff; --ok: #4cc38a; --warn: #f0b429; --bad: #ff6b6b; --code: #252a33;
+      }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); }
+    main { max-width: 960px; margin: 0 auto; padding: 24px 16px 40px; }
+    header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 20px; }
+    h1 { font-size: 22px; margin: 0; flex: 1 1 auto; }
+    h2 { font-size: 15px; margin: 0 0 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+    .pill { display: inline-flex; align-items: center; gap: 8px; padding: 4px 12px; border-radius: 999px; background: var(--card); border: 1px solid var(--border); font-size: 13px; }
+    .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+    .connected .dot { background: var(--ok); }
+    .connecting .dot, .reconnecting .dot { background: var(--warn); }
+    .closed .dot { background: var(--bad); }
+    button { font: inherit; padding: 6px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--text); cursor: pointer; }
+    button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    button:disabled { opacity: .5; cursor: default; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; min-width: 0; }
+    .wide { grid-column: 1 / -1; }
+    #time { font-size: 48px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+    .meta { color: var(--muted); font-size: 13px; }
+    #welcome { margin-top: 10px; padding: 8px 10px; border-radius: 8px; background: var(--code); font-size: 14px; }
+    #welcome:empty { display: none; }
+    #chat { height: 180px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; margin-bottom: 10px; }
+    #chat .who { font-weight: 600; }
+    #chat .at { color: var(--muted); font-size: 12px; margin-left: 6px; }
+    #chat .empty { color: var(--muted); }
+    form { display: flex; gap: 8px; flex-wrap: wrap; }
+    input { font: inherit; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); min-width: 0; }
+    #name { flex: 0 1 130px; }
+    #text { flex: 1 1 200px; }
+    #sayError { color: var(--bad); font-size: 13px; min-height: 1.5em; margin-top: 4px; }
+    #log { height: 220px; overflow-y: auto; margin: 0; padding: 8px 10px; border-radius: 8px; background: var(--code); font: 12.5px/1.5 ui-monospace, Consolas, monospace; white-space: pre-wrap; word-break: break-all; }
+    .type { font-weight: 700; }
+    .type-tick { color: var(--accent); } .type-chat { color: var(--ok); } .type-message { color: var(--warn); } .type-system { color: var(--muted); }
+    footer { margin-top: 16px; color: var(--muted); font-size: 13px; }
+    code { background: var(--code); padding: 1px 5px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Jarvis Server-Sent Events demo</h1>
+    <span id="status" class="pill connecting"><span class="dot"></span><span id="statusText">Connecting…</span></span>
+    <button id="toggle">Disconnect</button>
+  </header>
+
+  <div class="grid">
+    <section class="card">
+      <h2>Server clock (<code>tick</code> events)</h2>
+      <div id="time">--:--:--</div>
+      <div class="meta"><span id="clients">–</span> connected · last event id <span id="lastId">–</span></div>
+      <div id="welcome"></div>
+    </section>
+
+    <section class="card">
+      <h2>Chat (<code>chat</code> events)</h2>
+      <div id="chat"><div class="empty">Messages posted by any browser appear here.</div></div>
+      <form id="sayForm">
+        <input id="name" placeholder="Name" maxlength="40" autocomplete="nickname">
+        <input id="text" placeholder="Say something to every client" maxlength="500" required>
+        <button class="primary" type="submit">Send</button>
+      </form>
+      <div id="sayError"></div>
+    </section>
+
+    <section class="card wide">
+      <h2>Event log</h2>
+      <pre id="log"></pre>
+    </section>
+  </div>
+
+  <footer>
+    The page opens <code>GET /clock</code> with <code>EventSource</code>; <code>Send</code> posts to <code>/say</code>, which Jarvis
+    broadcasts to every open stream. Try a second browser window. If the server restarts, the browser reconnects by itself
+    and sends the <code>Last-Event-ID</code> of the last tick it saw, so the welcome message says "Welcome back". Jarvis also sends
+    heartbeat comments to keep the connection alive; browsers don't pass comments to the page, so they don't show up here.
+  </footer>
+</main>
+
+<script>
+  const $ = id => document.getElementById(id);
+  let source = null;
+
+  function setStatus(state, text) {
+    $("status").className = "pill " + state;
+    $("statusText").textContent = text;
+    $("toggle").textContent = source ? "Disconnect" : "Connect";
+  }
+
+  function log(type, text, id) {
+    const line = document.createElement("div");
+    const t = document.createElement("span");
+    t.className = "type type-" + type;
+    t.textContent = type.padEnd(8);
+    line.append(new Date().toLocaleTimeString() + "  ", t, (id ? " #" + id + " " : " ") + text);
+    const box = $("log");
+    box.append(line);
+    while (box.childElementCount > 200) box.firstChild.remove();
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function addChat(msg) {
+    const box = $("chat");
+    box.querySelector(".empty")?.remove();
+    const line = document.createElement("div");
+    const who = document.createElement("span");
+    who.className = "who";
+    who.textContent = msg.name + ": ";
+    const at = document.createElement("span");
+    at.className = "at";
+    at.textContent = msg.time;
+    line.append(who, msg.text, at);
+    box.append(line);
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function connect() {
+    source = new EventSource("clock");
+    setStatus("connecting", "Connecting…");
+
+    source.onopen = () => { setStatus("connected", "Connected"); log("system", "stream opened"); };
+
+    source.onerror = () => {
+      if (source.readyState === EventSource.CLOSED) { setStatus("closed", "Closed"); log("system", "stream closed"); }
+      else { setStatus("reconnecting", "Reconnecting…"); log("system", "connection lost; the browser will retry"); }
+    };
+
+    // unnamed events: the welcome message the clock endpoint sends to each new client
+    source.onmessage = e => { $("welcome").textContent = e.data; log("message", e.data); };
+
+    source.addEventListener("tick", e => {
+      const d = JSON.parse(e.data);
+      $("time").textContent = d.time;
+      $("clients").textContent = d.clients + (d.clients === 1 ? " client" : " clients");
+      $("lastId").textContent = e.lastEventId;
+      log("tick", e.data, e.lastEventId);
+    });
+
+    source.addEventListener("chat", e => { addChat(JSON.parse(e.data)); log("chat", e.data); });
+  }
+
+  function disconnect() {
+    source.close();
+    source = null;
+    setStatus("closed", "Disconnected");
+    log("system", "closed by the page");
+  }
+
+  $("toggle").onclick = () => source ? disconnect() : connect();
+
+  $("sayForm").onsubmit = async ev => {
+    ev.preventDefault();
+    $("sayError").textContent = "";
+    try {
+      const resp = await fetch("say", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: $("name").value.trim(), text: $("text").value })
+      });
+      const result = await resp.json();
+      if (!resp.ok || result.error) $("sayError").textContent = result.error || ("HTTP " + resp.status);
+      else $("text").value = "";
+    } catch (err) {
+      $("sayError").textContent = "Could not send: " + err.message;
+    }
+  };
+
+  connect();
+</script>
+</body>
+</html>

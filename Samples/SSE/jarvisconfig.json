@@ -1,0 +1,11 @@
+{
+  "Port": 8080,
+  "Paradigm": "JSON",
+  "CodeLocation": "SSEDemo.apln",
+  "HTMLInterface": "web",
+  "SSEEndpoints": "clock",
+  "SSEHeartbeatInterval": 15,
+  "IncludeFns": "say",
+  "AppInitFn": "Initialize",
+  "AppCloseFn": "Shutdown"
+}

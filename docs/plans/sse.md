@@ -1,7 +1,7 @@
 # Server-Sent Events (SSE) support
 
 Status: in progress on branch `SSE` (Jarvis 1.24.0). Last reviewed 2026-09-30 against the working tree
-(tenth review, after the scalar/BOM/`init_connections` fixes and the first run of `Tests/SSE`).
+(thirteenth review: the sample in `Samples/SSE` is written and tested; source and tests unchanged since the twelfth).
 
 ## 1. Goal
 
@@ -22,58 +22,64 @@ existing CORS, validation and authentication.
 | `CheckHookFn` | private | Now compares `|` of the `⎕AT` result code, so a shy result counts as a result for **every** hook. Every hook's call site handles a shy result: `⍎`/direct calls use it as a value, and `PostProcess` is called with `1(85⌶)` inside `:Trap 85`. The error message handles a vector of result codes. |
 | Routing | `HandleRequest` | `fn←1↓'.'@('/'∘=)ns.Req.Endpoint`. If `fn` is in `_SSEEndpoints`, the request goes to `HandleSSERequest` instead of `RequestHandler`. A `state` flag (0 respond / 1 SSE / 2 removed) skips `Respond`. `Req.Connection` is set from `ns.conx`. Request paths are deliberately **not** passed through `normalizeEndpoint` (§4.1). |
 | Request checks | `HandleSSERequest` | CORS, then `GET` only (405), then `Accept` must allow `text/event-stream` (406), then `CheckAuthentication`. A failure falls through to a normal error response. |
-| Stream start | `StartSSE(obj req endpoint)` | **Currently fails on every request (§3 item 1).** Intended: sends a raw, close-delimited `200` response with SSE headers (`text/event-stream; charset=utf-8`, `no-cache`, `Connection: close`, `X-Accel-Buffering: no`). Records the endpoint number in `_connections.index[4;]` (§4.1), sets `IsSSE` on the connection namespace, and sends a `: connected` comment. |
+| Stream start | `StartSSE(obj req endpoint)` | Sends a raw, close-delimited `200` response with SSE headers (`text/event-stream; charset=utf-8`, `no-cache`, `Connection: close`, `X-Accel-Buffering: no`). Header lines are built with `fmtHeaders req.Response.Headers`, which capitalises names with `firstCaps` (e.g. `x-app-header` → `X-App-Header`). Records the endpoint number in `_connections.index[4;]` (§4.1), sets `IsSSE` on the connection namespace, and sends a `: connected` comment. |
 | Endpoint function | `HandleSSERequest` | Optional. If `3=CodeLocation.⎕NC endpoint`, it's called with `0 CodeLocation.(85⌶)endpoint,' ⍵'`, so explicit and shy results are used and no result is allowed. Result 0 or no result keeps the stream open, non-zero closes it, and an error is logged and closes it. |
-| Timeouts | `CleanupConnections` | SSE connections are excluded from `ConnectionTimeout` (`0∧.=_connections.index[3 4;]`). |
+| Timeouts | `CleanupConnections` | SSE connections are excluded from `ConnectionTimeout` (`0∧.=_connections.index[3 4;]`). This exclusion is redundant today, but harmless (§3 item 2). |
+| Header formatting | Jarvis level | `fmtHeaders` and `firstCaps` (lines 2378–2379) sit next to `uc`/`lc`, where both are visible. They're used only by `StartSSE`; `Respond` hands its headers to Conga. |
 | `SSEConnections` | public instance | `''` → all SSE connections. Otherwise the argument goes through `normalizeEndpoint` and connections whose endpoint number is in the result are returned (`∊`), so several endpoints can be requested at once. An unknown endpoint → empty. Before `Start`, `{6::1 ⋄ 0⊣_connections}''` detects the unassigned field, and the function returns `''`. After `Stop` or `Reset`, `_connections` is freshly initialised (`init_connections`), so it returns `''` then too. |
 | `SendSSE` | public instance | Accepts connection names, connection namespaces (`.conx`) or `Request` instances (`.Connection`). A leading BOM is stripped only when present (`what←{(⎕UCS 65279)≡⊃⍵:1↓⍵ ⋄ ⍵}what`), leaving scalars as scalars. Then an empty payload, or anything that isn't already a valid event (per `IsSSEText`), goes through `FormatSSE` (`FormatSSE⍣((0∊⍴what)∨~IsSSEText what)`), so `SendSSE ''` sends a `:` keep-alive comment. Returns one code per target: the Conga rc, or `¯1` (logged as "non-SSE or closed connection"). Removes a connection on send failure. |
 | `init_connections` | private | Creates `_connections` with an empty 4-row `index` and `lastCheck←0`. Builds the namespace in a local `c` and assigns `_connections←c` once, so readers never see it without `index` (§4.3). Called from `Start` (before `LDRC.Srv`), `Stop` (after the server has stopped) and `Reset`. |
-| `IsSSEText` | public shared | Returns 1 if the argument is a simple character vector made up of valid SSE lines (`:comment`, `data`, `event`, `id`, `retry: n`) and ending with a blank line. CRLF/CR are accepted. It has no BOM handling of its own, since `SendSSE` strips it first. Tested in `Tests/SSE` (see §3 item 2 for documentation points). |
+| `IsSSEText` | public shared | Returns 1 if the argument is a simple character vector made up of valid SSE lines (`:comment`, `data`, `event`, `id`, `retry: n`) and ending with a blank line. CRLF/CR are accepted. It has no BOM handling of its own, since `SendSSE` strips it first. Tested in `Tests/SSE` (see §3 item 1 for documentation points). |
 | `FormatSSE` | public shared | Builds one event from fields (namespace or positional ≤3) and data (text, character scalar, matrix, lines or JSON; `(¯2↑1 1,⍴data)` handles scalars). An empty result becomes a `:` comment (heartbeat). Tested in `Tests/SSE`. |
 | Heartbeat | `StartSSEHeartbeat`, `SSEHeartbeat`, `_sseThread` | Started from `Server` (because `RunServer` blocks in thread modes `0`/`1`). Sleeps in ≤1 s slices, sends `FormatSSE ''` to `SSEConnections ''` every interval, traps and logs errors (`'SSEHeartbeat: '`), and exits on `_stop`. `_sseThread` is killed at `Server`'s `Exit:` and in `Reset`. |
 | Request additions | `Request` class | `Connection`, `IsSSE`, `AddHeader`. |
 
-### 2.2 Tests (written)
+### 2.2 Tests (written, passing)
 
-`Tests/SSE/test_SSE.apln` and `Tests/SSE/run.apls` (§5 Phase 2). Against the current source they fail, because of §3
-item 1. Against a copy with only that bug patched, all 15 tests pass (about 13 s).
+`Tests/SSE/test_SSE.apln` and `Tests/SSE/run.apls` (§5 Phase 2): 23 tests. All pass against the current source (about
+18 s). Against the equivalent fix-B copy, they passed three consecutive runs. A mutation check confirmed that the new
+controls catch the faults they're meant to (§5 Phase 2).
 
-### 2.3 Not started
+### 2.3 Sample (written, tested)
+
+`Samples/SSE/`: a live server clock and shared chat, with Jarvis serving the page, the stream and a JSON endpoint
+(§5 Phase 3).
+
+### 2.4 Not started
 
 - Documentation (`docs/`) and release notes.
-- A working sample: `Samples/SSE/events.dyalog` only prints `req.Input` and returns 0, while `events.html` is a working `EventSource` client.
 
 ## 3. Issues found in review
 
-Roughly ordered by severity. Each points to the phase that fixes it.
+Each points to the phase that deals with it. No blocking issues remain.
 
-1. **Every SSE request fails with a 500 (blocking).** `StartSSE` line 1355 is
-   `hdr,←req.(fmtHeaders Response.Headers),crlf`. But `fmtHeaders` (line 2213) is a private dfn inside the nested
-   `Request` class, so evaluating it through `req.(…)` from Jarvis is a VALUE ERROR. `HandleRequest`'s trap
-   catches it, logs `HandleRequest: VALUE ERROR on StartSSE[10] …`, and sends a `500 Internal Server Error` whose
-   headers include the SSE headers already set on the response. No stream is ever started. Found by the first run
-   of `Tests/SSE`; none of the earlier reviews exercised a full request.
-
-   Fix options:
-   - **Recommended:** add a public method to `Request`, e.g. `∇ r←FormatHeaders` with `:Access public instance`
-     and body `r←fmtHeaders Response.Headers`, and call `req.FormatHeaders` in `StartSSE`. This keeps
-     `firstCaps` header capitalisation, like `Respond`.
-   - Format the headers in `StartSSE` itself: `hdr,←(∊{(⍕⍺),': ',(⍕⍵),crlf}/req.Response.Headers),crlf`. This is
-     what the test run's patched copy uses, but it doesn't capitalise names. Header names are case-insensitive,
-     so it's valid, just inconsistent.
-
-   → Phase 1.
-2. **Minor:**
-   - On client disconnect with `KillOnDisconnect=0` (the default), a looping endpoint function keeps running until its next `SendSSE` fails. Document it and recommend checking `SendSSE`'s result. → Phase 3.
+1. **Documentation points:**
+   - On client disconnect with `KillOnDisconnect=0` (the default), a looping endpoint function keeps running until its next `SendSSE` fails. With `KillOnDisconnect←1` its thread is killed at once. Both are confirmed by `test_KillOnDisconnect`. Document this and recommend checking `SendSSE`'s result. → Phase 3.
    - The shy-result change in `CheckHookFn` applies to all hooks, not only SSE endpoints. It's safe (see §2.1), but it is a user-visible relaxation: a shy-result `AppInitFn`, `ValidateRequestFn` and so on was previously rejected. Mention it in the release notes. → Phase 3.
    - A line with an unknown field (e.g. `foo: x`, valid per the SSE spec) makes `IsSSEText` return 0, so `SendSSE` re-wraps the whole text as `data: foo: x`. This conservative behaviour is intended; document it. → Phase 3.
    - `IsSSEText ''` is still 1. That no longer matters for `SendSSE`, which checks `0∊⍴what` itself, but it's worth one line in the `IsSSEText` docs. → Phase 3.
+2. **The SSE exclusion in `CleanupConnections` is redundant (informational).** `CleanupConnections` only closes a
+   timed-out connection with no `Req` (`timedOut/⍨←{6::1 ⋄ 0=(_connections⍎⍵).⎕NC⊂'Req'}¨timedOut`, line 1020).
+   `Respond` removes `Req` when it finishes, but an SSE request never goes through `Respond`, so an SSE connection
+   always keeps its `Req`. So the stream would survive `ConnectionTimeout` even without the row-4 test in
+   `0∧.=_connections.index[3 4;]`.
 
-**Partly verified assumption:** `StartSSE`/`SendSSE` send a raw character vector on a connection that Conga opened
-in HTTP mode, bypassing the structured `(status headers body)` form that `Respond` uses. With §3 item 1 patched,
-`Tests/SSE` confirms this works on Conga 3.6 (Dyalog 20.0, Linux). The raw client receives the headers, the
-`: connected` comment, events and heartbeats, byte for byte. Still to do: a real browser (`EventSource`), `curl -N`,
-and the older Conga versions Jarvis supports.
+   This was found by mutation: removing the row-4 test doesn't make `test_Timeouts` fail, while the test's control
+   (an idle keep-alive connection) is closed as expected. Recommendation: keep the exclusion. It states the intent and doesn't depend on `Req`
+   being kept, so it would survive a future change such as clearing `Req` after `StartSSE`. Your call; no code change is
+   needed either way.
+
+**Verified assumption:** `StartSSE`/`SendSSE` send a raw character vector on a connection that Conga opened in HTTP
+mode, bypassing the structured `(status headers body)` form that `Respond` uses. `Tests/SSE` confirms this works
+against the current source on Conga 3.6 (Dyalog 20.0, Linux). The raw client receives the headers, the `: connected`
+comment, events and heartbeats, byte for byte. This covers HTTP/1.1 and HTTP/1.0 requests, and JSON and REST modes.
+The sample was also exercised end to end (same platform) with two more clients:
+- `curl -N`
+- Node 20's built-in, standards-based `EventSource` (`--experimental-eventsource`). It received the named `tick` and
+  `chat` events with the right `lastEventId`. After a server restart, it reconnected by itself about 3 s later,
+  sending `Last-Event-ID`.
+
+Still to do: a real browser, and the older Conga versions Jarvis supports.
 
 ### 3.1 Resolved since earlier reviews
 
@@ -97,6 +103,7 @@ and the older Conga versions Jarvis supports.
 - Scalar payloads: the BOM is stripped only when present, so `SendSSE 42` sends `data: 42` and a namespace sends `data: {"a":1}` (confirmed by `test_Payloads`).
 - `FormatSSE 'a'`: a character scalar gives `data: a` (confirmed by `test_FormatSSE` and `test_Payloads`).
 - `init_connections` assigns `_connections` once, from a local namespace (§4.3).
+- Every SSE request failing with a 500: `fmtHeaders` was a private dfn in `Request`, and its `firstCaps` needed a `uc` that `Request` doesn't have. Both were moved to the Jarvis level, and `StartSSE` calls `fmtHeaders req.Response.Headers` (line 1355). Found by the first run of `Tests/SSE`; now covered by `test_Handshake` and most of the suite.
 
 ## 4. Design decisions
 
@@ -173,13 +180,20 @@ harmless: the send fails, and `RemoveConnection` on an already-removed connectio
   whether SSE code should also be able to get the namespace (for example, via a `Req` reference to it, or
   `SSEConnections` returning namespaces on request).
 
-### 4.6 Unchanged behaviour (confirm and document)
+### 4.6 Behaviour carried over from ordinary requests (tested; document)
 
-- `ValidateRequestFn`, CORS and authentication/sessions apply to SSE requests. `PostProcessFn` and response
-  compression don't.
-- An SSE endpoint can't also be called as a normal JSON/REST endpoint (404).
-- The stream is close-delimited, so it works for HTTP/1.0 and 1.1 and ends when either side closes.
-- On reconnect the browser sends `Last-Event-ID`, which the endpoint reads with `req.GetHeader 'last-event-id'`.
+- These apply to SSE requests:
+  - `ValidateRequestFn` (`test_Validate`)
+  - CORS (`test_Rejections`)
+  - authentication (`test_Rejections`)
+  - sessions: the session header is sent with the stream (`test_Sessions`)
+- These don't apply:
+  - `PostProcessFn` (`test_PostProcess`)
+  - response compression (`test_NoCompression`)
+- SSE works in both JSON and REST modes (`test_REST`).
+- An SSE endpoint can't also be called as a normal JSON/REST endpoint (404). Not yet tested.
+- The stream is close-delimited, so it works for HTTP/1.0 and 1.1 (`test_HTTP10`) and ends when either side closes (`test_Disconnect`, `test_EndpointFunction`).
+- On reconnect the browser sends `Last-Event-ID`, which the endpoint reads with `req.GetHeader 'last-event-id'` (`test_LastEventID`).
 
 ### 4.7 Endpoint names that aren't functions (by design)
 
@@ -192,66 +206,139 @@ harmless: the send fails, and `RemoveConnection` on an already-removed connectio
 
 ## 5. Implementation phases
 
-### Phase 1 — Correctness
-Sections: §3 item 1; §4.5.
-- **First:** fix the `fmtHeaders` call in `StartSSE` (item 1). Until then no SSE stream can be opened.
-- Decide the §4.5 open question.
-- Re-run `Tests/SSE` against the source; it should pass without any patching.
+### Phase 1 — Correctness (done, apart from one decision)
+Sections: §4.5.
+- Done: the `fmtHeaders` fix (§3.1). `Tests/SSE` passes against the source with no patching.
+- Decide the §4.5 open question: how SSE code gets the connection namespace, if at all.
 
-### Phase 2 — Tests (written: `Tests/SSE/`)
-Sections: §4 (all), §3 "Partly verified assumption".
+### Phase 2 — Tests (written and passing: `Tests/SSE/`)
+Sections: §4 (all), §3 "Verified assumption".
 
 **Files:**
 - `Tests/SSE/test_SSE.apln`: namespace `test_SSE`. `Run` runs every `test_*` function and returns a vector of failure messages (empty = pass).
-- `Tests/SSE/run.apls`: shell runner. `dyalogscript Tests/SSE/run.apls` from the repository root loads `Source/Jarvis.dyalog`, or the copy named by the `JARVIS_SOURCE` environment variable. It prints the results and exits 0 if every test passed, 1 otherwise.
+- `Tests/SSE/run.apls`: shell runner, run as `dyalogscript Tests/SSE/run.apls` from the repository root.
+  - It loads `Source/Jarvis.dyalog`, or the copy named by the `JARVIS_SOURCE` environment variable.
+  - It uses ports from `JARVIS_TEST_PORT` (default 8191) up.
+  - It prints the results, and exits 0 if every test passed, 1 otherwise.
 
-**How it works:** each test creates its own server on its own port (from 8191 up), in `DYALOG_JARVIS_THREAD←'debug'`
-mode so `Start` returns immediately. The server is a `TJarvis` subclass whose `Log` override records messages in
-`Logged`, so tests can check what was logged. Clients are raw Conga clients (Jarvis's own `LDRC`, `Text` mode), so
-the stream can be read incrementally. Every server and client is closed after each test.
+**How it works:**
+- **Servers:** every server in a run gets its own port (`BasePort+1`, `BasePort+2`, …), never reused within the run, so one test's server can't receive another's traffic.
+  - Servers run in `DYALOG_JARVIS_THREAD←'debug'` mode, so `Start` returns immediately.
+  - They use `WaitTimeout←5000`, which `Stop` also uses as its limit.
+  - Each is a `TJarvis` subclass whose `Log` override records messages in `Logged`.
+- **Clients:** raw Conga clients (Jarvis's own `LDRC`, `Text` mode), so the stream can be read incrementally.
+- **Cleanup:** every server and client is closed after each test.
+- **Test application:** the `CodeLocation` namespace (`MakeApp`) holds:
+  - the endpoint functions (`events`, `alerts`, `closer`, `broken`, `shy`, `nores`, `dyadic`, `a.b`, `killme`, `looper`);
+  - the hook functions (`Authenticate`, `CheckRequest`, `AddLowerHeader`, `AfterRequest`);
+  - an ordinary JSON endpoint, `echo`, used by the control checks.
 
 **Tests and what they check:**
-- `test_Startup`: a missing function is allowed; explicit, shy and no-result functions are accepted; a dyadic function is rejected with an "is not a …" message; a variable named like an endpoint fails `Start` (§4.7).
+- `test_Startup`:
+  - A missing function is allowed, and `GET /nofn` gives an open stream.
+  - Explicit, shy and no-result functions are accepted.
+  - A dyadic function is rejected with an "is not a …" message.
+  - A variable named like an endpoint fails `Start` (§4.7).
 - `test_Shutdown`: `Stop` returns `0 'Server stopped'` in under 5 s, with and without SSE endpoints.
-- `test_Handshake`: status 200, the `content-type`, `cache-control` and `x-accel-buffering` headers, a body of exactly `: connected` + blank line, the stream stays open, and `SSEConnections` lists it.
-- `test_Rejections`: `POST` → 405; `Accept: application/json` → 406; no `Accept` → 200; CORS preflight → 204 with `Access-Control-Allow-Origin`; CORS GET → 200 with `Access-Control-Allow-Origin: *`; with `AuthenticateFn`, no token → 401 and no stream, and a valid token → 200.
+- `test_Handshake`:
+  - Status 200, with the `content-type`, `cache-control` and `x-accel-buffering` headers.
+  - Raw header names are capitalised: a lower-case `x-app-header` added by a `ValidateRequestFn` arrives as `X-App-Header`.
+  - The body is exactly `: connected` + blank line, the stream stays open, and `SSEConnections` lists it.
+- `test_Rejections`:
+  - `POST` → 405; `Accept: application/json` → 406; no `Accept` → 200.
+  - CORS preflight → 204 with `Access-Control-Allow-Origin`; CORS GET → 200 with `Access-Control-Allow-Origin: *`.
+  - With `AuthenticateFn`, no token → 401 and no stream, and a valid token → 200.
 - `test_EndpointNames`: `events`, `/events`, `a.b`, `/a/b`, `'/events, a/b'` and `'/events' 'a/b'` all route correctly.
-- `test_EndpointFunction`: result 0 keeps the stream open and the function runs once; result 1 closes it; an error closes it and logs "Error in SSE handler for endpoint broken".
+- `test_EndpointFunction`:
+  - Result 0 keeps the stream open, and the function runs once with `req.IsSSE=1` and `req.Connection` matching `SSEConnections`.
+  - Result 1 closes the stream.
+  - An error closes it and logs "Error in SSE handler for endpoint broken".
 - `test_Sending`:
   - Sends by connection name and by `Request`.
   - Broadcasts to all, to one endpoint (the other client receives nothing), and `SSEConnections` with two endpoints.
-- `test_Payloads`: exact bytes on the wire for a pre-formatted event, text, lines, a matrix, a BOM-prefixed event, `''`, a lone BOM, `42`, a namespace, a numeric vector and a character scalar.
+- `test_Payloads`: exact bytes on the wire for:
+  - a pre-formatted event, text, lines and a matrix;
+  - a BOM-prefixed event, `''` and a lone BOM;
+  - `42`, a namespace, a numeric vector and a character scalar.
 - `test_NonSSETarget`: `SendSSE` to an unknown connection returns `¯1` and logs it.
 - `test_Disconnect`: after the client closes, the connection leaves `SSEConnections` within 3 s, and a later `SendSSE` to it is non-zero.
 - `test_Heartbeat`:
   - With an interval of 1, a `:` comment arrives within 3 s, and `Stop` with the heartbeat running takes under 5 s.
-  - With 0, no data arrives in 2.5 s.
+  - With 0, no data arrives in 2.5 s, and interval 1 starts exactly one more thread than interval 0.
   - The default is 30.
-- `test_Timeouts`: with `ConnectionTimeout←1`, the stream survives 3 s and still receives an event.
+- `test_Timeouts`: with `ConnectionTimeout←1`, the stream survives 3 s and still receives an event. The control, an idle keep-alive `POST /echo` connection, is closed in the same time.
 - `test_BeforeAfter`: `SSEConnections ''` is empty before `Start`, after `Stop` and after `Reset`.
+- `test_REST`: handshake and an event in REST mode.
+- `test_Validate`: a request rejected by `ValidateRequestFn` gets 400 and no stream; an accepted one gets 200.
+- `test_PostProcess`: `PostProcessFn` isn't called for an SSE request. The control: it is called for `POST /echo`.
+- `test_Sessions`: with `SessionTimeout←1`, the stream opens and carries the session header (`SessionIdHeader`).
+- `test_LastEventID`: `req.GetHeader'last-event-id'` returns the value sent.
+- `test_HTTP10`: an `HTTP/1.0` request gets an `HTTP/1.0 200` stream that receives events.
+- `test_NoCompression`: with `UseZip←1` and `Accept-Encoding: gzip`, the stream has no `Content-Encoding` and stays plain text. The control: `POST /echo` with the same header is compressed.
+- `test_KillOnDisconnect`:
+  - With `req.KillOnDisconnect←1`, the looping endpoint thread is gone within 3 s of the client closing.
+  - With 0, the loop ends when its `SendSSE` fails.
 - `test_FormatSSE`, `test_IsSSEText`: unit cases, including namespace and positional fields, a bad `retry`, and line breaks in field values.
+
+**Mutation check** (run on scratchpad copies of the fixed source):
+
+| Fault introduced | Caught by |
+|---|---|
+| Always start the heartbeat thread | `test_Heartbeat` (thread count), plus several stream tests |
+| Don't kill the thread on disconnect when `KillOnDisconnect←1` | `test_KillOnDisconnect` |
+| Format headers without `firstCaps` | `test_Handshake` (`X-App-Header`) |
+| Remove the SSE exclusion from `CleanupConnections` | nothing: the exclusion is redundant (§3 item 2) |
 
 **Not covered (and why):**
 - `SendSSE` by connection namespace: SSE code has no public way to get one (§4.5 open question).
 - Heartbeat with `DYALOG_JARVIS_THREAD` `0`/`1`: those modes block in `RunServer` and then `⎕OFF`, so they can't run inside the test process. Test manually.
 - `normalizeEndpoint` unit cases: it's private, so it's covered indirectly by `test_EndpointNames`. It was checked directly in dyalogscript during review.
+- An SSE endpoint called as an ordinary JSON/REST endpoint returning 404 (§4.6).
 - A shy-result `ValidateRequestFn` (or another non-SSE hook): belongs in the general tests.
 - The thread-switch window in §4.3: timing-dependent, so it can't be forced reliably.
 
-**Still to do:** a manual smoke test with `Samples/SSE/events.html` in Chrome/Firefox and with `curl -N`.
+**Still to do:** a manual check of `Samples/SSE/web/index.html` in Chrome and Firefox (no browser was available). The
+`curl -N` and `EventSource` checks are done (§3 "Verified assumption").
 
-### Phase 3 — Sample and documentation
-- Sample: `Samples/SSE/events.dyalog` should show the endpoint function reading `Last-Event-ID`, a background ticker
-  broadcasting with `SSEConnections`/`FormatSSE`, and a named `ping` event (which `events.html` already listens
-  for). Add a README or config showing how to run it.
+### Phase 3 — Sample (done) and documentation
+
+**Sample (written: `Samples/SSE/`).** Run it with `dyalogscript Samples/SSE/start.apls`, then open
+<http://localhost:8080>. `Samples/SSE/README.md` covers running it from a session as well.
+- **Files:**
+  - `SSEDemo.apln`: the `CodeLocation`.
+  - `web/index.html`: the page, served by `HTMLInterface`. It has no external libraries, and puts server data into the page only with `textContent`.
+  - `jarvisconfig.json`: the settings.
+  - `start.apls`: the launcher.
+  - `README.md`.
+- **What it demonstrates:**
+  - `clock`, the SSE endpoint function: it reads `Last-Event-ID` and sends a welcome to just that client with `req Server.SendSSE msg`.
+  - `Initialize`/`Shutdown` (`AppInitFn`/`AppCloseFn`) start and stop a `Ticker` thread. The thread broadcasts a named `tick` event, with an `id`, every second using `SSEConnections`/`SendSSE`/`FormatSSE`.
+  - `say`, an ordinary JSON endpoint: it broadcasts a named `chat` event to every stream.
+  - `SSEHeartbeatInterval` (15 s), and `IncludeFns` limiting the JSON endpoints to `say`.
+- **Differences from the original outline:** the sample uses named `tick` and `chat` events rather than `ping`, and
+  replaces `events.dyalog`/`events.html` instead of extending them. Those two original files are still in the
+  folder; the README calls them "an earlier, minimal client and endpoint, not used by this demo". **Open question:**
+  keep them or delete them?
+- **Tested:**
+  - With `curl`: the page is served intact; the stream sends the connected comment, the welcome, ticks and chat events; `Last-Event-ID` gives "Welcome back".
+  - Chat input is trimmed and length-limited; empty text gets `{"error":"text is required"}`.
+  - `IncludeFns` makes every internal function 404, and a POST to `/clock` gets 405.
+  - With Node's `EventSource`, including an automatic reconnect after a server restart.
+  - `Stop` runs `Shutdown`, and the ticker thread ends.
+  - The page's JavaScript passes `node --check`.
+- **Known limitation (documented in the README):** tick ids restart from 1 when the server restarts, because the
+  counter is in the workspace. Replaying missed events is out of scope (§6).
+
+**Documentation (not started):**
 - Docs:
   - Settings: add `SSEEndpoints` (both accepted forms) and `SSEHeartbeatInterval` to a settings page (a new `settings-sse.md`, or the operational settings page) and to `mkdocs.yml` nav.
   - `methods-instance.md`: `SendSSE` (including the §4.2 payload rule), `SSEConnections` (including multiple endpoints).
-  - `methods-shared.md`: `FormatSSE`, `IsSSEText` (including the unknown-field rule and `IsSSEText ''`, §3 item 2).
+  - `methods-shared.md`: `FormatSSE`, `IsSSEText` (including the unknown-field rule and `IsSSEText ''`, §3 item 1).
   - `request.md`: `Connection`, `IsSSE`, `AddHeader`.
   - The connection namespace's `IsSSE` flag, next to wherever `IsWebSocket` is documented (§4.5).
-  - A short concepts section on how SSE requests flow (§4.6) and the disconnect/`KillOnDisconnect` note (§3 item 2).
-- `release-notes.md`: a 1.24.0 entry, including shy results now being accepted for all hook functions (§3 item 2).
+  - A short concepts section on how SSE requests flow (§4.6) and the disconnect/`KillOnDisconnect` note (§3 item 1).
+  - Point to `Samples/SSE` as the worked example.
+- `release-notes.md`: a 1.24.0 entry, including shy results now being accepted for all hook functions (§3 item 1).
 
 ## 6. Out of scope
 
@@ -271,3 +358,7 @@ the stream can be read incrementally. Every server and client is closed after ea
 - 2026-09-30: `CheckHookFn` accepts shy results for all hooks (§2.1).
 - 2026-09-30: a variable or namespace with an endpoint's name fails `Start` (start-up check `0≠⎕NC`); only functions are called at runtime (`3=⎕NC`). This is intentional (§4.7).
 - 2026-09-30: SSE tests live in `Tests/SSE/` and use a raw Conga client and a logging `TJarvis` subclass (§5 Phase 2).
+- 2026-09-30: recommended fix for the `fmtHeaders` 500 (now §3.1) is to move `fmtHeaders`/`firstCaps` to the Jarvis level; a public `Request` method alone fails on `uc` (tested).
+- 2026-09-30: the `fmtHeaders` fix went in as recommended: `fmtHeaders`/`firstCaps` moved to the Jarvis level (§3.1).
+- 2026-09-30: test servers get unique ports within a run; reusing ports across tests caused a flaky "Server seems stuck" from `Stop` (§5 Phase 2).
+- 2026-09-30: the SSE sample is `Samples/SSE/` (`SSEDemo.apln` + `web/index.html`), using named `tick` and `chat` events (§5 Phase 3).

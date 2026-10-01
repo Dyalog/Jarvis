@@ -7,6 +7,9 @@
 ⍝ Each test starts its own Jarvis on its own port, and uses a raw Conga client (Jarvis's own LDRC, in Text mode)
 ⍝ so that the event stream can be read incrementally.
 ⍝ See docs/plans/sse.md, Phase 2, for the cases these tests cover.
+⍝ Ports: every server in a run gets its own port, BasePort+1, BasePort+2, ... (8191 and up by default); ports are
+⍝ never reused within a run, so one test's server can't receive another's traffic. If they clash with another
+⍝ process, set BasePort before calling Run, or set the environment variable JARVIS_TEST_PORT for run.apls.
 
     (⎕IO ⎕ML)←1 1
     CRLF←⎕UCS 13 10
@@ -26,6 +29,7 @@
       :EndIf
       ⎕FIX TJarvisSource
       tests←{⍵/⍨'test_'∘≡¨5↑¨⍵}⎕NL ¯3
+      PortsUsed←0
       :For t :In tests
           App←MakeApp
           (Servers Clients)←⍬ ⍬
@@ -59,6 +63,14 @@
       app.a.⎕FX'r←b req' 'r←0'
       app.avar←42
       app.⎕FX'r←Authenticate req' 'r←~''secret''≡req.GetHeader''x-token'''
+      app.⎕FX'r←CheckRequest req' 'r←''block''≡req.GetHeader''x-validate'''   ⍝ ValidateRequestFn: non-zero rejects
+      app.⎕FX'r←AddLowerHeader req' '''x-app-header''req.SetHeader''1''' 'r←0'  ⍝ ValidateRequestFn: adds a lower-case header
+      app.PostCalled←0
+      app.⎕FX'AfterRequest req' 'PostCalled+←1'                                ⍝ PostProcessFn
+      app.⎕FX'r←echo payload' 'r←payload'                                       ⍝ an ordinary JSON endpoint
+      app.(LoopTid LoopDone)←0 0
+      app.⎕FX'r←killme req;i' 'req.KillOnDisconnect←1' 'LoopTid←⎕TID' ':For i :In ⍳100' '⎕DL 0.1' ':EndFor' 'r←0'
+      app.⎕FX'r←looper req;i;rc' 'LoopTid←⎕TID' ':For i :In ⍳100' '⎕DL 0.1' 'rc←req req.Server.SendSSE''tick''' ':If 0≠⊃rc' ':Leave' ':EndIf' ':EndFor' 'LoopDone←1' 'r←0'
     ∇
 
 ⍝ ─── helpers ───────────────────────────────────────────────────────────────────────
@@ -71,12 +83,12 @@
     ∇ j←NewServer endpoints
     ⍝ create (but don't start) a test server on its own port
       j←⎕NEW TJarvis
-      j.Port←BasePort+1+≢Servers
+      j.Port←BasePort+PortsUsed←PortsUsed+1
       j.CodeLocation←App
       j.SSEEndpoints←endpoints
       j.DYALOG_JARVIS_THREAD←'debug'
       j.SSEHeartbeatInterval←0
-      j.WaitTimeout←1000
+      j.WaitTimeout←5000 ⍝ Stop allows the server this long to finish
       Servers,←j
     ∇
 
@@ -99,16 +111,38 @@
       c←j Request('GET'path(,⊂'Accept' 'text/event-stream'))
     ∇
 
-    ∇ c←j Request(method path headers);rc;req
+    ∇ c←j Request args;method;path;headers;body;version;req
     ⍝ open a raw client to server j and send one HTTP request; c is the client name
+    ⍝ args: method path headers [body [version]]; headers is a vector of (name value) pairs
+      (method path headers body version)←5↑args,(≢args)↓'' '' ⍬ '' 'HTTP/1.1'
+      req←method,' ',path,' ',version,CRLF,'Host: localhost',CRLF
+      req,←∊{⍺,': ',⍵,CRLF}/¨headers
+      req,←(method≢'GET')/'Content-Length: ',(⍕≢body),CRLF
+      req,←CRLF,body
+      c←j SendRaw req
+    ∇
+
+    ∇ c←j SendRaw text;rc
+    ⍝ open a raw client to server j and send text; c is the client name
       (rc c)←2↑j.LDRC.Clt'' 'localhost'j.Port'Text'
       'Could not connect'⎕SIGNAL 11/⍨rc≠0
       Clients,←⊂c
-      req←method,' ',path,' HTTP/1.1',CRLF,'Host: localhost',CRLF
-      req,←∊{⍺,': ',⍵,CRLF}/¨headers
-      req,←(method≢'GET')/'Content-Length: 0',CRLF
-      req,←CRLF
-      {}j.LDRC.Send c req
+      {}j.LDRC.Send c text
+    ∇
+
+    ∇ r←j Echo headers
+    ⍝ make an ordinary (non-SSE) JSON request to /echo and read its response headers; r is the client name
+      r←j Request('POST' '/echo'((⊂'Content-Type' 'application/json'),headers)'{}')
+    ∇
+
+    ∇ r←WaitFor(cond ms);end
+    ⍝ evaluate the expression cond every 100ms, for up to ms milliseconds; r is 1 as soon as it's true
+      end←ms+⎕AI[3]
+      :Repeat
+          :If ⍎cond ⋄ →0⊣r←1 ⋄ :EndIf
+          {}⎕DL 0.1
+      :Until ⎕AI[3]>end
+      r←⍎cond
     ∇
 
     ∇ (data closed)←j Read(c until ms);end;res;rc;evt
@@ -153,9 +187,10 @@
 
     ∇ (status headers body closed)←j Open path;data
     ⍝ connect to an SSE endpoint and read the response headers and the initial ": connected" comment
-    ⍝ the client's name is left in Last, for the caller's later Reads
+    ⍝ the client's name is left in Last, and the raw text received in LastRaw, for the caller's later use
       Last←j Connect path
       (data closed)←j Read Last(': connected',LF,LF)3000
+      LastRaw←data
       (status headers body)←ParseResponse data
     ∇
 
@@ -173,12 +208,17 @@
 
 ⍝ ─── tests ─────────────────────────────────────────────────────────────────────────
 
-    ∇ r←test_Startup;j;rc;msg
+    ∇ r←test_Startup;j;rc;msg;status;headers;body;closed
     ⍝ start-up checks of SSEEndpoints and the endpoint functions (plan §2.1, §4.7)
       r←⍬
       j←NewServer'events nofn'
       (rc msg)←j.Start
       r,←(rc=0)Expect'Start with a function and a missing function failed: ',⍕msg
+      :If rc=0 ⍝ an endpoint with no function still streams
+          (status headers body closed)←j Open'/nofn'
+          r,←((status=200)∧~closed)Expect'GET /nofn (no endpoint function): status ',(⍕status),(closed/', stream closed')
+          r,←(1=≢j.SSEConnections'nofn')Expect'GET /nofn: SSEConnections ''nofn'' should list 1 connection'
+      :EndIf
       {}j.Stop
 
       j←NewServer'shy nores events'
@@ -211,10 +251,11 @@
       :EndFor
     ∇
 
-    ∇ r←test_Handshake;j;status;headers;body;closed
+    ∇ r←test_Handshake;j;status;headers;body;closed;head
     ⍝ GET returns 200, the SSE headers, and a ": connected" comment
       r←⍬
       j←NewServer'events'
+      j.ValidateRequestFn←'AddLowerHeader' ⍝ adds a lower-case header, to check that header names are capitalised
       →0↓⍨0∊⍴r←(0=⊃j.Start)Expect'Start failed'
       (status headers body closed)←j Open'/events'
       r,←(status=200)Expect'status ',(⍕status),', expected 200; body: ',Show body
@@ -224,6 +265,8 @@
       r,←((': connected',LF,LF)≡body)Expect'body should be ": connected" + blank line, got: ',Show body
       r,←(~closed)Expect'stream closed unexpectedly'
       r,←(1=≢j.SSEConnections'events')Expect'SSEConnections ''events'' should list 1 connection'
+      head←LastRaw↑⍨¯1+⊃(⍸(CRLF,CRLF)⍷LastRaw),≢LastRaw
+      r,←(('X-App-Header: 1'Contains head)∧'Content-Type: text/event-stream'Contains head)Expect'raw header names should be capitalised (x-app-header → X-App-Header); got: ',Show head
     ∇
 
     ∇ r←test_Rejections;j;c;status;headers;body;data;closed
@@ -301,6 +344,10 @@
       (data closed)←j Read Last''1500
       r,←(~closed)Expect'events (result 0): stream should stay open'
       r,←(1=≢App.Reqs)Expect'events: the endpoint function should have been called once'
+      :If 1=≢App.Reqs
+          r,←(1≡(⊃App.Reqs).IsSSE)Expect'events: req.IsSSE should be 1'
+          r,←((⊃App.Reqs).Connection≡⊃j.SSEConnections'events')Expect'events: req.Connection should match SSEConnections: ',(⊃App.Reqs).Connection
+      :EndIf
 
       (status headers body closed)←j Open'/closer'
       :If ~closed ⋄ (data closed)←j Read Last''3000 ⋄ :EndIf
@@ -397,7 +444,7 @@
       r,←(0≠⊃res)Expect'SendSSE to a closed connection returned 0'
     ∇
 
-    ∇ r←test_Heartbeat;j;data;closed;t
+    ∇ r←test_Heartbeat;j;data;closed;t;d;n;interval
     ⍝ heartbeat comments arrive at the configured interval, and not at all when it's 0
       r←⍬
       j←NewServer'events'
@@ -417,17 +464,35 @@
       r,←(0∊⍴data)Expect'SSEHeartbeatInterval←0: unexpected data ',Show data
 
       r,←(30≡(⎕NEW TJarvis).SSEHeartbeatInterval)Expect'SSEHeartbeatInterval should default to 30'
+
+    ⍝ interval 0 must start no heartbeat thread (no data in 2.5s alone can't tell 0 from 30)
+      d←⍬
+      :For interval :In 0 1
+          j←NewServer'events'
+          j.SSEHeartbeatInterval←interval
+          n←≢⎕TNUMS
+          →0↓⍨0∊⍴r,←(0=⊃j.Start)Expect'Start (interval ',(⍕interval),') failed'
+          {}⎕DL 0.5
+          d,←(≢⎕TNUMS)-n
+      :EndFor
+      r,←((1+⊃d)=2⊃d)Expect'interval 1 should start exactly one more thread than interval 0; threads started: ',⍕d
     ∇
 
-    ∇ r←test_Timeouts;j;data;closed;conx
-    ⍝ an SSE connection is not closed by ConnectionTimeout
+    ∇ r←test_Timeouts;j;data;closed;conx;c;status;headers;body;sse
+    ⍝ an SSE connection is not closed by ConnectionTimeout, while an idle ordinary connection is (the control)
       r←⍬
       j←NewServer'events'
       j.(ConnectionTimeout WaitTimeout)←1 200
       →0↓⍨0∊⍴r←(0=⊃j.Start)Expect'Start failed'
-      {}j Open'/events'
-      (data closed)←j Read Last''3000
+      {}j Open'/events' ⋄ sse←Last
+      c←j Echo ⍬
+      (status headers body)←ParseResponse⊃j Read c'{}' 3000
+      r,←(status=200)Expect'control: POST /echo gave status ',⍕status
+      (data closed)←j Read sse''3000
       r,←(~closed)Expect'the SSE stream was closed within 3s with ConnectionTimeout←1'
+      (data closed)←j Read c''1000
+      r,←closed Expect'control: an idle keep-alive connection should be closed by ConnectionTimeout←1, so cleanup never ran'
+      Last←sse
       conx←j.SSEConnections'events'
       {}conx j.SendSSE'still here'
       (data closed)←j Read Last 1 2000
@@ -493,6 +558,126 @@
       :For (s expected) :In cases
           r,←(expected≡J.IsSSEText s)Expect'IsSSEText ',(Show s),' should be ',⍕expected
       :EndFor
+    ∇
+
+    ∇ r←test_REST;j;status;headers;body;closed;data
+    ⍝ SSE works in REST mode too (plan §1)
+      r←⍬
+      j←NewServer'events'
+      j.Paradigm←'REST'
+      →0↓⍨0∊⍴r←(0=⊃j.Start)Expect'Start in REST mode failed'
+      (status headers body closed)←j Open'/events'
+      r,←((status=200)∧'event-stream'Contains headers Header'content-type')Expect'REST: GET /events gave status ',⍕status
+      {}(j.SSEConnections'events')j.SendSSE'rest'
+      (data closed)←j Read Last 1 2000
+      r,←(('data: rest',LF,LF)≡data)Expect'REST: event not received: ',Show data
+    ∇
+
+    ∇ r←test_Validate;j;c;status;headers;body;closed
+    ⍝ ValidateRequestFn applies to SSE requests (plan §4.6)
+      r←⍬
+      j←NewServer'events'
+      j.ValidateRequestFn←'CheckRequest'
+      →0↓⍨0∊⍴r←(0=⊃j.Start)Expect'Start with ValidateRequestFn failed'
+      c←j Request('GET' '/events'(('Accept' 'text/event-stream')('x-validate' 'block')))
+      (status headers body)←ParseResponse⊃j Read c(CRLF,CRLF)3000
+      r,←(status=400)Expect'rejected by ValidateRequestFn: status ',(⍕status),', expected 400'
+      r,←(~'event-stream'Contains headers Header'content-type')Expect'a rejected request should not start a stream'
+      (status headers body closed)←j Open'/events'
+      r,←(status=200)Expect'accepted by ValidateRequestFn: status ',(⍕status),', expected 200'
+    ∇
+
+    ∇ r←test_PostProcess;j;c
+    ⍝ PostProcessFn is not called for SSE requests, but is for ordinary ones (the control) (plan §4.6)
+      r←⍬
+      j←NewServer'events'
+      j.PostProcessFn←'AfterRequest'
+      →0↓⍨0∊⍴r←(0=⊃j.Start)Expect'Start with PostProcessFn failed'
+      {}j Open'/events'
+      {}⎕DL 0.3
+      r,←(0=App.PostCalled)Expect'PostProcessFn should not be called for an SSE request'
+      c←j Echo ⍬
+      {}j Read c'{}' 3000
+      r,←(WaitFor'1=App.PostCalled' 2000)Expect'control: PostProcessFn was not called for an ordinary request'
+    ∇
+
+    ∇ r←test_Sessions;j;status;headers;body;closed
+    ⍝ with sessions enabled, an SSE request gets a session like any other (plan §4.6)
+      r←⍬
+      j←NewServer'events'
+      j.SessionTimeout←1
+      →0↓⍨0∊⍴r←(0=⊃j.Start)Expect'Start with SessionTimeout←1 failed'
+      (status headers body closed)←j Open'/events'
+      r,←((status=200)∧~closed)Expect'with sessions: status ',(⍕status),(closed/', stream closed')
+      r,←(~0∊⍴headers Header j.SessionIdHeader)Expect'with sessions: no ',j.SessionIdHeader,' header in the SSE response'
+    ∇
+
+    ∇ r←test_LastEventID;j;c
+    ⍝ the endpoint function can read the Last-Event-ID header a reconnecting browser sends (plan §4.6)
+      r←⍬
+      j←NewServer'events'
+      →0↓⍨0∊⍴r←(0=⊃j.Start)Expect'Start failed'
+      c←j Request('GET' '/events'(('Accept' 'text/event-stream')('Last-Event-ID' '41')))
+      {}j Read c(': connected',LF,LF)3000
+      →0↓⍨0∊⍴r←(1=≢App.Reqs)Expect'the endpoint function was not called'
+      r,←((,'41')≡(⊃App.Reqs).GetHeader'last-event-id')Expect'req.GetHeader''last-event-id'' gave "',((⊃App.Reqs).GetHeader'last-event-id'),'"'
+    ∇
+
+    ∇ r←test_HTTP10;j;c;data;closed
+    ⍝ an HTTP/1.0 request gets an HTTP/1.0 close-delimited stream (plan §4.6)
+      r←⍬
+      j←NewServer'events'
+      →0↓⍨0∊⍴r←(0=⊃j.Start)Expect'Start failed'
+      c←j Request('GET' '/events'(,⊂'Accept' 'text/event-stream')'' 'HTTP/1.0')
+      (data closed)←j Read c(': connected',LF,LF)3000
+      r,←('HTTP/1.0 200'≡12↑data)Expect'HTTP/1.0: status line is ',Show data↑⍨¯1+⊃(⍸CRLF⍷data),≢data
+      r,←(~closed)Expect'HTTP/1.0: stream closed'
+      {}(j.SSEConnections'events')j.SendSSE'old'
+      (data closed)←j Read c 1 2000
+      r,←(('data: old',LF,LF)≡data)Expect'HTTP/1.0: event not received: ',Show data
+    ∇
+
+    ∇ r←test_NoCompression;j;c;status;headers;body;data;closed;enc
+    ⍝ the stream is never compressed, even when compression is on and the client accepts gzip (plan §4.6)
+      r←⍬
+      j←NewServer'events'
+      j.UseZip←1
+      →0↓⍨0∊⍴r←(0=⊃j.Start)Expect'Start failed'
+      enc←⊂'Accept-Encoding' 'gzip'
+      c←j Request('GET' '/events'((⊂'Accept' 'text/event-stream'),enc))
+      (status headers body)←ParseResponse⊃j Read c(': connected',LF,LF)3000
+      r,←(status=200)Expect'status ',⍕status
+      r,←(0∊⍴headers Header'content-encoding')Expect'the SSE response has Content-Encoding: ',headers Header'content-encoding'
+      r,←((': connected',LF,LF)≡body)Expect'the connected comment is not plain text: ',Show body
+      {}(j.SSEConnections'events')j.SendSSE'plain'
+      (data closed)←j Read c 1 2000
+      r,←(('data: plain',LF,LF)≡data)Expect'event is not plain text: ',Show data
+      c←j Echo enc
+      (status headers body)←ParseResponse⊃j Read c(CRLF,CRLF)3000
+      r,←((⊂headers Header'content-encoding')∊'gzip' 'deflate')Expect'control: an ordinary response was not compressed, so UseZip isn''t in effect'
+    ∇
+
+    ∇ r←test_KillOnDisconnect;j;tid
+    ⍝ a looping endpoint function stops after the client disconnects (plan §3 item 2):
+    ⍝ killed at once with req.KillOnDisconnect←1, or when its next SendSSE fails with KillOnDisconnect←0
+      r←⍬
+      j←NewServer'killme looper'
+      →0↓⍨0∊⍴r←(0=⊃j.Start)Expect'Start failed'
+
+      {}j Open'/killme'
+      →0↓⍨0∊⍴r←(WaitFor'0≠App.LoopTid' 2000)Expect'killme: the endpoint function did not start'
+      tid←App.LoopTid
+      {}j.LDRC.Close Last
+      r,←(WaitFor('~',(⍕tid),'∊⎕TNUMS')3000)Expect'KillOnDisconnect←1: the endpoint thread was still running 3s after the client closed'
+      ⎕TKILL tid
+
+      App.LoopTid←0
+      {}j Open'/looper'
+      r,←(('data: tick',LF,LF)≡⊃j Read Last 1 2000)Expect'looper: no tick received'
+      tid←App.LoopTid
+      {}j.LDRC.Close Last
+      r,←(WaitFor'1=App.LoopDone' 3000)Expect'KillOnDisconnect←0: the looping function did not stop within 3s of the client closing'
+      ⎕TKILL tid
     ∇
 
 :EndNamespace
