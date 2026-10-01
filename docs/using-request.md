@@ -4,7 +4,7 @@ A [`Request` object](./request.md) is created for every HTTP request that `Jarvi
 
 ### Simple Authentication Example
 
-If your `Jarvis` service used [HTTP Basic](./security.md#httpbasicauthentication), `Jarvis` will populate the [`Userid`](./request.md#userid) and [`Password`](./request.md#password) fields with the credentials supplied in the request. In this example we'll use a somewhat nonsensical validation of checking if the `Password` is the reverse of the `Userid`
+If your `Jarvis` service used [HTTP Basic](./security.md#http-basic-authentication), `Jarvis` will populate the [`Userid`](./request.md#userid) and [`Password`](./request.md#password) fields with the credentials supplied in the request. In this example we'll use a somewhat nonsensical validation of checking if the `Password` is the reverse of the `Userid`
 ```
      ∇ rc←Authenticate req
 [1]   ⍝ Perform simple silly HTTP Basic authentication example

@@ -65,28 +65,28 @@ Once started, `Jarvis` maintains a reference to to Conga library in the shared [
 |Description|`Secure` is a Boolean setting that controls whether `Jarvis` will use TLS. Valid settings are:<ul><li>`0` - do not use TLS</li><li>`1` - attempt to use TSL (see notes below)</li></ul>|
 |Default|`0`|
 |Examples|`j.Secure←1 ⍝ enable secure communications`|
-|Notes|Using TLS requires configuring several settings, see [Using TLS](./security.md#usingtls).|
+|Notes|Using TLS requires configuring several settings, see [Using TLS](./security.md#using-tls).|
 
 ### `ServerCertSKI`
 |--|--|
 |Description|Under Windows, when using the Microsoft Certificate Store to obtain the server certificate for `Jarvis` to use, `ServerCertSKI` is the **Serv**er **Cert**ificate **S**ubject **K**ey **I**dentifier of the certificate.|
 |Default|`''`|
 |Examples|`j.ServerCertSKI←'aca7d8f00691129ea0bc3613a00ed8ea9a5e55f5'`|
-|Notes|The subject key identifier is a 40 byte hexadecimal string. For more information, see [Using TLS](./security.md#usingtls).|
+|Notes|The subject key identifier is a 40 byte hexadecimal string. For more information, see [Using TLS](./security.md#using-tls).|
 
 ### `ServerCertFile`
 |--|--|
 |Description|`ServerCertFile` is the name of the file containing the server's public certificate.|
 |Default|`''`|
 |Examples|`j.ServerCertFile←'/etc/mycerts/publiccert.pem'`|
-|Notes|For more information, see [Using TLS](./security.md#usingtls).|
+|Notes|For more information, see [Using TLS](./security.md#using-tls).|
 
 ### `ServerKeyFile`
 |--|--|
 |Description|`ServerKeyFile` is the name of the file containing the server's private key.|
 |Default|`''`|
 |Examples|`j.ServerKeyFile←'/etc/mycerts/privatekey.pem'`|
-|Notes|**Never** share your private key file. For more information, see [Using TLS](./security.md#usingtls).|
+|Notes|**Never** share your private key file. For more information, see [Using TLS](./security.md#using-tls).|
 
 ### `ServerName`
 |--|--|
@@ -100,7 +100,7 @@ Once started, `Jarvis` maintains a reference to to Conga library in the shared [
 |Description|`SSLValidation` is employed as part of the certificate checking process and is more fully documented in the [Conga User Guide](https://docs.dyalog.com/latest/Conga%20User%20Guide.pdf).|
 |Default|`64` - request but do not require a client certificate|
 |Examples|`j.SSLValidation←128 ⍝ require a valid certificate`|
-|Notes|For more information, see [Using TLS](./security.md#usingtls).|
+|Notes|For more information, see [Using TLS](./security.md#using-tls).|
 
 ### `WaitTimeout`
 |--|--|
