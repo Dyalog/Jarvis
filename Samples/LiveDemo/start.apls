@@ -1,0 +1,9 @@
+⍝ Start the combined Jarvis demo from the shell (repository root):
+⍝     dyalogscript Samples/LiveDemo/start.apls
+⍝ then browse to http://localhost:8080. The server runs until the process is interrupted (Ctrl+C).
+⍝ Loads Source/Jarvis.dyalog (relative to this script) and the settings in jarvisconfig.json.
+⎕IO←1
+here←{⊃1 ⎕NPARTS ⍵}⊃{⍵/⍨∨/¨'start.apls'∘⍷¨⍵}2 ⎕NQ'.' 'GetCommandLineArgs'
+{}#.⎕FIX'file://',here,'../../Source/Jarvis.dyalog'
+j←#.Jarvis.New here,'jarvisconfig.json'
+⎕←j.Start

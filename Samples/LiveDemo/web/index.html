@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Jarvis Live Demo</title>
+  <style>
+    :root { color-scheme: light dark; }
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; margin: 0; padding: 16px; line-height: 1.4; }
+    h1 { font-size: 1.3rem; margin: 0 0 4px; }
+    p.lead { margin: 0 0 16px; opacity: 0.8; }
+    .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+    section { border: 1px solid rgba(128,128,128,0.4); border-radius: 8px; padding: 12px; }
+    h2 { font-size: 1rem; margin: 0 0 8px; }
+    .tag { font-size: 0.72rem; font-weight: 600; padding: 1px 6px; border-radius: 4px;
+           background: rgba(128,128,128,0.2); margin-left: 6px; vertical-align: middle; }
+    .status { font-size: 0.8rem; opacity: 0.8; margin-bottom: 8px; }
+    .log { height: 200px; overflow-y: auto; border: 1px solid rgba(128,128,128,0.3);
+           border-radius: 6px; padding: 8px; font: 0.82rem/1.4 ui-monospace, monospace; }
+    .log div { padding: 1px 0; }
+    .muted { opacity: 0.6; }
+    form { display: flex; gap: 6px; margin-top: 8px; }
+    input, button { font: inherit; padding: 6px 8px; border-radius: 6px;
+                    border: 1px solid rgba(128,128,128,0.5); }
+    input { flex: 1 1 auto; min-width: 0; background: transparent; color: inherit; }
+    #name { flex: 0 0 90px; }
+    button { cursor: pointer; }
+    pre { margin: 8px 0 0; font: 0.82rem/1.4 ui-monospace, monospace; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h1>Jarvis Live Demo</h1>
+  <p class="lead">One Jarvis server in JSON mode, showing three ways to talk to a browser.</p>
+
+  <div class="grid">
+    <section>
+      <h2>Live feed<span class="tag">SSE</span></h2>
+      <div class="status" id="feedStatus">connecting…</div>
+      <div class="log" id="feed"></div>
+    </section>
+
+    <section>
+      <h2>Chat<span class="tag">WebSocket</span></h2>
+      <div class="status" id="chatStatus">connecting…</div>
+      <div class="log" id="chat"></div>
+      <form id="chatForm">
+        <input id="name" type="text" placeholder="name" maxlength="40" autocomplete="off">
+        <input id="text" type="text" placeholder="message" maxlength="500" autocomplete="off">
+        <button type="submit">Send</button>
+      </form>
+    </section>
+
+    <section>
+      <h2>Stats<span class="tag">JSON</span></h2>
+      <div class="status">POST /stats</div>
+      <button id="statsBtn" type="button">Get stats</button>
+      <pre id="stats" class="muted">(not fetched yet)</pre>
+    </section>
+  </div>
+
+  <script>
+    // append a line to a log panel, trimming old lines; text is set with textContent, never innerHTML
+    function logTo(id, text, cls) {
+      const box = document.getElementById(id);
+      const line = document.createElement("div");
+      if (cls) line.className = cls;
+      line.textContent = text;
+      box.appendChild(line);
+      while (box.children.length > 200) box.removeChild(box.firstChild);
+      box.scrollTop = box.scrollHeight;
+    }
+
+    // ---- SSE: the live feed (server → client) --------------------------------
+    const feed = new EventSource("feed");
+    feed.onopen = () => { document.getElementById("feedStatus").textContent = "connected"; };
+    feed.onerror = () => { document.getElementById("feedStatus").textContent = "reconnecting…"; };
+    feed.onmessage = e => logTo("feed", e.data, "muted");          // unnamed "welcome" events
+    feed.addEventListener("tick", e => {
+      const d = JSON.parse(e.data);
+      logTo("feed", `#${e.lastEventId}  ${d.time}   SSE: ${d.sseClients}  WS: ${d.wsClients}`);
+    });
+
+    // ---- WebSocket: the shared chat (two-way) --------------------------------
+    const chatStatus = document.getElementById("chatStatus");
+    const ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/");
+    ws.onopen = () => { chatStatus.textContent = "connected"; };
+    ws.onclose = () => { chatStatus.textContent = "closed"; };
+    ws.onerror = () => { chatStatus.textContent = "error"; };
+    ws.onmessage = e => {
+      const m = JSON.parse(e.data);
+      if (m.type === "chat") logTo("chat", `[${m.time}] ${m.name}: ${m.text}`);
+      else logTo("chat", `[${m.time}] * ${m.text}`, "muted");
+    };
+
+    document.getElementById("chatForm").addEventListener("submit", ev => {
+      ev.preventDefault();
+      const text = document.getElementById("text").value.trim();
+      if (!text || ws.readyState !== WebSocket.OPEN) return;
+      ws.send(JSON.stringify({ name: document.getElementById("name").value, text }));
+      document.getElementById("text").value = "";
+    });
+
+    // ---- JSON: an ordinary request/response ----------------------------------
+    document.getElementById("statsBtn").addEventListener("click", async () => {
+      const out = document.getElementById("stats");
+      out.classList.remove("muted");
+      try {
+        const res = await fetch("stats", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: "{}"
+        });
+        out.textContent = JSON.stringify(await res.json(), null, 2);
+      } catch (err) {
+        out.textContent = "error: " + err;
+      }
+    });
+  </script>
+</body>
+</html>
