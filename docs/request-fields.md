@@ -137,26 +137,7 @@ Most `Request` fields should be considered read-only and are intended to convey 
 |Default|`''`|
 |Notes|The difference between [`Body`](#body) and `Payload` is that `Payload` has undergone any appropriate translation whereas `Body` has not. In JSON mode the parsed payload is passed as the right argument to your endpoint function.|
 
-### `Response` Namespace
-
-Every [`Request`](#request-fields) has a `Response` namespace (`req.Response`) holding what `Jarvis` will send back. Set its fields, or use the `Request` methods above ([`SetHeader`](#setheader), [`SetStatus`](#setstatus), [`SetContentType`](#setcontenttype), [`Fail`](#fail)), to shape the response. In many cases you don't touch it at all: `Jarvis` builds the response from your endpoint's result.
-
-### `Response.Status`
+### `Response`
 
 |--|--|
-|Description|The HTTP status code to return. `0` until set; `Jarvis` defaults it (to `200` for a normal response) if your code leaves it `0`. Prefer [`SetStatus`](#setstatus) or [`Fail`](#fail), which also set the status text.|
-
-### `Response.StatusText`
-
-|--|--|
-|Description|The HTTP reason phrase that accompanies [`Status`](#responsestatus). `SetStatus`/`Fail` set it for you from the status code.|
-
-### `Response.Payload`
-
-|--|--|
-|Description|The response body. If your endpoint returns a result and you haven't set `Payload`, `Jarvis` uses the result. When the response content-type is `application/json`, `Jarvis` converts `Payload` to JSON before sending.|
-
-### `Response.Headers`
-
-|--|--|
-|Description|A 2-column matrix of the response's header names and values. Use [`SetHeader`](#setheader), [`AddHeader`](#addheader), [`DefaultHeader`](#defaultheader) or [`SetContentType`](#setcontenttype) to add to it rather than assigning it directly.|
+|Description|`Response` is a namespace holding the status, headers and payload that `Jarvis` will send back to the client. See [Response Namespace](./response.md).|

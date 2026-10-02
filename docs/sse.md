@@ -66,7 +66,7 @@ Some features for ordinary requests don't apply to SSE streams:
 - The stream isn't compressed, even if [`UseZip`](./settings-operational.md#usezip) is set.
 - [`ConnectionTimeout`](./settings-operational.md#connectiontimeout) doesn't apply: an idle stream isn't closed. Use [`SSEHeartbeatInterval`](./settings-sse.md#sseheartbeatinterval) to find clients that have gone away.
 
-The [`Request`](./request.md) object's [`IsSSE`](./request.md#issse) field is `1` for a request to an SSE endpoint, so an `AuthenticateFn` can treat streams differently from other requests. `IsSSE` is set after `ValidateRequestFn` is called, so it's still `0` there; a `ValidateRequestFn` can check `req.Endpoint` instead.
+The [`Request`](./request.md) object's [`IsSSE`](./request-fields.md#issse) field is `1` for a request to an SSE endpoint, so an `AuthenticateFn` can treat streams differently from other requests. `IsSSE` is set after `ValidateRequestFn` is called, so it's still `0` there; a `ValidateRequestFn` can check `req.Endpoint` instead.
 
 ## The endpoint function
 

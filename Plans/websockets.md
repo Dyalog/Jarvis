@@ -1,7 +1,7 @@
 # WebSocket support: review and fixes
 
 Status: in progress. Reviewed 2026-10-01 (second review) against the working tree — `Source/Jarvis.dyalog` with
-uncommitted changes on top of commit `bf92df7` (branch `SSE`, Jarvis 1.24.0). Since the first review (against `1c34a50`)
+uncommitted changes on top of commit `bf92df7` (branch `SSE`, Jarvis 1.23.0). Since the first review (against `1c34a50`)
 Brian has already fixed most of the Phase 1 issues in the working tree; this review records what's resolved, what
 remains, and one new finding. Line numbers refer to the current working tree.
 
@@ -129,7 +129,7 @@ Now: written —
   `IncludeFns`/hook restrictions (§3.1/§3.2), authentication (§3.9), that connections aren't idle-timed-out (§3.4), and
   the `WsAutoUpgrade` options (§3.5).
 - Both added to `mkdocs.yml` (Settings, after SSE; Advanced Topics, after Server-Sent Events) and to
-  `settings-overview.md`. A `release-notes.md` 1.24.0 entry covers the behaviour changes. All internal links checked.
+  `settings-overview.md`. A `release-notes.md` 1.23.0 entry covers the behaviour changes. All internal links checked.
 
 ### 3.10 `OnWsErrorFn` was declared but never called — RESOLVED
 
@@ -239,7 +239,7 @@ Tests:
 ### Phase 4 — Documentation (written)
 - `docs/websockets.md` (concepts/usage) and `docs/settings-websockets.md` (settings), both in `mkdocs.yml` and
   `settings-overview.md`, in the style of the SSE pages (§3.7).
-- `docs/release-notes.md`: a 1.24.0 entry covering the behaviour changes (built-in handler honours `IncludeFns`; auth
+- `docs/release-notes.md`: a 1.23.0 entry covering the behaviour changes (built-in handler honours `IncludeFns`; auth
   no longer dispatches on failure and runs once per connection; `WsAutoUpgrade←0` with no hook accepts; `OnWsErrorFn`
   now called; `WsTimeout` removed).
 
@@ -268,5 +268,5 @@ Tests:
   (new `:Else → WSAccept` branch, line 1230), verified with a Conga client. `OnWsUpgradeReqFn` is also now valence-checked
   at start-up (line 749). Only documentation remains for §3.5.
 - 2026-10-01: Phase 3 done — `Tests/WebSockets/` written (9 tests), passing 25/25 consecutive runs. A mutation check confirms the suite catches reverting §3.1, §3.3 and §3.9. `OnWsCloseFn` (the WSClose handshake) is left to browser testing; the raw Conga client can't produce it.
-- 2026-10-01: Phase 4 done — `docs/websockets.md`, `docs/settings-websockets.md`, nav + overview wiring, and a 1.24.0 `release-notes.md` entry. Also found §3.10 (`OnWsErrorFn` never called); Brian is wiring it up, and the docs already describe it as working.
+- 2026-10-01: Phase 4 done — `docs/websockets.md`, `docs/settings-websockets.md`, nav + overview wiring, and a 1.23.0 `release-notes.md` entry. Also found §3.10 (`OnWsErrorFn` never called); Brian is wiring it up, and the docs already describe it as working.
 - 2026-10-01: §3.10 fixed — the `WSError` handler now calls `OnWsErrorFn`. All review items are now resolved except the two manual/browser test gaps (`OnWsCloseFn`, `OnWsErrorFn`) and the optional `WsSend`/`SendSSE` result-convention alignment (§6).

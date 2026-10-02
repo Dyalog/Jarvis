@@ -16,7 +16,7 @@ j.ServerKeyFile←'/path/to/server-key.pem'
 j.Start
 ```
 
-[`SSLValidation`](./settings-conga.md#sslvalidation) controls how **Jarvis** treats client certificates. The default, `64`, requests a client certificate but does not require one; when a client presents one, it is available to your code as [`req.PeerCert`](./request.md#peercert). See [`Priority`](./settings-conga.md#priority) for the cipher/protocol settings passed to Conga.
+[`SSLValidation`](./settings-conga.md#sslvalidation) controls how **Jarvis** treats client certificates. The default, `64`, requests a client certificate but does not require one; when a client presents one, it is available to your code as [`req.PeerCert`](./request-fields.md#peercert). See [`Priority`](./settings-conga.md#priority) for the cipher/protocol settings passed to Conga.
 
 TLS underpins the other features here: HTTP Basic credentials and session tokens are only as safe as the connection carrying them, so run a service that authenticates its users over HTTPS.
 
@@ -29,7 +29,7 @@ Authentication decides *who* may call your service. **Jarvis** runs an authentic
 
 If the function signals an error, **Jarvis** fails the request with `500`.
 
-Your function can base its decision on whatever the request carries — the [`UserID`](./request.md#userid) and [`Password`](./request.md#password) from HTTP Basic authentication (below), a bearer token or API key in a [header](./request.md#getheader), a [cookie](./request.md#getcookie), or [session](./sessions.md) state.
+Your function can base its decision on whatever the request carries — the [`UserID`](./request-fields.md#userid) and [`Password`](./request-fields.md#password) from HTTP Basic authentication (below), a bearer token or API key in a [header](./request-methods.md#getheader), a [cookie](./request-methods.md#getcookie), or [session](./sessions.md) state.
 
 ```apl
 ∇ r←Authenticate req
@@ -46,7 +46,7 @@ If no `AuthenticateFn` is defined, every request is allowed (subject to [validat
 
 **Jarvis** handles two parts of the scheme for you:
 
-- **Decoding credentials.** When a request carries an `Authorization: Basic …` header, **Jarvis** decodes it and sets [`req.UserID`](./request.md#userid) and [`req.Password`](./request.md#password), ready for your `AuthenticateFn` to check.
+- **Decoding credentials.** When a request carries an `Authorization: Basic …` header, **Jarvis** decodes it and sets [`req.UserID`](./request-fields.md#userid) and [`req.Password`](./request-fields.md#password), ready for your `AuthenticateFn` to check.
 - **Challenging the client.** When `HTTPAuthentication` is `'basic'` and your `AuthenticateFn` rejects a request (returns non-`0`), **Jarvis** adds a `WWW-Authenticate: Basic` header to the `401` response, which prompts a browser to ask the user for credentials.
 
 **Jarvis** does not decide whether the credentials are valid — that is your `AuthenticateFn`'s job:
@@ -76,4 +76,4 @@ Validation decides *whether a request is acceptable* — its shape, headers, siz
 ∇
 ```
 
-The hook can also adjust the request's [response](./request.md#response-namespace) before failing it — for example to set a custom status or an explanatory payload.
+The hook can also adjust the request's [response](./response.md) before failing it — for example to set a custom status or an explanatory payload.

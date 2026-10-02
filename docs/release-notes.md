@@ -1,13 +1,13 @@
 # Release Notes
 
-## 1.24.0
+## 1.23.0
 
 ### Server-Sent Events (SSE)
 
 - New: `Jarvis` can push a stream of events to browsers over plain HTTP, consumed by the JavaScript `EventSource` API. SSE works in both JSON and REST modes and reuses `Jarvis`'s existing CORS, validation, authentication and sessions. See [Using Server-Sent Events](./sse.md).
 - New settings: [`SSEEndpoints`](./settings-sse.md#sseendpoints) names the endpoints that serve event streams, and [`SSEHeartbeatInterval`](./settings-sse.md#sseheartbeatinterval) controls the keep-alive heartbeat (default 30 seconds, `0` to disable).
 - New instance methods [`SendSSE`](./sse.md#sendsse) (send an event to one or more streams) and [`SSEConnections`](./sse.md#sseconnections) (list open streams), and new shared methods [`FormatSSE`](./sse.md#formatsse) (build an event) and [`IsSSEText`](./sse.md#isssetext).
-- The [`Request`](./request.md) object gains [`IsSSE`](./request.md#issse) (true for an SSE request), `Connection` (the Conga connection name) and an `AddHeader` method.
+- The [`Request`](./request.md) object gains [`IsSSE`](./request-fields.md#issse) (true for an SSE request), `Connection` (the Conga connection name) and an `AddHeader` method.
 - Shy results are now accepted from every user hook function. Previously a hook such as [`AppInitFn`](./settings-hooks.md#appinitfn) or [`ValidateRequestFn`](./settings-hooks.md#validaterequestfn) that returned a shy result was rejected at start-up; now it is treated as returning a result.
 
 ### WebSockets

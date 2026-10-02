@@ -6,7 +6,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.24.0' '2026-09-25'
+      r←'Jarvis' '1.23.0' '2026-09-25'
     ∇
 
     ∇ Documentation

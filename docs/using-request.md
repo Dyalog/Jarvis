@@ -1,10 +1,10 @@
-A [`Request` object](./request.md) is created for every HTTP request that `Jarvis` receives. It contains information about the request - HTTP headers, HTTP cookies, the client's IP address, certificate information (if you're using HTTPS), etc. It also contains the [`Response` namespace](./request.md#response-namespace) which will have the information to format `Jarvis`' response.
+A [`Request` object](./request.md) is created for every HTTP request that `Jarvis` receives. It contains information about the request - HTTP headers, HTTP cookies, the client's IP address, certificate information (if you're using HTTPS), etc. It also contains the [`Response` namespace](./response.md) which will have the information to format `Jarvis`' response.
 
 `Request` is also passed as an argument to several of the ["hook" functions](./settings-hooks.md).
 
 ### Simple Authentication Example
 
-If your `Jarvis` service used [HTTP Basic](./security.md#http-basic-authentication), `Jarvis` will populate the [`Userid`](./request.md#userid) and [`Password`](./request.md#password) fields with the credentials supplied in the request. In this example we'll use a somewhat nonsensical validation of checking if the `Password` is the reverse of the `Userid`
+If your `Jarvis` service used [HTTP Basic](./security.md#http-basic-authentication), `Jarvis` will populate the [`Userid`](./request-fields.md#userid) and [`Password`](./request-fields.md#password) fields with the credentials supplied in the request. In this example we'll use a somewhat nonsensical validation of checking if the `Password` is the reverse of the `Userid`
 ```
      ∇ rc←Authenticate req
 [1]   ⍝ Perform simple silly HTTP Basic authentication example
@@ -21,7 +21,7 @@ or more succinctly `Authenticate←{0∊⍴⍵.UserID:1 ⋄ ⍵.UserID≢⌽⍵.
 
 ### Manipulating the Request's Response
 
-`Jarvis` will assume that all responses are of the content-type specified by [`DefaultContentType`](./settings-operational.md#defaultcontenttype) which has a default setting of `'application/json; charset=utf-8'`. You can specify a different `DefaultContentType` if most or all of your endpoints return response payloads other than JSON. You can also set the content-type in your endpoint code by using the request's [`SetContentType`](./request.md#setcontenttype) method. For example:
+`Jarvis` will assume that all responses are of the content-type specified by [`DefaultContentType`](./settings-operational.md#defaultcontenttype) which has a default setting of `'application/json; charset=utf-8'`. You can specify a different `DefaultContentType` if most or all of your endpoints return response payloads other than JSON. You can also set the content-type in your endpoint code by using the request's [`SetContentType`](./request-methods.md#setcontenttype) method. For example:
 
 ```
      ∇ r←req ReturnHTML string

@@ -18,7 +18,7 @@ Use `¯1` for sessions that never time out (you then manage their lifetime yours
 1. A request arrives without a valid session id. **Jarvis** creates a session: a fresh namespace to hold your state, with a unique id.
 2. **Jarvis** sends the id back to the client in the [`SessionIdHeader`](./settings-session.md#sessionidheader) — as an HTTP header, or, if [`SessionUseCookie`](./settings-session.md#sessionusecookie) is `1`, as a cookie.
 3. The client returns that id on its next request (a browser returns a cookie automatically; other clients must echo the header).
-4. **Jarvis** looks the id up, finds the session namespace, and makes it available to your endpoint as [`req.Session`](./request.md#session). The session's idle timer is reset.
+4. **Jarvis** looks the id up, finds the session namespace, and makes it available to your endpoint as [`req.Session`](./request-fields.md#session). The session's idle timer is reset.
 
 If the id is missing, unknown, or expired, **Jarvis** starts a new session, so your endpoint always has a `req.Session` to work with when sessions are enabled.
 

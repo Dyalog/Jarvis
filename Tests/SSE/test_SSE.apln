@@ -6,7 +6,7 @@
 ⍝ Run returns a vector of failure messages; empty means every test passed.
 ⍝ Each test starts its own Jarvis on its own port, and uses a raw Conga client (Jarvis's own LDRC, in Text mode)
 ⍝ so that the event stream can be read incrementally.
-⍝ See docs/plans/sse.md, Phase 2, for the cases these tests cover.
+⍝ See Plans/sse.md, Phase 2, for the cases these tests cover.
 ⍝ Ports: every server in a run gets its own port, BasePort+1, BasePort+2, ... (8191 and up by default); ports are
 ⍝ never reused within a run, so one test's server can't receive another's traffic. If they clash with another
 ⍝ process, set BasePort before calling Run, or set the environment variable JARVIS_TEST_PORT for run.apls.

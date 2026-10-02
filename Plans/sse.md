@@ -1,6 +1,6 @@
 # Server-Sent Events (SSE) support
 
-Status: in progress on branch `SSE` (Jarvis 1.24.0). Last reviewed 2026-10-01 against commit `1c34a50` (clean
+Status: in progress on branch `SSE` (Jarvis 1.23.0). Last reviewed 2026-10-01 against commit `1c34a50` (clean
 working tree). This is the fourteenth review. The only source change since the thirteenth is the `fmtHeaders`/`firstCaps`
 move (§3.1), which is now committed. Every claim and line reference below was re-checked against
 `Source/Jarvis.dyalog`, and `Tests/SSE/test_SSE.apln` still has 23 tests.
@@ -352,7 +352,7 @@ Sections: §4 (all), §3 "Verified assumption".
   - `methods-shared.md`: `FormatSSE`, `IsSSEText` (including the unknown-field rule and `IsSSEText ''`, §3 item 1).
   - `request.md`: `Connection`, `AddHeader`. (`IsSSE` is done: description, an `AuthenticateFn` example, and when it's set relative to `ValidateRequestFn`.)
   - The connection namespace's `IsSSE` flag, next to wherever `IsWebSocket` is documented (§4.5). Deferred with the §4.5 question.
-- `release-notes.md`: a 1.24.0 entry, including shy results now being accepted for all hook functions (§3 item 1).
+- `release-notes.md`: a 1.23.0 entry, including shy results now being accepted for all hook functions (§3 item 1).
 
 ## 6. Out of scope
 
