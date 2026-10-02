@@ -10,4 +10,6 @@ The settings documentation is broken up into groups of related settings as follo
 | [User Hooks](./settings-hooks.md) | Settings that allow you to specify "hook" functions to perform tasks like application initialization, session initialization, and authentication. |
 | [Container](./settings-container.md) | Settings related to running a **Jarvis** service in a containerized environment like Docker. |
 | [CORS](./settings-cors.md) | Settings related to Cross Origin Resource Sharing which can enable calls to your **Jarvis** service to be made from webpages in other domains. |
+| [SSE](./settings-sse.md) | Settings related to Server-Sent Events, which let **Jarvis** push a stream of events to clients. |
+| [WebSockets](./settings-websockets.md) | Settings related to WebSockets, which give **Jarvis** a two-way, persistent connection to a client. |
 | [Shared](./settings-shared.md) | Settings that are shared by all instances of **Jarvis**.|

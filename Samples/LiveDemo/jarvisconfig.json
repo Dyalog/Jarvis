@@ -1,0 +1,18 @@
+{
+  "Port": 8080,
+  "Paradigm": "JSON",
+  "CodeLocation": "LiveDemo.apln",
+  "HTMLInterface": "web",
+  "IncludeFns": "stats",
+
+  "SSEEndpoints": "feed",
+  "SSEHeartbeatInterval": 15,
+
+  "EnableWebSockets": 1,
+  "OnWsUpgradeFn": "WsConnect",
+  "OnWsReceiveFn": "WsReceive",
+  "OnWsCloseFn": "WsClose",
+
+  "AppInitFn": "Initialize",
+  "AppCloseFn": "Shutdown"
+}
