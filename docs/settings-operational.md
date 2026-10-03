@@ -26,11 +26,18 @@
 |Examples|`j.DefaultContentType←'application/xml; charset=utf-8'`|
 |Notes|`DefaultContentType` should only be set when most of the responses from your endpoints will have a content-type other than `'application/json'`. For individual responses that use a different content-type, set `request.ContentType`.| 
 
-### `ErrorLevelInfo`
+### `ErrorInfoLevel`
 |--|--|
-|Description|`ErrorLevelInfo` specifies how much information to include in the HTTP status message when an untrapped error occurs and `Jarvis` returns an HTTP status code of 500. Valid settings are:<ul><li>`0` - do not include any information about the error</li><li>`1` - include the APL error name (for example `VALUE ERROR`)</li><li>`2` - include the function and line number where the error occurred.</li></ul>|
+|Description|`ErrorInfoLevel` specifies how much information to include in the HTTP status message when an untrapped error occurs and `Jarvis` returns an HTTP status code of 500. Valid settings are:<ul><li>`0` - do not include any information about the error</li><li>`1` - include the APL error name (for example `VALUE ERROR`)</li><li>`2` - include the function and line number where the error occurred.</li></ul>|
 |Default|`1`|
 |Examples|`j.ErrorInfoLevel←2 ⍝ include function name and line number`|
+
+### `ExcludeFns`
+|--|--|
+|Description|`ExcludeFns` hides functions in [`CodeLocation`](#codelocation) from being called as endpoints: an endpoint request for a function whose name matches one of its patterns gets a 404 (Not Found). The pattern forms are the same as for [`IncludeFns`](#includefns):<ul><li>a function name (for example `'debugDump'`)</li><li>a simple wildcard pattern using `?` (any one character) and `*` (any run of characters), for example `'internal*'`</li><li>a regular expression, delimited with `/` (for example `'/^internal.*$/'`)</li></ul>`ExcludeFns` may be a single character vector or a vector of character vectors.|
+|Default|`''` - no functions are hidden|
+|Examples|`j.ExcludeFns←'internal*'`<br>`j.ExcludeFns←'debugDump' 'reset'`|
+|Notes|If both [`IncludeFns`](#includefns) and `ExcludeFns` are set, a function must match `IncludeFns` **and** not match `ExcludeFns` to be callable. [Hook functions](./settings-hooks.md) and [SSE endpoint functions](./settings-sse.md#sseendpoints) are excluded from being called as ordinary endpoints regardless of this setting.|
 
 ### `Hostname`
 |--|--|
@@ -45,6 +52,13 @@
 |Default|`'basic'`|
 |Examples|`j.HTTPAuthentication←'' ⍝ disable HTTP basic authentication`|
 |Notes|See [HTTP Basic Authentication](./security.md) |
+
+### `IncludeFns`
+|--|--|
+|Description|`IncludeFns` restricts which functions in [`CodeLocation`](#codelocation) may be called as endpoints. When it is non-empty, only functions whose names match one of its patterns are callable; any other endpoint request gets a 404 (Not Found). Each element may be:<ul><li>a function name (for example `'getCustomer'`)</li><li>a simple wildcard pattern using `?` (any one character) and `*` (any run of characters), for example `'get*'`</li><li>a regular expression, delimited with `/` (for example `'/^get.*$/'`)</li></ul>`IncludeFns` may be a single character vector or a vector of character vectors.|
+|Default|`''` - no restriction; every function in `CodeLocation` (except those excluded below) may be called|
+|Examples|`j.IncludeFns←'getCustomer' 'listCustomers'`<br>`j.IncludeFns←'get*'`|
+|Notes|If both `IncludeFns` and [`ExcludeFns`](#excludefns) are set, a function must match `IncludeFns` **and** not match `ExcludeFns` to be callable. [Hook functions](./settings-hooks.md) and [SSE endpoint functions](./settings-sse.md#sseendpoints) are always excluded from being called as ordinary endpoints, regardless of `IncludeFns`. The same check is applied in JSON and REST modes and by the [built-in WebSocket handler](./websockets.md#the-built-in-message-handler).|
 
 ### `JarvisConfig`
 |--|--|

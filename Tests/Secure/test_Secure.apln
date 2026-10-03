@@ -1,0 +1,189 @@
+:Namespace test_Secure
+⍝ TLS / secure-server tests for Jarvis
+⍝ Usage:
+⍝   From the shell (repository root):  dyalogscript Tests/Secure/run.apls
+⍝   From an APL session with #.Jarvis loaded:  #.test_Secure.Run
+⍝ Run returns a vector of failure messages; empty means every test passed.
+⍝ These tests exercise Jarvis's own TLS configuration logic (CreateSecureParams): that a secure server starts with
+⍝ valid certificate files, that the port then speaks TLS (a plain-HTTP request is refused), and that
+⍝ mis-configuration produces a clear error. They do NOT perform an encrypted request/response round-trip — that
+⍝ depends on the client validating the server certificate chain, which is Conga's job and is best checked manually
+⍝ (for example with HttpCommand or a browser, trusting the test CA).
+⍝
+⍝ Certificates: the tests that need a real certificate use $DYALOG/TestCertificates (override with JARVIS_TEST_CERTS).
+⍝ If that folder isn't present, those tests are skipped (reported, not failed).
+⍝ Ports: BasePort+1, BasePort+2, ... (8591 and up by default). Set BasePort before Run, or JARVIS_TEST_PORT for run.apls.
+
+    (⎕IO ⎕ML)←1 1
+    CRLF←⎕UCS 13 10
+    BasePort←8590
+    Verbose←1
+
+    TJarvisSource←':Class TJarvis: #.Jarvis' ':Field Public Logged←⍬' '∇ {msg}←{level}Log msg' ':Access public override' 'Logged,←⊂,⍕msg' '∇' ':EndClass'
+
+    ∇ r←Run;tests;t;res
+      :Access public
+      r←⍬
+      :If 9≠#.⎕NC'Jarvis'
+          →0⊣r←,⊂'#.Jarvis is not loaded'
+      :EndIf
+      ⎕FIX TJarvisSource
+      Certs←FindCerts
+      :If Verbose∧0∊⍴Certs ⋄ ⎕←'(no TestCertificates found; certificate-dependent tests will be skipped)' ⋄ :EndIf
+      tests←{⍵/⍨'test_'∘≡¨5↑¨⍵}⎕NL ¯3
+      PortsUsed←0
+      :For t :In tests
+          (Servers Clients)←⍬ ⍬
+          :Trap 0
+              res←⍎t
+          :Else
+              res←,⊂'errored: ',⊃⎕DMX.DM
+          :EndTrap
+          StopAll
+          r,←(⊂t,': '),¨res
+          :If Verbose
+              ⎕←t,': ',(1+0∊⍴res)⊃('FAILED (',(⍕≢res),')')'passed'
+              ⎕←⍪res
+          :EndIf
+      :EndFor
+    ∇
+
+⍝ ─── helpers ───────────────────────────────────────────────────────────────────────
+
+    Expect←{⍺:0⍴⊂'' ⋄ ,⊂⍵}
+    Contains←{∨/⍺⍷⍵}
+
+    ∇ dir←FindCerts;d
+    ⍝ locate a TestCertificates folder (JARVIS_TEST_CERTS, else $DYALOG/TestCertificates); '' if none
+      dir←''
+      d←2 ⎕NQ'.' 'GetEnvironment' 'JARVIS_TEST_CERTS'
+      :If 0∊⍴d ⋄ d←(2 ⎕NQ'.' 'GetEnvironment' 'DYALOG'),'/TestCertificates' ⋄ :EndIf
+      :If ⎕NEXISTS d,'/server/localhost-cert.pem' ⋄ dir←d ⋄ :EndIf
+    ∇
+
+    ∇ j←NewSecure dummy;cert;key;ca
+    ⍝ a (not started) secure server configured with the test certificates
+      j←NewServer''
+      j.Secure←1 ⋄ j.SSLValidation←64
+      j.ServerCertFile←Certs,'/server/localhost-cert.pem'
+      j.ServerKeyFile←Certs,'/server/localhost-key.pem'
+      j.RootCertDir←Certs,'/ca/'
+    ∇
+
+    ∇ j←NewServer dummy
+      j←⎕NEW TJarvis
+      j.Port←BasePort+PortsUsed←PortsUsed+1
+      j.(CodeLocation Paradigm DYALOG_JARVIS_THREAD WaitTimeout)←(MakeApp)'JSON' 'debug' 5000
+      j.AllowGETs←1 ⍝ so a plain GET /ping would return 200/pong on a non-TLS server (makes test_PlainRequestRefused meaningful)
+      Servers,←j
+    ∇
+
+    ∇ app←MakeApp
+      app←⎕NS''
+      app.⎕FX'r←ping p' 'r←''pong'''
+    ∇
+
+    ∇ StopAll;j;c
+      :For j :In Servers
+          :Trap 0 ⋄ {}j.Stop ⋄ {}j.LDRC.Close j.ServerName ⋄ :EndTrap
+      :EndFor
+      :For c :In Clients
+          :Trap 0 ⋄ {}#.Jarvis.LDRC.Close c ⋄ :EndTrap
+      :EndFor
+      (Servers Clients)←⍬ ⍬
+    ∇
+
+    ∇ got←j PlainGet path;rc;c;w;st
+    ⍝ send a plain (non-TLS) HTTP GET to the server and return whatever text came back
+      got←''
+      (rc c)←2↑j.LDRC.Clt'' 'localhost'j.Port'Text'
+      →0↓⍨rc=0
+      Clients,←⊂c
+      {}j.LDRC.Send c('GET ',path,' HTTP/1.1',CRLF,'Host: localhost',CRLF,'Connection: close',CRLF,CRLF)
+      st←⎕AI[3]
+      :While 3000>⎕AI[3]-st
+          w←4↑(j.LDRC.Wait c 300),4⍴⊂''
+          :If 0=⊃w
+              :If (⊂3⊃w)∊'Block' 'BlockLast' ⋄ got,←4⊃w ⋄ :EndIf
+              :If (⊂3⊃w)∊'BlockLast' 'Closed' 'Error' ⋄ :Leave ⋄ :EndIf
+          :ElseIf 100≠⊃w ⋄ :Leave
+          :EndIf
+      :EndWhile
+    ∇
+
+⍝ ─── tests ─────────────────────────────────────────────────────────────────────────
+
+    ∇ r←test_SecureStart;j;rc;msg
+    ⍝ a secure server starts with valid certificate files
+      r←⍬
+      →0↓⍨0∊⍴r←(~0∊⍴Certs)Expect'SKIPPED: no TestCertificates'
+      j←NewSecure''
+      (rc msg)←j.Start
+      r,←(rc=0)Expect'secure Start failed: ',⍕msg
+      r,←(j.Secure=1)Expect'server should be marked Secure'
+    ∇
+
+    ∇ r←test_PlainRequestRefused;j;got
+    ⍝ the secure port speaks TLS: a plain-HTTP request does not get a normal response
+      r←⍬
+      →0↓⍨0∊⍴r←(~0∊⍴Certs)Expect'SKIPPED: no TestCertificates'
+      j←NewSecure''
+      →0↓⍨0∊⍴r←(0=⊃j.Start)Expect'secure Start failed'
+      got←j PlainGet'/ping'
+      r,←(~'pong'Contains got)Expect'a plain HTTP request to the TLS port should not return pong; got ',∊⍕got
+      r,←(~'200'Contains got)Expect'a plain HTTP request to the TLS port should not return a 200 response'
+    ∇
+
+    ∇ r←test_MissingCertFile;j;rc;msg
+    ⍝ a missing ServerCertFile fails Start with a clear message
+      r←⍬
+      j←NewServer''
+      j.Secure←1
+      j.ServerCertFile←'/no/such/cert.pem'
+      j.ServerKeyFile←'/no/such/key.pem'
+      (rc msg)←j.Start
+      r,←(rc≠0)Expect'missing ServerCertFile should fail Start'
+      r,←((rc≠0)≤'ServerCertFile'Contains msg)Expect'message should mention ServerCertFile; got ',⍕msg
+    ∇
+
+    ∇ r←test_MissingKeyFile;j;rc;msg
+    ⍝ a valid cert but missing ServerKeyFile fails Start with a clear message
+      r←⍬
+      →0↓⍨0∊⍴r←(~0∊⍴Certs)Expect'SKIPPED: no TestCertificates'
+      j←NewServer''
+      j.Secure←1
+      j.ServerCertFile←Certs,'/server/localhost-cert.pem'
+      j.ServerKeyFile←'/no/such/key.pem'
+      (rc msg)←j.Start
+      r,←(rc≠0)Expect'missing ServerKeyFile should fail Start'
+      r,←((rc≠0)≤'ServerKeyFile'Contains msg)Expect'message should mention ServerKeyFile; got ',⍕msg
+    ∇
+
+    ∇ r←test_InvalidCertFile;j;rc;msg;notacert
+    ⍝ a ServerCertFile that isn't a certificate fails Start with "Unable to decode"
+      r←⍬
+      notacert←(2 ⎕NQ'.' 'GetEnvironment' 'DYALOG'),'/TestCertificates/ca/ca-key.pem' ⍝ a real file that is not a usable server certificate
+      →0↓⍨0∊⍴r←(~0∊⍴Certs)Expect'SKIPPED: no TestCertificates'
+      j←NewServer''
+      j.Secure←1
+      j.ServerCertFile←notacert
+      j.ServerKeyFile←notacert
+      (rc msg)←j.Start
+      r,←(rc≠0)Expect'a non-certificate ServerCertFile should fail Start'
+      r,←((rc≠0)≤'decode'Contains msg)Expect'message should say it could not decode the certificate; got ',⍕msg
+    ∇
+
+    ∇ r←test_ServerCertSKINonWindows;j;rc;msg;isWin
+    ⍝ ServerCertSKI is only valid on Windows; elsewhere it fails Start with a clear message
+      r←⍬
+      isWin←'Win'≡3↑⊃#.⎕WG'APLVersion'
+      →0↓⍨0∊⍴r←(~isWin)Expect'SKIPPED: running on Windows'
+      j←NewServer''
+      j.Secure←1
+      j.ServerCertSKI←'0123456789ABCDEF0123456789ABCDEF01234567'
+      (rc msg)←j.Start
+      r,←(rc≠0)Expect'ServerCertSKI on non-Windows should fail Start'
+      r,←((rc≠0)≤'Windows'Contains msg)Expect'message should mention Windows; got ',⍕msg
+    ∇
+
+:EndNamespace

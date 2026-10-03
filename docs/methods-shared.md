@@ -37,3 +37,22 @@
 |Syntax|`addr←Jarvis.MyAddr`|  
 |Examples|&emsp;&emsp;&emsp;&emsp;`Jarvis.MyAddr`<br>`192.168.1.223`|
 
+### `FormatSSE`
+|--|--|
+|Description|`FormatSSE` builds one [Server-Sent Event](./sse.md), ready to send with [`SendSSE`](./methods-instance.md#sendsse). As a shared method it can be called on the class (`Jarvis.FormatSSE`) or through an instance (`j.FormatSSE`, `req.Server.FormatSSE`).|
+|Syntax|`r←{fields} Jarvis.FormatSSE data`|  
+|`data`|The event's `data:` lines: a character vector (line breaks split it into several `data:` lines), a character matrix (one line per row), a vector of character vectors (one line per element), or any other array (sent as JSON). Empty produces no data lines.|
+|`fields`|(optional) the event's other fields: a namespace with any of `event`, `id` and `retry`; a character vector (the event type); or a vector of up to three values `event id retry`.|
+|`r`|One complete event: a character vector of SSE lines ending with a blank line. If there are no fields and no data, `r` is a `:` comment (useful as a keep-alive).|
+|Examples|<pre style="font-family:APL">      'tick' Jarvis.FormatSSE 'hello'<br/>event: tick<br/>data: hello<br/></pre>|
+|Notes|See [Using Server-Sent Events](./sse.md#formatsse) for the full rules and more examples.|
+
+### `IsSSEText`
+|--|--|
+|Description|`IsSSEText` reports whether its argument is a simple character vector made up of one or more complete SSE events. [`SendSSE`](./methods-instance.md#sendsse) uses it to decide whether a payload needs formatting with [`FormatSSE`](#formatsse).|
+|Syntax|`r←Jarvis.IsSSEText text`|  
+|`text`|The text to check.|
+|`r`|`1` if `text` is a simple character vector of one or more complete SSE events (every line a comment or a `data`/`event`/`id`/`retry` field, ending with a blank line; CR, LF and CRLF accepted), otherwise `0`.|
+|Examples|`Jarvis.IsSSEText 'data: hi',⎕UCS 10 10 ⍝ 1`<br>`Jarvis.IsSSEText 'data: hi'          ⍝ 0: no blank line at the end`|
+|Notes|`IsSSEText ''` is `1`. See [`IsSSEText`](./sse.md#isssetext) for the edge cases.|
+

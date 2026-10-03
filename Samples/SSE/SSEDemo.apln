@@ -1,0 +1,84 @@
+:Namespace SSEDemo
+⍝ Server-Sent Events (SSE) demo for Jarvis: the CodeLocation for Samples/SSE (see README.md)
+⍝
+⍝ Endpoints
+⍝   GET  /clock   the SSE stream (listed in SSEEndpoints). Each client receives:
+⍝                   an unnamed welcome event when it connects        → EventSource "message" handler
+⍝                   a "tick" event every second, with an id          → {"time":"12:34:56","clients":2}
+⍝                   a "chat" event whenever anyone posts to /say     → {"name":"Ann","text":"hi","time":"12:34:56"}
+⍝   POST /say     an ordinary JSON endpoint: {"name":"…","text":"…"} is broadcast to every client as a "chat" event
+⍝
+⍝ The ticker thread started by Initialize shows how application code outside any request can push events,
+⍝ using Server.SSEConnections to find the open streams and Server.SendSSE to send to them.
+
+    (⎕IO ⎕ML)←1 1
+
+    Server←⍬          ⍝ the Jarvis instance, set by Initialize
+    TickId←0          ⍝ id of the latest tick event; browsers send it back as Last-Event-ID when they reconnect
+    TickerThread←⍬
+    Stopping←0
+
+    fmtTime←{,'ZI2,<:>,ZI2,<:>,ZI2'⎕FMT 1 3⍴3↑3↓⍵}   ⍝ ⎕TS → 'hh:mm:ss'
+    trim←{⍵/⍨(∨\b)∧⌽∨\⌽b←' '≠⍵}                        ⍝ remove leading and trailing blanks
+
+    ∇ r←Initialize server
+    ⍝ AppInitFn: remember the server and start the ticker thread
+      Server←server
+      Stopping←0
+      TickerThread←Ticker&1
+      r←0
+    ∇
+
+    ∇ r←Shutdown
+    ⍝ AppCloseFn: stop the ticker thread
+      Stopping←1
+      ⎕TKILL TickerThread
+      r←0
+    ∇
+
+    ∇ r←clock req;last;msg;n
+    ⍝ SSE endpoint function, called once for each new client, after the stream has started
+    ⍝ req is the Request; the stream stays open while r is 0 (any other value closes it)
+      n←≢Server.SSEConnections'clock'
+      msg←'Welcome! ',(⍕n),((1+n=1)⊃' clients are' ' client is'),' connected'
+      :If ~0∊⍴last←req.GetHeader'last-event-id' ⍝ a reconnecting browser tells us the last event it saw
+          msg,←'. Welcome back: the last tick you saw was #',last
+      :EndIf
+      {}req Server.SendSSE msg ⍝ plain text → one unnamed "data:" event, to this client only
+      r←0
+    ∇
+
+    ∇ r←say payload;name;text;data
+    ⍝ ordinary JSON endpoint: broadcast a chat message to every client of /clock
+      r←⎕NS''
+      name←{0∊⍴⍵:'anonymous' ⋄ ⍵}40 limit payload'name'
+      text←500 limit payload'text'
+      :If 0∊⍴text
+          →0⊣r.error←'text is required'
+      :EndIf
+      (data←⎕NS'').(name text time)←name text(fmtTime ⎕TS)
+      r.sent←+/0=(Server.SSEConnections'clock')Server.SendSSE'chat'Server.FormatSSE data
+    ∇
+
+    ∇ r←max limit(ns name)
+    ⍝ the trimmed text of field name in namespace ns, at most max characters ('' if it's missing)
+      r←''
+      :Trap 0
+          r←trim,⍕ns⍎name
+      :EndTrap
+      r←(max⌊≢r)↑r
+    ∇
+
+    ∇ Ticker interval;conxs;data
+    ⍝ every interval seconds, send a "tick" event (with an id) to every client of /clock
+      :While ~Stopping
+          {}⎕DL interval
+          TickId+←1
+          :If ~0∊⍴conxs←Server.SSEConnections'clock'
+              (data←⎕NS'').(time clients)←(fmtTime ⎕TS)(≢conxs)
+              {}conxs Server.SendSSE('tick'TickId)Server.FormatSSE data
+          :EndIf
+      :EndWhile
+    ∇
+
+:EndNamespace

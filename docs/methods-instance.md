@@ -56,7 +56,7 @@ Below, the methods you are more likely to use are presented first.
 |Syntax|`{msg}←{level}Log msg`|  
 |`msg`|The message to be displayed. This is also returned as the shy result.|
 |`level`|(optional) The message level. This is not used in the default `Log` method, but is included so that an overriding method can make use of it to distinguish between different types of messages, for instance informational, warning, and error messages.|
-|Examples|To use `Log` from an endpoint, you need to use the [reference to the `Jarvis` server](./request.md#server) that is supplied in the [Request](./request.md) object. One might write something like<br/><pre style="font-family:APL">req.server.Log 'Endpoint "',(⊃⎕SI),'" called'</pre> to log whenever an endpoint is called.|
+|Examples|To use `Log` from an endpoint, you need to use the [reference to the `Jarvis` server](./request-fields.md#server) that is supplied in the [Request](./request.md) object. One might write something like<br/><pre style="font-family:APL">req.server.Log 'Endpoint "',(⊃⎕SI),'" called'</pre> to log whenever an endpoint is called.|
 |Notes|We intend to implement more comprehensive logging in a future release of **Jarvis**.|
 
 ### `Reset`
@@ -65,3 +65,32 @@ Below, the methods you are more likely to use are presented first.
 |Syntax|`(rc msg)←j.Reset`|  
 |Examples|<pre style="font-family:APL">      j.Reset<br/>0  Server reset (previously set options are still in effect)</pre>|
 |Notes|`Reset` is rarely needed but can be useful during endpoint development.|
+
+### `SendSSE`
+|--|--|
+|Description|`SendSSE` sends a [Server-Sent Event](./sse.md) to one or more open SSE connections.|
+|Syntax|`{r}←targets j.SendSSE payload`|  
+|`targets`|One or more SSE connections: connection name(s) (from [`SSEConnections`](#sseconnections) or [`req.Connection`](./request-fields.md#connection)), connection namespace(s), or [`Request`](./request.md) instance(s). Empty → no-op, result `⍬`.|
+|`payload`|The event to send: `''` sends a `:` keep-alive comment; text that is already a complete event (per [`IsSSEText`](./methods-shared.md#isssetext)) is sent as it is; anything else is formatted with [`FormatSSE`](./methods-shared.md#formatsse) first.|
+|`r`|One code per target: `0` sent, a Conga return code on failure (the connection is removed), or `¯1` for a target that isn't an open SSE connection (logged).|
+|Examples|`(j.SSEConnections 'events') j.SendSSE 'tick' j.FormatSSE ⎕TS`|
+|Notes|See [Using Server-Sent Events](./sse.md#sending-events) for the full payload rules.|
+
+### `SSEConnections`
+|--|--|
+|Description|`SSEConnections` returns the names of the open SSE connections — all of them, or those for particular endpoints.|
+|Syntax|`r←j.SSEConnections endpoints`|  
+|`endpoints`|`''` → every open SSE connection; otherwise one or more [`SSEEndpoints`](./settings-sse.md#sseendpoints) names (for example `'events'`, `'events, alerts'`, or `'events' 'alerts'`) → those endpoints' connections.|
+|`r`|A vector of connection names, for use as the left argument to [`SendSSE`](#sendsse). Empty before `Start` and after `Stop`.|
+|Examples|`(j.SSEConnections '') j.SendSSE j.FormatSSE ⎕TS ⍝ broadcast to every stream`|
+|Notes|A connection can close at any time, so the list may be out of date by the time it's used; [`SendSSE`](#sendsse) re-validates each connection. See [Using Server-Sent Events](./sse.md#sseconnections).|
+
+### `WsSend`
+|--|--|
+|Description|`WsSend` sends a message to one or more open [WebSocket](./websockets.md) connections.|
+|Syntax|`{r}←where j.WsSend what`|  
+|`where`|One or more WebSocket connections: connection name(s) (a `conx`, from a connection namespace) or connection namespace(s).|
+|`what`|The message: a namespace is sent as JSON; any other array is sent as it is.|
+|`r`|One Conga return code per connection: `0` for success, non-`0` for a send failure (also logged).|
+|Examples|A reply from inside an [`OnWsReceiveFn`](./settings-websockets.md#onwsreceivefn):<br/><pre style="font-family:APL">      ∇ r←WsReceive req;ns<br/>        ns←req.##<br/>        {}(ns.conx)ns.Server.WsSend 'ack: ',req.Payload<br/>        r←0<br/>      ∇</pre>|
+|Notes|See [Using WebSockets](./websockets.md#sending-messages).|

@@ -1,6 +1,0 @@
-{
-  "SessionInitFn" : "InitializeSession",
-  "SessionTimeout" : .25,
-  "Port" : 22224,
-  "SessionUseCookie" : 1
-}

@@ -1,0 +1,17 @@
+⍝ Run the Jarvis session tests from the shell:
+⍝     dyalogscript Tests/Sessions/run.apls
+⍝ Loads Source/Jarvis.dyalog (relative to this script) unless JARVIS_SOURCE names another copy,
+⍝ uses ports from JARVIS_TEST_PORT (default 8491) up, runs #.test_Sessions.Run, prints any failures, and exits with 0 if every test passed, 1 otherwise.
+⎕IO←1
+here←{⊃1 ⎕NPARTS ⍵}⊃{⍵/⍨∨/¨'run.apls'∘⍷¨⍵}2 ⎕NQ'.' 'GetCommandLineArgs'
+src←2 ⎕NQ'.' 'GetEnvironment' 'JARVIS_SOURCE'
+src←(1+0∊⍴src)⊃src(here,'../../Source/Jarvis.dyalog')
+⎕←'Jarvis source: ',src
+{}#.⎕FIX'file://',src
+{}#.⎕FIX'file://',here,'test_Sessions.apln'
+{0∊⍴⍵:⍬ ⋄ #.test_Sessions.BasePort←¯1+⊃⊃(//)⎕VFI ⍵}2 ⎕NQ'.' 'GetEnvironment' 'JARVIS_TEST_PORT'
+failures←#.test_Sessions.Run
+⎕←''
+⎕←(⍕≢failures),' failure(s)'
+⎕←⍪failures
+⎕OFF(0≠≢failures)

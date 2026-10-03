@@ -1,0 +1,18 @@
+⍝ Run the Jarvis secure/TLS tests from the shell:
+⍝     dyalogscript Tests/Secure/run.apls
+⍝ Loads Source/Jarvis.dyalog (relative to this script) unless JARVIS_SOURCE names another copy,
+⍝ uses ports from JARVIS_TEST_PORT (default 8591) up, runs #.test_Secure.Run, prints any failures, and exits with 0 if every test passed, 1 otherwise.
+⍝ Certificate-dependent tests use $DYALOG/TestCertificates unless JARVIS_TEST_CERTS names another folder; they are skipped if absent.
+⎕IO←1
+here←{⊃1 ⎕NPARTS ⍵}⊃{⍵/⍨∨/¨'run.apls'∘⍷¨⍵}2 ⎕NQ'.' 'GetCommandLineArgs'
+src←2 ⎕NQ'.' 'GetEnvironment' 'JARVIS_SOURCE'
+src←(1+0∊⍴src)⊃src(here,'../../Source/Jarvis.dyalog')
+⎕←'Jarvis source: ',src
+{}#.⎕FIX'file://',src
+{}#.⎕FIX'file://',here,'test_Secure.apln'
+{0∊⍴⍵:⍬ ⋄ #.test_Secure.BasePort←¯1+⊃⊃(//)⎕VFI ⍵}2 ⎕NQ'.' 'GetEnvironment' 'JARVIS_TEST_PORT'
+failures←#.test_Secure.Run
+⎕←''
+⎕←(⍕≢failures),' failure(s)'
+⎕←⍪failures
+⎕OFF(0≠≢failures)

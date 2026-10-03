@@ -1,0 +1,392 @@
+:Namespace test_WebSockets
+⍝ WebSocket tests for Jarvis
+⍝ Usage:
+⍝   From the shell (repository root):  dyalogscript Tests/WebSockets/run.apls
+⍝   From an APL session with #.Jarvis loaded:  #.test_WebSockets.Run
+⍝ Run returns a vector of failure messages; empty means every test passed.
+⍝ Each test starts its own Jarvis on its own port, and uses a raw Conga client (Jarvis's own LDRC) that it
+⍝ upgrades to a WebSocket, so the WebSocket handshake and frames can be driven directly.
+⍝ See Plans/websockets.md for the behaviour these tests cover.
+⍝ Ports: every server in a run gets its own port, BasePort+1, BasePort+2, ... (8291 and up by default); ports are
+⍝ never reused within a run. If they clash with another process, set BasePort before calling Run, or set the
+⍝ environment variable JARVIS_TEST_PORT for run.apls.
+
+    (⎕IO ⎕ML)←1 1
+    CRLF←⎕UCS 13 10
+    LF←⎕UCS 10
+    BasePort←8290
+    Verbose←1                ⍝ 1 = print each test's name and result as it runs
+
+    TJarvisSource←':Class TJarvis: #.Jarvis' ':Field Public Logged←⍬' '∇ {msg}←{level}Log msg' ':Access public override' 'Logged,←⊂,⍕msg' '∇' ':EndClass'
+
+    ∇ r←Run;tests;t;res
+      :Access public
+    ⍝ run every test_* function, returning a vector of failure messages
+      r←⍬
+      :If 9≠#.⎕NC'Jarvis'
+          →0⊣r←,⊂'#.Jarvis is not loaded'
+      :EndIf
+      ⎕FIX TJarvisSource
+      tests←{⍵/⍨'test_'∘≡¨5↑¨⍵}⎕NL ¯3
+      PortsUsed←0
+      :For t :In tests
+          App←MakeApp
+          (Servers Clients)←⍬ ⍬
+          :Trap 0
+              res←⍎t
+          :Else
+              res←,⊂'errored: ',⊃⎕DMX.DM
+          :EndTrap
+          StopAll
+          r,←(⊂t,': '),¨res
+          :If Verbose
+              ⎕←t,': ',(1+0∊⍴res)⊃('FAILED (',(⍕≢res),')')'passed'
+              ⎕←⍪res
+          :EndIf
+      :EndFor
+    ∇
+
+⍝ ─── the application code (CodeLocation) used by the tests ─────────────────────────
+
+    ∇ app←MakeApp
+      app←⎕NS''
+      ResetState app
+    ⍝ hook functions
+      app.⎕FX'r←Upgraded ns' 'LastNs←ns' 'Ups,←⊂ns.conx' 'r←UpgradeResult'           ⍝ OnWsUpgradeFn
+      app.⎕FX'r←UpReq ns' 'LastNs←ns' 'Ups,←⊂ns.conx' 'r←UpReqResult'                ⍝ OnWsUpgradeReqFn
+      app.⎕FX'r←Recv ref;ns' 'ns←ref.##' 'LastNs←ns' 'Received,←⊂ref.Payload' '{}ns.conx ns.Server.WsSend''ack:'',ref.Payload' 'r←RecvResult' ⍝ OnWsReceiveFn
+      app.⎕FX'r←OnClose ns' 'Closes,←⊂ns.conx' 'r←0'                                 ⍝ OnWsCloseFn
+      app.⎕FX'r←Auth ns' 'AuthCalls+←1' 'r←AuthResult'                               ⍝ WsAuthenticateFn
+      app.⎕FX'r←Init srv' 'r←0'                                                       ⍝ AppInitFn (a hook, for the built-in-handler exclusion test)
+    ⍝ endpoint functions
+      app.⎕FX'r←echo p' 'r←p'           ⍝ ordinary JSON endpoint, in IncludeFns
+      app.⎕FX'r←secret p' 'r←''SECRET''' ⍝ ordinary JSON endpoint, NOT in IncludeFns
+      app.⎕FX'r←a dyadicfn b' 'r←0'      ⍝ dyadic, for valence-rejection tests
+    ∇
+
+    ∇ ResetState app
+    ⍝ (re)initialise the mutable state the hooks read and record, so sub-tests don't leak into each other
+      app.UpgradeResult←0    ⍝ OnWsUpgradeFn result
+      app.UpReqResult←0      ⍝ OnWsUpgradeReqFn result
+      app.RecvResult←0       ⍝ OnWsReceiveFn result
+      app.AuthResult←0       ⍝ WsAuthenticateFn result (0 = pass)
+      app.LastNs←⍬           ⍝ most recent connection namespace seen by a hook
+      app.Received←⍬         ⍝ payloads passed to OnWsReceiveFn
+      app.Closes←⍬           ⍝ connections passed to OnWsCloseFn
+      app.Ups←⍬              ⍝ connections passed to OnWsUpgradeFn / OnWsUpgradeReqFn
+      app.AuthCalls←0        ⍝ number of times WsAuthenticateFn was called
+    ∇
+
+⍝ ─── helpers ───────────────────────────────────────────────────────────────────────
+
+    Expect←{⍺:0⍴⊂'' ⋄ ,⊂⍵}                 ⍝ cond Expect 'message'  →  ⍬ if cond, else the message
+    Contains←{∨/⍺⍷⍵}                        ⍝ 'needle' Contains 'haystack'
+    LoggedMatch←{∨/∨/¨(⊂⍵)⍷¨⍺.Logged}       ⍝ j LoggedMatch 'text'
+    Captured←{9=⌊⊃,App.⎕NC⊂'LastNs'}        ⍝ 1 if a hook has stored a connection namespace in App.LastNs
+
+    ∇ j←NewServer dummy
+    ⍝ create (but don't start) a test server on its own port with WebSockets enabled
+    ⍝ the caller sets the hooks it needs before calling Start
+      j←⎕NEW TJarvis
+      j.Port←BasePort+PortsUsed←PortsUsed+1
+      j.CodeLocation←App
+      j.EnableWebSockets←1
+      j.DYALOG_JARVIS_THREAD←'debug'
+      j.WaitTimeout←5000 ⍝ Stop allows the server this long to finish
+      Servers,←j
+    ∇
+
+    ∇ StopAll;j;c
+    ⍝ stop every server this test started and close its clients
+      :For j :In Servers
+          :Trap 0
+              {}j.Stop
+              {}j.LDRC.Close j.ServerName ⍝ in case the server was Reset rather than stopped
+          :EndTrap
+      :EndFor
+      :For c :In Clients
+          :Trap 0 ⋄ {}#.Jarvis.LDRC.Close c ⋄ :EndTrap
+      :EndFor
+      (Servers Clients)←⍬ ⍬
+    ∇
+
+    ∇ (c evt)←j WsOpen path;rc;w
+    ⍝ open a raw client to server j, request a WebSocket upgrade for path, and return the client name and the
+    ⍝ event the client received (WSUpgrade on success)
+      (rc c)←2↑j.LDRC.Clt'' 'localhost'j.Port'http'10000('Options' 1) ⍝ client auto-upgrades
+      'Could not connect'⎕SIGNAL 11/⍨rc≠0
+      Clients,←⊂c
+      {}j.LDRC.SetProp c'WSUpgrade'(path'localhost' '')
+      evt←3⊃4↑(j.LDRC.Wait c 3000),4⍴⊂''
+    ∇
+
+    ∇ j WsPut(c text)
+    ⍝ send a text WebSocket frame from client c
+      {}j.LDRC.Send c(text 1)
+    ∇
+
+    ∇ (evt text)←j WsRead(c ms);w;rc
+    ⍝ wait up to ms ms for one event from the server on client c
+    ⍝ evt is 'WSReceive', 'Closed' or 'Timeout'; text is the frame text for a WSReceive
+      w←4↑(j.LDRC.Wait c ms),4⍴⊂''
+      (rc evt)←w[1 3]
+      :If rc=100 ⋄ (evt text)←'Timeout' '' ⋄ →0 ⋄ :EndIf   ⍝ 100 = Conga Wait timeout
+      :If rc≠0 ⋄ (evt text)←'Closed' '' ⋄ →0 ⋄ :EndIf       ⍝ e.g. 1010 object not found → gone
+      :If (⊂evt)∊'Closed' 'Error' 'WSClose' ⋄ (evt text)←'Closed' '' ⋄ →0 ⋄ :EndIf
+      text←(evt≡'WSReceive')/⊃4⊃w,⊂''
+    ∇
+
+    ∇ text←j WsReadData(c ms);end;evt;t
+    ⍝ read from client c until one WebSocket message arrives (its text), the connection closes, or ms pass
+    ⍝ tolerates the reply arriving a little late (the built-in handler replies from a task thread)
+      end←ms+⎕AI[3] ⋄ text←''
+      :While ⎕AI[3]<end
+          (evt t)←j WsRead(c 300)
+          :If evt≡'WSReceive' ⋄ →0⊣text←t ⋄ :EndIf
+          :If evt≡'Closed' ⋄ →0 ⋄ :EndIf
+      :EndWhile
+    ∇
+
+    ∇ text←j OneShot(path msg);c;evt
+    ⍝ open a fresh WebSocket, send one message, return the single reply, and close
+    ⍝ a fresh connection per message keeps the built-in handler's task-thread replies from drifting across messages
+      text←''
+      (c evt)←j WsOpen path
+      :If 'WSUpgrade'≢evt ⋄ →0⊣text←'<no upgrade: ',evt,'>' ⋄ :EndIf
+      j WsPut c msg
+      text←j WsReadData(c 3000)
+      {}j.LDRC.Close c ⋄ Clients~←⊂c
+    ∇
+
+    ∇ r←WaitFor(cond ms);end
+    ⍝ evaluate the expression cond every 100ms, for up to ms milliseconds; r is 1 as soon as it's true
+      end←ms+⎕AI[3]
+      :Repeat
+          :If ⍎cond ⋄ →0⊣r←1 ⋄ :EndIf
+          {}⎕DL 0.1
+      :Until ⎕AI[3]>end
+      r←⍎cond
+    ∇
+
+⍝ ─── tests ─────────────────────────────────────────────────────────────────────────
+
+    ∇ r←test_Shutdown;j;t;res
+    ⍝ Start then Stop returns promptly with WebSockets enabled
+      r←⍬
+      j←NewServer''
+      j.OnWsReceiveFn←'Recv'
+      :If 0≠⊃res←j.Start
+          →0⊣r←⊂'Start failed: ',⍕res
+      :EndIf
+      t←⎕AI[3]
+      res←j.Stop
+      r,←(res≡0 'Server stopped')Expect'Stop returned ',⍕res
+      r,←(5000>⎕AI[3]-t)Expect'Stop took ',(⍕⎕AI[3]-t),'ms'
+    ∇
+
+    ∇ r←test_Startup;j;rc;msg
+    ⍝ WebSocket hooks are valence-checked at start-up when EnableWebSockets is on
+      r←⍬
+    ⍝ a dyadic OnWsReceiveFn is rejected
+      j←NewServer''
+      j.OnWsReceiveFn←'dyadicfn'
+      (rc msg)←j.Start
+      r,←(rc≠0)Expect'dyadic OnWsReceiveFn should be rejected'
+      r,←((rc≠0)≤'is not a'Contains msg)Expect'rejection message should say "is not a ...": ',⍕msg
+      {}j.Stop
+
+    ⍝ a dyadic OnWsUpgradeReqFn is rejected (this hook is now valence-checked too)
+      j←NewServer''
+      j.OnWsUpgradeReqFn←'dyadicfn'
+      (rc msg)←j.Start
+      r,←(rc≠0)Expect'dyadic OnWsUpgradeReqFn should be rejected'
+      {}j.Stop
+
+    ⍝ valid monadic hooks are accepted
+      j←NewServer''
+      j.(OnWsUpgradeFn OnWsReceiveFn OnWsCloseFn WsAuthenticateFn)←'Upgraded' 'Recv' 'OnClose' 'Auth'
+      (rc msg)←j.Start
+      r,←(rc=0)Expect'valid WebSocket hooks should be accepted: ',⍕msg
+      {}j.Stop
+
+    ⍝ with WebSockets disabled, the hooks are not valence-checked
+      j←NewServer''
+      j.EnableWebSockets←0
+      j.OnWsReceiveFn←'dyadicfn'
+      (rc msg)←j.Start
+      r,←(rc=0)Expect'with EnableWebSockets←0, a dyadic OnWsReceiveFn should not be checked: ',⍕msg
+      {}j.Stop
+    ∇
+
+    ∇ r←test_UpgradeAuto;j;c;evt
+    ⍝ WsAutoUpgrade←1 (the default): Conga accepts, then OnWsUpgradeFn runs
+      r←⍬
+      j←NewServer''
+      j.OnWsUpgradeFn←'Upgraded'
+      →0↓⍨0∊⍴r←(0=⊃j.Start)Expect'Start failed'
+
+      (c evt)←j WsOpen'/'
+      r,←('WSUpgrade'≡evt)Expect'auto upgrade: client event ',evt,', expected WSUpgrade'
+      r,←(WaitFor'0≠≢App.Ups' 3000)Expect'OnWsUpgradeFn should run'
+      r,←(Captured ⍬)Expect'OnWsUpgradeFn should have been passed the connection namespace'
+
+    ⍝ OnWsUpgradeFn returning non-zero closes the connection
+      ResetState App
+      App.UpgradeResult←1
+      (c evt)←j WsOpen'/'
+      →0↓⍨0∊⍴r,←(WaitFor'Captured ⍬' 3000)Expect'rejected upgrade: hook did not capture the connection'
+      r,←(WaitFor'0≠⊃App.LastNs.conx j.WsSend ''x''' 3000)Expect'a rejected upgrade (OnWsUpgradeFn→1) should close the connection'
+    ∇
+
+    ∇ r←test_UpgradeManual;j;c;evt
+    ⍝ WsAutoUpgrade←0: the upgrade is decided by OnWsUpgradeReqFn, or accepted if there is none
+      r←⍬
+    ⍝ OnWsUpgradeReqFn → 0 accepts
+      j←NewServer''
+      j.WsAutoUpgrade←0 ⋄ j.OnWsUpgradeReqFn←'UpReq'
+      →0↓⍨0∊⍴r←(0=⊃j.Start)Expect'Start failed'
+      (c evt)←j WsOpen'/'
+      r,←('WSUpgrade'≡evt)Expect'manual upgrade, OnWsUpgradeReqFn→0: event ',evt,', expected WSUpgrade'
+      {}j.Stop
+
+    ⍝ OnWsUpgradeReqFn → non-zero rejects
+      ResetState App
+      j←NewServer''
+      j.WsAutoUpgrade←0 ⋄ j.OnWsUpgradeReqFn←'UpReq' ⋄ App.UpReqResult←1
+      →0↓⍨0∊⍴r,←(0=⊃j.Start)Expect'Start failed (reject case)'
+      (c evt)←j WsOpen'/'
+      r,←('WSUpgrade'≢evt)Expect'manual upgrade, OnWsUpgradeReqFn→1: event ',evt,', expected not WSUpgrade'
+      {}j.Stop
+
+    ⍝ no OnWsUpgradeReqFn accepts every upgrade
+      ResetState App
+      j←NewServer''
+      j.WsAutoUpgrade←0
+      →0↓⍨0∊⍴r,←(0=⊃j.Start)Expect'Start failed (no hook case)'
+      (c evt)←j WsOpen'/'
+      r,←('WSUpgrade'≡evt)Expect'manual upgrade, no OnWsUpgradeReqFn: event ',evt,', expected WSUpgrade (accept all)'
+    ∇
+
+    ∇ r←test_Receive;j;c;evt;text
+    ⍝ OnWsReceiveFn is dispatched the message, can send a reply, and its result controls the connection
+      r←⍬
+      j←NewServer''
+      j.OnWsReceiveFn←'Recv'
+      →0↓⍨0∊⍴r←(0=⊃j.Start)Expect'Start failed'
+
+      (c evt)←j WsOpen'/'
+      →0↓⍨0∊⍴r,←('WSUpgrade'≡evt)Expect'upgrade failed: ',evt
+      j WsPut c'hello'
+      text←j WsReadData(c 3000)
+      r,←('ack:hello'≡text)Expect'reply text ',(⍕text),', expected ack:hello'
+      r,←((⊂'hello')∊App.Received)Expect'OnWsReceiveFn should have been passed the payload; got ',⍕App.Received
+
+    ⍝ OnWsReceiveFn returning non-zero closes the connection
+      App.RecvResult←1
+      j WsPut c'again'
+      r,←(WaitFor'0≠⊃App.LastNs.conx j.WsSend ''x''' 3000)Expect'OnWsReceiveFn→non-zero should close the connection'
+    ∇
+
+    ∇ r←test_Authentication;j;c;evt;text
+    ⍝ WsAuthenticate runs before OnWsReceiveFn; failure closes without dispatch; success authenticates once
+      r←⍬
+    ⍝ failed authentication: the message is not dispatched and the connection closes
+      j←NewServer''
+      j.(OnWsUpgradeFn OnWsReceiveFn WsAuthenticateFn)←'Upgraded' 'Recv' 'Auth'
+      →0↓⍨0∊⍴r←(0=⊃j.Start)Expect'Start failed'
+      App.AuthResult←1
+      (c evt)←j WsOpen'/'
+      →0↓⍨0∊⍴r,←('WSUpgrade'≡evt)Expect'upgrade failed: ',evt
+      →0↓⍨0∊⍴r,←(WaitFor'Captured ⍬' 3000)Expect'auth test: hook did not capture the connection'
+      j WsPut c'blocked'
+      r,←(WaitFor'0≠⊃App.LastNs.conx j.WsSend ''x''' 3000)Expect'failed authentication should close the connection'
+      r,←(0=≢App.Received)Expect'failed authentication should not dispatch to OnWsReceiveFn; got ',⍕App.Received
+      {}j.Stop
+
+    ⍝ successful authentication happens once per connection, not per message
+      ResetState App
+      j←NewServer''
+      j.(OnWsReceiveFn WsAuthenticateFn)←'Recv' 'Auth'
+      →0↓⍨0∊⍴r,←(0=⊃j.Start)Expect'Start failed (success case)'
+      (c evt)←j WsOpen'/'
+      →0↓⍨0∊⍴r,←('WSUpgrade'≡evt)Expect'upgrade failed (success case): ',evt
+      j WsPut c'one' ⋄ {}j WsRead(c 2000)
+      j WsPut c'two' ⋄ {}j WsRead(c 2000)
+      j WsPut c'three' ⋄ {}j WsRead(c 2000)
+      r,←(WaitFor'3=≢App.Received' 3000)Expect'all three messages should be dispatched; got ',⍕App.Received
+      r,←(1=App.AuthCalls)Expect'WsAuthenticate should run once per connection; ran ',(⍕App.AuthCalls),' times'
+    ∇
+
+    ∇ r←test_BuiltinHandler;j;text
+    ⍝ with no OnWsReceiveFn and the HTML interface on, the built-in handler runs a named endpoint,
+    ⍝ honouring IncludeFns / ExcludeFns and the hook-function exclusion (CheckFunctionName)
+    ⍝ each message uses a fresh connection, so one message's reply can't drift onto the next
+      r←⍬
+      j←NewServer''
+      j.HTMLInterface←1 ⋄ j.IncludeFns←'echo' ⋄ j.AppInitFn←'Init'
+      →0↓⍨0∊⍴r←(0=⊃j.Start)Expect'Start failed'
+
+    ⍝ a permitted endpoint runs and returns its result
+      text←j OneShot'/' '{"Endpoint":"/echo","Payload":[1,2,3]}'
+      r,←('[1,2,3]'Contains text)Expect'built-in handler should echo [1,2,3]; got ',⍕text
+
+    ⍝ an endpoint excluded by IncludeFns is rejected
+      text←j OneShot'/' '{"Endpoint":"/secret","Payload":0}'
+      r,←(('Invalid Endpoint'Contains text)∧'secret'Contains text)Expect'an endpoint outside IncludeFns should be rejected; got ',⍕text
+
+    ⍝ a hook function is rejected
+      text←j OneShot'/' '{"Endpoint":"/Init","Payload":0}'
+      r,←(('Invalid Endpoint'Contains text)∧'Init'Contains text)Expect'a hook function should be rejected; got ',⍕text
+
+    ⍝ a malformed message is reported through ErrorInfo
+      text←j OneShot'/' 'this is not json'
+      r,←('WSReceive Error'Contains text)Expect'a malformed message should return a WSReceive Error; got ',⍕text
+    ∇
+
+    ∇ r←test_WsSend;j;c;evt;text;res
+    ⍝ WsSend accepts a connection name or a connection namespace, and reports send failures
+      r←⍬
+      j←NewServer''
+      j.OnWsUpgradeFn←'Upgraded' ⍝ captures the connection namespace in App.LastNs
+      →0↓⍨0∊⍴r←(0=⊃j.Start)Expect'Start failed'
+
+      (c evt)←j WsOpen'/'
+      →0↓⍨0∊⍴r,←('WSUpgrade'≡evt)Expect'upgrade failed: ',evt
+      →0↓⍨0∊⍴r,←(WaitFor'Captured ⍬' 3000)Expect'no connection namespace captured'
+
+    ⍝ by connection name
+      res←App.LastNs.conx j.WsSend'byname'
+      r,←(0=⊃res)Expect'WsSend by name returned ',⍕res
+      text←j WsReadData(c 3000)
+      r,←('byname'≡text)Expect'client should receive "byname"; got ',⍕text
+
+    ⍝ by connection namespace
+      res←App.LastNs j.WsSend'byns'
+      r,←(0=⊃res)Expect'WsSend by namespace returned ',⍕res
+      text←j WsReadData(c 3000)
+      r,←('byns'≡text)Expect'client should receive "byns"; got ',⍕text
+
+    ⍝ sending to a non-existent connection fails and is logged
+      res←'CON99999999'j.WsSend'nowhere'
+      r,←((~0∊⍴res)∧0≠⊃res)Expect'WsSend to a missing connection should return non-zero; got ',⍕res
+      r,←(j LoggedMatch'WsSend')Expect'a failed WsSend should be logged'
+    ∇
+
+    ∇ r←test_Disconnect;j;c;evt
+    ⍝ when the client drops, the server cleans the connection up (Conga 'Closed' → RemoveConnection)
+    ⍝ note: OnWsCloseFn fires on a WebSocket close handshake (WSClose), which a browser's ws.close() sends but a
+    ⍝ raw Conga client here does not, so OnWsCloseFn itself is left to manual/browser testing
+      r←⍬
+      j←NewServer''
+      j.OnWsUpgradeFn←'Upgraded' ⍝ captures the connection namespace in App.LastNs
+      →0↓⍨0∊⍴r←(0=⊃j.Start)Expect'Start failed'
+
+      (c evt)←j WsOpen'/'
+      →0↓⍨0∊⍴r,←('WSUpgrade'≡evt)Expect'upgrade failed: ',evt
+      →0↓⍨0∊⍴r,←(WaitFor'Captured ⍬' 3000)Expect'no connection namespace captured'
+      {}j.LDRC.Close c
+      Clients~←⊂c
+      r,←(WaitFor'0≠⊃App.LastNs.conx j.WsSend ''x''' 3000)Expect'the server should remove the connection after the client drops'
+    ∇
+
+:EndNamespace

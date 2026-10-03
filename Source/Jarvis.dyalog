@@ -6,7 +6,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.23.60' '2026-08-21'
+      r←'Jarvis' '1.23.0' '2026-09-25'
     ∇
 
     ∇ Documentation
@@ -59,14 +59,17 @@
 
    ⍝ WebSocket settings
     :Field Public EnableWebSockets←0                           ⍝ 1 = enable WebSockets
-    :Field Public WsTimeout←5                                  ⍝ minutes before a WebSocket connection times out, 0 for no timeout
-    :Field Public WsAutoUpgrade←1                              ⍝ for now, this will always be 1. Eventually we'll add websocket validation
+    :Field Public WsAutoUpgrade←1                              ⍝ automatically accept WebSocket upgrades?
     :Field Public OnWsUpgradeFn←''                             ⍝ WSUpgrade event hook function
     :Field Public OnWsReceiveFn←''                             ⍝ WSReceive event hook function
     :Field Public OnWsCloseFn←''                               ⍝ Close (on WebSocket) event hook function
     :Field Public OnWsErrorFn←''                               ⍝ Error (on WebSocket) event hook function
     :Field Public OnWsUpgradeReqFn←''                          ⍝ WSUpgradeReq event hook function
     :Field Public WsAuthenticateFn←''                          ⍝ WebSocket authentication hook function
+
+   ⍝ SSE settings
+    :Field Public SSEHeartbeatInterval←30                      ⍝ interval in seconds to send heartbeat to keep connection alive
+    :Field Public SSEEndpoints←''                              ⍝ comma-delimited endpoints for SSE connections
 
    ⍝ REST mode settings
     :Field Public ParsePayload←1                               ⍝ 1=parse request payload based on content-type header (REST only)
@@ -205,6 +208,7 @@
     :field _paused←0                     ⍝ is the server paused
     :Field _sessionThread←¯1             ⍝ thread for the session cleanup process
     :Field _serverThread←¯1              ⍝ thread for the HTTP server
+    :Field _sseThread←¯1                 ⍝ thread for SSE heartbeat
     :Field _taskThreads←⍬                ⍝ vector of thread handling requests
     :Field _sessions←⍬                   ⍝ vector of session namespaces
     :Field _sessionsInfo←0 5⍴'' '' 0 0 0 ⍝ [;1] id [;2] ip addr [;3] creation time [;4] last active time [;5] ref to session
@@ -215,6 +219,7 @@
     :Field _connections                  ⍝ namespace containing open connections
     :Field _userHookFns                  ⍝ list of user hook functions, set in CheckCodeLocation
     :Field _startTime                    ⍝ time the server was started
+    :Field _SSEEndpoints←''              ⍝ list of normalized SSE endpoint names
 
     ∇ r←Config
     ⍝ returns current configuration
@@ -439,6 +444,7 @@
       :Else
           {}⎕TGET{⍵/⍨1=1 100000000⍸⍵}⎕TPOOL ⍝ remove tokens in the Conga connection number range
       :EndIf
+      init_connections
       (rc msg)←0 'Server stopped'
     ∇
 
@@ -453,10 +459,11 @@
 
     ∇ (rc msg)←Reset
       :Access Public
-      ⎕TKILL _serverThread,_sessionThread,_taskThreads
+      ⎕TKILL _serverThread,_sessionThread,_taskThreads,_sseThread
       _sessions←⍬
       _sessionsInfo←0 5⍴0
       _stopped←~_stop←_started←0
+      init_connections
       (rc msg)←0 'Server reset (previously set options are still in effect)'
     ∇
 
@@ -679,14 +686,25 @@
      
       ⍝ save list of all user hook functions, saves maintenance when we add new hooks
       _userHookFns←AppInitFn AppCloseFn ValidateRequestFn AuthenticateFn PostProcessFn SessionInitFn
-      _userHookFns,←OnWsUpgradeFn OnWsReceiveFn OnWsCloseFn OnWsErrorFn OnWsUpgradeReqFn WsAuthenticateFn
+      _userHookFns,←OnWsUpgradeFn OnWsReceiveFn OnWsCloseFn OnWsErrorFn OnWsUpgradeReqFn WsAuthenticateFn _htmlRootFn
      
       :For fn :In _userHookFns~⊂''
           :If 3≠CodeLocation.⎕NC fn
               msg,←(0∊⍴msg)↓',"CodeLocation.',fn,'" was not found '
           :EndIf
       :EndFor
+     
       →0 If rc←8×~0∊⍴msg
+     
+      :If ~0∊⍴SSEEndpoints ⍝ if we have defined SSE endpoints
+          _SSEEndpoints←normalizeEndpoint SSEEndpoints
+          _userHookFns,←_SSEEndpoints ⍝ add the names to the list of hook functions
+          :For fn :In _SSEEndpoints
+              :If 0≠CodeLocation.⎕NC fn ⍝ if the function actually exists...
+                  →0 If⊃(rc msg)←fn CheckHookFn(0 1)(1 ¯2) ⍝ monadic or ambivalent, result optional
+              :EndIf
+          :EndFor
+      :EndIf
      
       →0 If⊃(rc msg)←AppInitFn CheckHookFn 1(0 1) ⍝ result returning niladic or monadic?
       :If ~0∊⍴AppInitFn  ⍝ initialization function specified?
@@ -728,20 +746,24 @@
           →0 If⊃(rc msg)←OnWsCloseFn CheckHookFn 1(1 ¯2)0 ⍝ result-returning monadic or ambivalent?
           →0 If⊃(rc msg)←OnWsErrorFn CheckHookFn 1(1 ¯2)0 ⍝ result-returning monadic or ambivalent?
           →0 If⊃(rc msg)←WsAuthenticateFn CheckHookFn 1(1 ¯2)0 ⍝ result-returning monadic or ambivalent?
+          →0 If⊃(rc msg)←OnWsUpgradeReqFn CheckHookFn 1(1 ¯2)0 ⍝ result-returning monadic or ambivalent?
           :If ~0∊⍴WsAuthenticateFn
               WsAuthenticate←CodeLocation⍎WsAuthenticateFn
           :EndIf
-      :EndIf     
+      :EndIf
     ∇
 
-    ∇ (rc msg)←fn CheckHookFn attr;res;val
+    ∇ (rc msg)←fn CheckHookFn attr;res;val;at
     ⍝ check that the valence of a specified hook function is what we expect
+    ⍝ attr[1 2 3] follows 1⊃⎕AT conventions
       (rc msg)←0 ''
       :If ~0∊⍴fn
           attr←3↑attr,0
           attr[2]←⊆∪{¯2∊⍵:⍵ ⋄ ⍵,¯2/⍨∨/1 2∊⍵}2⊃attr
-          :If ~∧/(⊃CodeLocation.⎕AT fn)∊¨attr
-              res←' ','result-returning',⍨(~|1⊃attr)/'non-'
+          at←⊃CodeLocation.⎕AT fn
+          at[1]←|at[1] ⍝ allow for shy results
+          :If ~∧/at∊¨attr
+              res←{∧/0 1∊⍵:'' ⋄ ' ','result-returning',⍨(~⍵)/'non-'}|1⊃attr
               val←{3↓∊' or '∘,¨'niladic' 'monadic' 'dyadic' 'ambivalent'/⍨∨⌿⍵∘.∊0 1 2 ¯2}2⊃attr
               (rc msg)←8('"',(⍕CodeLocation),'.',fn,'" is not a',val,res,' function')
           :EndIf
@@ -789,9 +811,7 @@
           :EndIf
       :EndIf
      
-      _connections←⎕NS''
-      _connections.index←3 0⍴'' 0 0 ⍝ conx, last activity time, websocket?
-      _connections.lastCheck←0
+      init_connections
      
       :If 0=rc←1⊃r←LDRC.Srv ServerName''Port'http'BufferSize,secureParams,accept,deny,options
           ServerName←2⊃r
@@ -838,6 +858,7 @@
 
     ∇ {r}←Server arg;wres;rc;obj;evt;data;ref;ip;msg;tmp;conx;conn
       (_started _stopped)←1 0
+      StartSSEHeartbeat
       :While ~_stop
           :Trap 0 DebugLevel 1
               wres←LDRC.Wait ServerName WaitTimeout ⍝ Wait for WaitTimeout before timing out
@@ -930,7 +951,7 @@
       :EndIf
      
       Close
-      ⎕TKILL _sessionThread
+      ⎕TKILL _sessionThread,_sseThread
       (_stop _started _stopped)←0 0 1
     ∇
 
@@ -945,14 +966,14 @@
     ∇ obj AddConnection conx;IP;res
       :Hold '_connections'
           conx _connections.⎕NS''
-          _connections.index,←conx(⎕AI[3])0
+          _connections.index,←conx(⎕AI[3])0 0
           IP←''
           :Trap 0 DebugLevel 1
               :If 0=⊃res←LDRC.GetProp obj'PeerAddr'
                   IP←2⊃2⊃res
               :EndIf
           :EndTrap
-          (_connections⍎conx).(IP conx IsWebSocket)←IP conx 0
+          (_connections⍎conx).(IP conx IsWebSocket IsSSE)←IP conx 0 0
       :EndHold
     ∇
 
@@ -993,8 +1014,8 @@
                       (connecting connected)←2↑{((2 2⍴3 1 3 4)⍪⍵[;2 3]){⊂1↓⍵}⌸'' '',⍵[;1]}↑⊃¨kids
                   :EndIf
                   conxNames←_connections.index[1;]~connecting
-              ⍝↓↓↓ exclude WebSocket Connections
-                  timedOut←_connections.index[1;]/⍨(_connections.index[3;]=0)∧ConnectionTimeout<0.001×⎕AI[3]-_connections.index[2;]
+              ⍝↓↓↓ exclude WebSocket and SSE connections
+                  timedOut←_connections.index[1;]/⍨(0∧.=_connections.index[3 4;])∧ConnectionTimeout<0.001×⎕AI[3]-_connections.index[2;]
                   :If ∨/{~0∊⍴⍵}¨connected conxNames
                       :If ~0∊⍴timedOut
                           timedOut/⍨←{6::1 ⋄ 0=(_connections⍎⍵).⎕NC⊂'Req'}¨timedOut
@@ -1042,7 +1063,7 @@
       req.(Server ErrorInfoLevel)←⎕THIS ErrorInfoLevel
     ∇
 
-    ∇ ns HandleRequest(obj conn);data;evt;obj;rc;cert;fn
+    ∇ ns HandleRequest(obj conn);data;evt;obj;rc;cert;fn;fail;state
       :Hold obj
           (rc obj evt data)←⊃⎕TGET conn ⍝ from Conga.Wait
           :Select evt
@@ -1052,6 +1073,7 @@
               ns.Req.PeerCert←''
               ns.Req.PeerAddr←2⊃2⊃LDRC.GetProp obj'PeerAddr'
               ns.Req.Server←⎕THIS
+              ns.Req.Connection←ns.conx
      
               :If Secure
                   (rc cert)←2↑LDRC.GetProp obj'PeerCert'
@@ -1083,151 +1105,215 @@
           ns.Req.Thread←⎕TID
      
           :If ns.Req.Complete
+              fail←0
               :Select lc ns.Req.GetHeader'content-encoding' ⍝ zipped request?
               :Case '' ⍝ no encoding
                   :If ns.Req.Charset≡'utf-8'
                       ns.Req.Body←'UTF-8'⎕UCS ⎕UCS ns.Req.Body
                   :EndIf
               :Case 'gzip'
-                  →resp If'gzip'Unzip ns.Req
+                  fail←'gzip'Unzip ns.Req
               :Case 'deflate'
-                  →resp If'deflate'Unzip ns.Req
+                  fail←'deflate'Unzip ns.Req
               :Else
-                  →resp⊣'Unsupported content-encoding'ns.Req.Fail 400
+                  fail←1⊣'Unsupported content-encoding'ns.Req.Fail 400
               :EndSelect
      
-            ⍝ Application-specified validation
-              stopIf DebugLevel 4+2×~0∊⍴ValidateRequestFn
-              :If 0≠Validate ns.Req
-                  ns.Req.Fail 400×ns.Req.Response.Status=0 ⍝ default status 400 if not set by application
-                  →resp
+              state←0 ⍝ 0=respond normally, 1=SSE, 2=connection removed
+     
+              :If 0=fail
+                  ⍝ Application-specified validation
+                  stopIf DebugLevel 4+2×~0∊⍴ValidateRequestFn
+                  :If 0≠Validate ns.Req
+                      ns.Req.Fail 400×ns.Req.Response.Status=0 ⍝ default status 400 if not set by application
+                  :Else
+                      ns.Req.Response.(Status←(Status 200)[1+Status=0]) ⍝ if status was not already set, set to default
+     
+                      fn←1↓'.'@('/'∘=)ns.Req.Endpoint
+     
+                      :Trap 0 DebugLevel 1 ⍝ last ditch to catch any errors in handlers
+                          :If _SSEEndpoints∊⍨⊂fn ⍝ is fn an SSE endpoint?
+                              ns.Req.IsSSE←1
+                              state←HandleSSERequest obj fn ns
+                          :Else
+                              fn RequestHandler ns ⍝ RequestHandler is either HandleJSONRequest or HandleRESTRequest
+                          :EndIf
+                      :Else
+                          Log'HandleRequest: ',4↓∊(⊂' on '),⍪2↑⎕DMX.DM
+                          ns.Req.Response.Payload←''
+                          'Error handling request'ns.Req.Fail 500
+                      :EndTrap
+                  :EndIf
               :EndIf
-     
-              ns.Req.Response.(Status←(Status 200)[1+Status=0]) ⍝ if status was not already set, set to default
-     
-              fn←1↓'.'@('/'∘=)ns.Req.Endpoint
-     
-              :Trap 0 DebugLevel 1 ⍝ last ditch to catch any errors in handlers
-                  fn RequestHandler ns ⍝ RequestHandler is either HandleJSONRequest or HandleRESTRequest
-              :Else
-                  Log'HandleRequest: ',4↓∊(⊂' on '),⍪2↑⎕DMX.DM
-                  ns.Req.Response.Payload←''
-                  'Error handling request'ns.Req.Fail 500
-              :EndTrap
-     resp:
               ⍝ if HTML interface is enabled, and there's a problem with the request, and we haven't already set a payload
               :If _htmlEnabled∧(2=⌊0.01×ns.Req.Response.Status)<0∊⍴ns.Req.Response.Payload
                   'content-type'ns.Req.SetHeader'text/html; charset=utf-8'
                   ns.Req.Response.Payload←'<h3>',(⍕ns.Req.Response.((⍕Status),' ',StatusText)),'</h3>'
               :EndIf
-     
-              obj Respond ns
-     
+              :If 0=state
+                  obj Respond ns ⍝ send the response
+              :EndIf
           :EndIf
       :EndHold
+    ∇
+
+    ∇ state←HandleSSERequest(obj endpoint ns)
+    ⍝ Handle SSE requests
+      state←0
+      :If 0=HandleCORSRequest ns.Req ⍝ check CORS
+      :AndIf 0=ns.Req.Fail 405×'get'≢ns.Req.Method ⍝ method must be 'get'
+      :AndIf 0=ns.Req.Fail 406×~(ns.Req.GetHeader'accept')accepts'text/event-stream' 'text/*' '*/*' ''
+      :AndIf 0=CheckAuthentication ns.Req
+          :If state←0=StartSSE obj ns.Req endpoint
+              :If 3=CodeLocation.⎕NC endpoint
+                  :Trap 0 DebugLevel 1
+                      stopIf DebugLevel 2
+                      :If state←0={85::0 ⋄ 0 CodeLocation.(85⌶)endpoint,' ⍵'}ns.Req
+                      :Else
+                          RemoveConnection ns.conx
+                          state←2
+                      :EndIf
+                  :Else
+                      Log'Error in SSE handler for endpoint ',endpoint,': ',ErrorInfo
+                      RemoveConnection ns.conx
+                      state←2
+                  :EndTrap
+              :EndIf
+          :Else
+              RemoveConnection ns.conx
+              state←2
+          :EndIf
+      :EndIf
     ∇
 
     ∇ ns HandleWsRequest(obj conn);rc;evt;data;cert;hdrs;req;reqID;payload;valence;nc;fn;resp;ref
     ⍝ Handle WebSocket requests
       :Hold obj
           (rc obj evt data)←⊃⎕TGET conn ⍝ from Conga.Wait
-          :Select evt
-          :CaseList 'WSUpgrade' 'WSUpgradeReq'
-              ns.Thread←⎕TID
-              ns.PeerCert←''
-              ns.PeerAddr←2⊃2⊃LDRC.GetProp obj'PeerAddr'
-              ns.Server←⎕THIS
-              ns.IsWebSocket←1
-              ns.IsAuthenticated←0
-              ns.AcceptHeaders←''  ⍝ additional headers, if any, to send back with 'WSAccept'
-              _connections.index[3;_connections.index[1;]⍳⊂ns.conx]←1 ⍝ mark this connection as a WebSocket
-              :If Secure
-                  (rc cert)←2↑LDRC.GetProp obj'PeerCert'
-                  :If rc=0
-                      ns.PeerCert←cert
-                  :Else
-                      ns.PeerCert←'Could not obtain certificate'
-                  :EndIf
-              :EndIf
-              (req hdrs)←1(⊃{⍺ ⍵}↓)(⊃data splitOn crlf,crlf)splitOn crlf
-              ns.(Command Path HttpVersion)←req splitOn' '
-              ns.Headers←↑dlb¨¨hdrs splitOnFirst¨':'
-              ns.Headers[;1]←lc ns.Headers[;1]
-              :If evt≡'WSUpgrade'
-                  :If ~0∊⍴OnWsUpgradeFn
-                      stopIf DebugLevel 2
-                      :If 0≠(CodeLocation⍎OnWsUpgradeFn)ns
-                          RemoveConnection ns.conx
+          :Trap 0 DebugLevel 1
+              :Select evt
+              :CaseList 'WSUpgrade' 'WSUpgradeReq'
+                  ns.Thread←⎕TID
+                  ns.PeerCert←''
+                  ns.PeerAddr←2⊃2⊃LDRC.GetProp obj'PeerAddr'
+                  ns.Server←⎕THIS
+                  ns.IsWebSocket←1
+                  ns.IsAuthenticated←0
+                  ns.AcceptHeaders←''  ⍝ additional headers, if any, to send back with 'WSAccept'
+                  _connections.index[3;_connections.index[1;]⍳⊂ns.conx]←1 ⍝ mark this connection as a WebSocket
+                  :If Secure
+                      (rc cert)←2↑LDRC.GetProp obj'PeerCert'
+                      :If rc=0
+                          ns.PeerCert←cert
+                      :Else
+                          ns.PeerCert←'Could not obtain certificate'
                       :EndIf
                   :EndIf
-              :Else
-                  :If ~0∊⍴OnWsUpgradeReqFn
-                      stopIf DebugLevel 2
-                      :If 0≠(CodeLocation⍎OnWsUpgradeReqFn)ns
-                          RemoveConnection ns.conx
+                  (req hdrs)←1(⊃{⍺ ⍵}↓)(⊃data splitOn crlf,crlf)splitOn crlf
+                  ns.(Command Path HttpVersion)←req splitOn' '
+                  ns.Headers←↑dlb¨¨hdrs splitOnFirst¨':'
+                  ns.Headers[;1]←lc ns.Headers[;1]
+                  :If evt≡'WSUpgrade'
+                      :If ~0∊⍴OnWsUpgradeFn
+                          stopIf DebugLevel 2
+                          :If 0≠(CodeLocation⍎OnWsUpgradeFn)ns
+                              RemoveConnection ns.conx
+                          :EndIf
+                      :EndIf
+                  :Else
+                      :If ~0∊⍴OnWsUpgradeReqFn
+                          stopIf DebugLevel 2
+                          :If 0≠(CodeLocation⍎OnWsUpgradeReqFn)ns
+                              RemoveConnection ns.conx
+                          :Else
+                              LDRC.SetProp obj'WSAccept'(data(formatAcceptHeaders ns.AcceptHeaders))
+                          :EndIf
                       :Else
                           LDRC.SetProp obj'WSAccept'(data(formatAcceptHeaders ns.AcceptHeaders))
                       :EndIf
                   :EndIf
-              :EndIf
      
-          :Case 'WSReceive'
-              (reqID←'t',⍕⎕TID)ns.⎕NS'' ⍝ create a namespace for this message based on thread id
-              ref←ns⍎reqID ⍝ get its ref
-              ref.(reqID Payload Complete DataType)←(⊂reqID),data ⍝ populate namespace with message information
-              :If 0∊⍴OnWsReceiveFn ⍝ if no hook function
-                  :If 1 ¯1∊⍨⊃HTMLInterface ⍝ and using built-in HTMLInterface
+              :Case 'WSReceive'
+                  (reqID←'t',⍕⎕TID)ns.⎕NS'' ⍝ create a namespace for this message based on thread id
+                  ref←ns⍎reqID ⍝ get its ref
+                  ref.(reqID Payload Complete DataType)←(⊂reqID),data ⍝ populate namespace with message information
+                  :If 0∊⍴OnWsReceiveFn ⍝ if no hook function
+                      :If 1 ¯1∊⍨⊃HTMLInterface ⍝ and using built-in HTMLInterface
               ⍝↓↓↓ the code below is only for the built-in HTMLInterface, though it provides an example of how to use
-                      :Trap 0 DebugLevel 1
-                          payload←JSONin ref.Payload
-                          fn←1↓'.'@('/'∘=)payload.Endpoint
-                          valence←|⊃CodeLocation.⎕AT fn
-                          nc←CodeLocation.⎕NC⊂fn
-                          :Trap 85
-                              :If (2=valence[2])>3.3=nc ⍝ dyadic and not tacit
-                                  stopIf DebugLevel 2
-                                  resp←ref{0 CodeLocation.(85⌶)'⍺ ',fn,' ⍵'}payload.Payload ⍝ intentional stop for application-level debugging
+                          :If ns.IsAuthenticated
+                          :OrIf 0=WsAuthenticate ns
+                              ns.IsAuthenticated←1
+                              :Trap 0 DebugLevel 1
+                                  payload←JSONin ref.Payload
+                                  fn←1↓'.'@('/'∘=)payload.Endpoint
+                                  :If 404=CheckFunctionName fn
+                                      resp←'Invalid Endpoint: "',fn,'"'
+                                  :Else
+                                      valence←|⊃CodeLocation.⎕AT fn
+                                      nc←CodeLocation.⎕NC⊂fn
+                                      :Trap 85
+                                          :If (2=valence[2])>3.3=nc ⍝ dyadic and not tacit
+                                              stopIf DebugLevel 2
+                                              resp←ref{0 CodeLocation.(85⌶)'⍺ ',fn,' ⍵'}payload.Payload ⍝ intentional stop for application-level debugging
+                                          :Else
+                                              stopIf DebugLevel 2
+                                              resp←{0 CodeLocation.(85⌶)fn,' ⍵'}payload.Payload ⍝ intentional stop for application-level debugging
+                                          :EndIf
+                                      :Else ⍝ no result from the endpoint
+                                          resp←''
+                                      :EndTrap
+                                  :EndIf
+                                  ns.conx WsSend JSONout resp
                               :Else
-                                  stopIf DebugLevel 2
-                                  resp←{0 CodeLocation.(85⌶)fn,' ⍵'}payload.Payload ⍝ intentional stop for application-level debugging
-                              :EndIf
-                          :Else ⍝ no result from the endpoint
-                              resp←'No result'
-                          :EndTrap
-                          ns.conx WsSend JSONout resp
+                                  ns.conx WsSend JSONout'WSReceive Error: ',ErrorInfo
+                              :EndTrap
+                          :Else
+                              Log'WSReceive: Authentication failed... closing connection'
+                              RemoveConnection ns.conx
+                          :EndIf
                       :Else
-                          ns.conx WsSend JSONout('⍎'~⍨⊃⎕DMX.DM),' while processing request'
-                      :EndTrap
+                          Log'WSReceive: ',data
+                      :EndIf
                   :Else
-                      Log'WSReceive: ',data
-                  :EndIf
-              :Else
-                  stopIf DebugLevel 2
-                  :If ~ns.IsAuthenticated ⍝ are we already authenticated?
-                      :If 0≠WsAuthenticate ns ⍝
-                          Log'WSReceive: Authentication failed... closing connection'
-                          RemoveConnection ns.conx
+                      stopIf DebugLevel 2
+                      :If ns.IsAuthenticated ⍝ are we already authenticated?
+                          :If 0≠(CodeLocation⍎OnWsReceiveFn)ref
+                              RemoveConnection ns.conx
+                          :EndIf
+                      :Else
+                          :If 0=WsAuthenticate ns ⍝ authentication passed or wasn't necessary?
+                              ns.IsAuthenticated←1
+                              :If 0≠(CodeLocation⍎OnWsReceiveFn)ref
+                                  RemoveConnection ns.conx
+                              :EndIf
+                          :Else
+                              Log'WSReceive: Authentication failed... closing connection'
+                              RemoveConnection ns.conx
+                          :EndIf
                       :EndIf
                   :EndIf
-                  :If 0≠(CodeLocation⍎OnWsReceiveFn)ref
-                      RemoveConnection ns.conx
+                  ns.⎕EX reqID
+     
+              :Case 'WSClose'
+                  :If ~0∊⍴OnWsCloseFn
+                      stopIf DebugLevel 2
+                      {}(CodeLocation⍎OnWsCloseFn)ns
                   :EndIf
-              :EndIf
-              ns.⎕EX reqID
+                  RemoveConnection ns.conx
      
-          :Case 'WSClose'
-              :If ~0∊⍴OnWsCloseFn
-                  stopIf DebugLevel 2
-                  {}(CodeLocation⍎OnWsCloseFn)ns
-              :EndIf
-              RemoveConnection ns.conx
-     
-          :Case 'WSError'
-              Log'WSError occurred on ',obj
-              RemoveConnection ns.conx
+              :Case 'WSError'
+                  :If ~0∊⍴OnWsErrorFn
+                      stopIf DebugLevel 2
+                      {}(CodeLocation⍎OnWsErrorFn)ns
+                  :EndIf
+                  Log'WSError occurred on ',obj,': ',∊⍕data
+                  RemoveConnection ns.conx
+              :Else
+                  Log'Unexpected HandleWsRequest event: ',evt,'???'
+              :EndSelect
           :Else
-              Log'Unexpected HandleWsRequest event: ',evt,'???'
-          :EndSelect
+              Log'Error occurred processing event "',evt,'": ',ErrorInfo
+          :EndTrap
       :EndHold
     ∇
 
@@ -1255,6 +1341,156 @@
       :EndIf
     ∇
 
+    ∇ StartSSEHeartbeat
+    ⍝ start the SSE heartbeat thread if there are SSE endpoints and a heartbeat interval is set
+      :If (0<SSEHeartbeatInterval)∧~0∊⍴_SSEEndpoints
+          _sseThread←SSEHeartbeat&SSEHeartbeatInterval
+      :EndIf
+    ∇
+
+    ∇ SSEHeartbeat interval;next;conxs
+    ⍝ send an SSE comment to every open SSE connection every interval seconds
+    ⍝ dead connections are removed by SendSSE when the send fails
+    ⍝ sleeps in slices of at most 1 second so that the loop ends promptly when the server stops
+      next←⎕AI[3]+1000×interval
+      :While ~_stop
+          {}⎕DL 1⌊0.001×0⌈next-⎕AI[3]
+          :If ⎕AI[3]≥next
+              :If ~0∊⍴conxs←SSEConnections''
+                  :Trap 0 DebugLevel 1
+                      {}conxs SendSSE FormatSSE''
+                  :Else
+                      Log'SSEHeartbeat: ',ErrorInfo
+                  :EndTrap
+              :EndIf
+              next←⎕AI[3]+1000×interval
+          :EndIf
+      :EndWhile
+    ∇
+
+    ∇ r←StartSSE(obj req endpoint);hdr
+    ⍝ the response body is close-delimited (no Content-Length or Transfer-Encoding)
+    ⍝ so it works for both HTTP/1.0 and HTTP/1.1; the stream ends when the connection is closed
+      hdr←req.HTTPVersion,' 200 OK',crlf
+      'Server'req.SetHeader deb⍕2↑Version
+      'Date'req.SetHeader 2⊃LDRC.GetProp'.' 'HttpDate'
+      'Content-Type'req.AddHeader'text/event-stream; charset=utf-8'
+      'Cache-Control'req.AddHeader'no-cache'
+      'Connection'req.AddHeader'close'
+      'X-Accel-Buffering'req.AddHeader'no'
+      hdr,←(fmtHeaders req.Response.Headers),crlf
+      :If 0=r←⊃LDRC.Send obj hdr
+          :Hold '_connections'
+              _connections.index[4;_connections.index[1;]⍳⊂req.Connection]←_SSEEndpoints⍳⊂endpoint ⍝ mark this connection as a SSE stream
+              (_connections⍎req.Connection).IsSSE←1
+          :EndHold
+          r←req.Connection SendSSE': connected',2⍴⎕UCS 10
+      :EndIf
+    ∇
+
+    ∇ {r}←where SendSSE what;conx;obj;res;bytes
+      :Access public instance
+      r←⍬
+      :If ~0∊⍴where
+          what←{(⎕UCS 65279)≡⊃⍵:1↓⍵ ⋄ ⍵}what ⍝ strip possible BOM
+          what←FormatSSE⍣((0∊⍴what)∨~IsSSEText what)⊢what
+          bytes←⎕UCS'UTF-8'⎕UCS⍕what
+          :For conx :In ,⊆where
+              :Select ⊃nameClass conx
+              :Case 9.1 ⍝ connection namespace
+                  conx←conx.conx
+              :Case 9.2 ⍝ Request instance
+                  conx←conx.Connection
+              :EndSelect
+              :If 0≠(_connections.index[1;]⍳⊂conx)⊃_connections.index[4;],0
+                  :If 0≠r,←⊃res←LDRC.Send(obj←ServerName,'.',conx)bytes
+                      RemoveConnection conx
+                      Log'SendSSE: error sending SSE event: ',∊⍕obj res
+                  :EndIf
+              :Else
+                  Log'SendSSE: attempt to send SSE on a non-SSE or closed connection: ',⍕conx
+                  r,←¯1
+              :EndIf
+          :EndFor
+      :EndIf
+    ∇
+
+    ∇ r←{fields}FormatSSE data;lf;cr;name;val;text
+    ⍝ Format a Server-Sent Event suitable for sending with SendSSE
+    ⍝ data   - character vector (may contain CR, LF, or CRLF line breaks), character matrix (one line per row),
+    ⍝          vector of character vectors (one per line), or any other array (converted to JSON)
+    ⍝          if empty, no data lines are produced
+    ⍝ fields - [optional] either
+    ⍝          a namespace containing any of event (event type), id (last event ID), retry (reconnection time in milliseconds)
+    ⍝          or a character vector (event type), or a vector of up to 3 values: event id retry
+    ⍝          empty values are omitted; retry is omitted if not an integer
+    ⍝ r      - the formatted event, terminated by an empty line
+    ⍝          if neither fields nor data produce any output, r is an empty comment (useful as a heartbeat)
+    ⍝ e.g. conx SendSSE 'ping' FormatSSE 'hello'
+    ⍝      conx SendSSE ('update' '42' '3000') FormatSSE data
+    ⍝      conx SendSSE FormatSSE ''  ⍝ heartbeat
+      :Access public shared
+      (lf cr)←⎕UCS 10 13
+      r←''
+      :If 0≠⎕NC'fields'
+          :If 9.1=⎕NC⊂'fields' ⍝ namespace?
+              :For name :In 'event' 'id' 'retry'
+                  :If 0≠fields.⎕NC⊂name
+                      val←(⍕fields⍎name)~⎕UCS 0 10 13
+                  :AndIf (name≢'retry')∨(~0∊⍴val)∧∧/val∊⎕D ⍝ retry must be an integer
+                      r,←name,': ',val,lf
+                  :EndIf
+              :EndFor
+          :ElseIf ~0∊⍴fields ⍝ positional values: event id retry
+              fields←⍕¨((3∘⌊≢)↑⊢)⊆,fields
+              r,←∊fields{0∊⍴⍺:'' ⋄ ((⍵≡'retry')>∧/⍺∊⎕D):'' ⋄ ⍵,': ',(⍺~lf cr),lf}¨(≢fields)↑'event' 'id' 'retry'
+          :EndIf
+      :EndIf
+      text←''
+      :If ~0∊⍴data ⍝ empty data produces no data lines
+          :If (1≥|≡data)∧0=10|⎕DR data ⍝ simple character array?
+              text←1↓∊lf,¨↓(¯2↑1 1,⍴data)⍴data
+          :ElseIf (2=|≡data)∧(1≥⍴⍴data)∧∧/,0=10|⎕DR¨data ⍝ vector of character vectors?
+              text←1↓∊lf,¨,¨data
+          :Else ⍝ anything else is sent as JSON
+              text←1 ⎕JSON⍠'HighRank' 'Split'⊢data
+          :EndIf
+          text←(~(cr,lf)⍷text)/text ⍝ CRLF → LF
+          text←lf@(cr∘=)text        ⍝ CR → LF
+          r,←∊{'data: ',⍵,lf}¨1↓¨(lf=text)⊂text←lf,text ⍝ one data line per line of text
+      :EndIf
+      :If 0∊⍴r ⍝ no fields and no data?
+          r←':',lf ⍝ empty comment
+      :EndIf
+      r,←lf ⍝ empty line terminates the event
+    ∇
+
+    ∇ r←IsSSEText s;CR;LF;t;lines;pat;valid;ended
+      :Access Public Shared
+      →0↓⍨r←(1<≢⍴s)<isChar s               ⍝ not simple character?
+      CR LF←⎕UCS 13 10
+      s←(~(s=CR)∧1↓(s=LF),0)/s             ⍝ CRLF → LF
+      s[⍸s=CR]←LF                          ⍝ lone CR → LF
+      lines←1↓¨(t=LF)⊂t←LF,s
+      pat←'^(:.*|data(:.*)?|event(:.*)?|id(:[^\x00]*)?|retry: ?\d+)$'
+      valid←{0=≢⍵:1 ⋄ 0<≢pat ⎕S 0⊢⍵}¨lines
+      ended←(0=≢s)∨LF LF≡¯2↑s              ⍝ last event terminated by blank line
+      r←ended∧∧/valid
+    ∇
+
+    ∇ r←SSEConnections endpoint;i
+      :Access Public Instance
+      ⍝ '' → all SSE connections, otherwise the connections for endpoint
+      r←''
+      →0⍴⍨{6::1 ⋄ 0⊣_connections}'' ⍝ if SSEConnections is called by user before starting server, _connections hasn't been initialized
+      :If 0∊⍴endpoint
+          r←_connections.index[1;]/⍨0≠_connections.index[4;]
+      :Else
+          i←_SSEEndpoints⍳normalizeEndpoint endpoint
+          r←_connections.index[1;]/⍨_connections.index[4;]∊i
+      :EndIf
+    ∇
+
     ∇ headers←formatAcceptHeaders headers
       :If ~0∊⍴headers
           :Select |≡headers
@@ -1263,7 +1499,7 @@
           :Case 2 ⍝ vector of vectors
               headers←,⍕¨headers
               headers←(2,⍨⌊0.5×≢,headers)⍴headers
-          :Case |3 ⍝ vector of pairs of vectors
+          :Case 3 ⍝ vector of pairs of vectors
               headers←↑⍕¨¨headers
           :Else
               Log'formatAcceptHeaders: invalid header format'
@@ -1562,11 +1798,14 @@
       :EndTrap
     ∇
 
-    ∇ w←SafeJSON w;i;c;⎕IO
-    ⍝ Convert Unicode chars to \uXXXX
+    ∇ w←SafeJSON w;i;c;hex;esc;⎕IO
+    ⍝ Convert Unicode chars to \uXXXX (chars beyond the BMP are UTF-16 surrogate-pair encoded per the JSON spec)
+      :Access public shared
       ⎕IO←0
       →0⍴⍨0∊⍴i←⍸127<c←⎕UCS w
-      w[i]←↓⍉'\'⍪'u'⍪'0123456789ABCDEF'[16 16 16 16⊤c[i]]
+      hex←{'0123456789ABCDEF'[16 16 16 16⊤⍵]}
+      esc←{65535≥⍵:'\u',hex ⍵ ⋄ ('\u',hex 55296+⌊1024÷⍨⍵-65536),'\u',hex 56320+1024|⍵-65536}
+      w[i]←esc¨c[i]
       w←∊w
     ∇
 
@@ -1686,9 +1925,11 @@
         :Field Public Instance Boundary←''       ⍝ boundary for content-type 'multipart/form-data'
         :Field Public Instance Charset←''        ⍝ content charset (defaults to 'utf-8' if content-type is application/json)
         :Field Public Instance Complete←0        ⍝ do we have a complete request?
+        :Field Public Instance Connection←''     ⍝ Conga connection name
         :Field Public Instance ContentType←''    ⍝ content-type header value
         :Field Public Instance Cookies←0 2⍴⊂''   ⍝ cookie name/value pairs
         :Field Public Instance Input←''
+        :Field Public Instance IsSSE←0           ⍝ flag indicating this request is calling an SSE endpoint
         :Field Public Instance Headers←0 2⍴⊂''   ⍝ HTTPRequest header fields (plus any supplied from HTTPTrailer event)
         :Field Public Instance Method←''         ⍝ HTTP method (GET, POST, PUT, etc)
         :Field Public Instance Endpoint←''       ⍝ Requested URI
@@ -1709,7 +1950,7 @@
         :Field Public Shared HttpStatus←↑(200 'OK')(201 'Created')(204 'No Content')(301 'Moved Permanently')(302 'Found')(303 'See Other')(304 'Not Modified')(305 'Use Proxy')(307 'Temporary Redirect')(400 'Bad Request')(401 'Unauthorized')(403 'Forbidden')(404 'Not Found')(405 'Method Not Allowed')(406 'Not Acceptable')(408 'Request Timeout')(409 'Conflict')(410 'Gone')(411 'Length Required')(412 'Precondition Failed')(413 'Request Entity Too Large')(414 'Request-URI Too Long')(415 'Unsupported Media Type')(500 'Internal Server Error')(501 'Not Implemented')(503 'Service Unavailable')
 
         ⍝ Content types for common file extensions
-        :Field Public Shared ContentTypes←79 2⍴'aac' 'audio/aac' 'abw' 'application/x-abiword' 'apng' 'image/apng' 'arc' 'application/x-freearc' 'avif' 'image/avif' 'avi' 'video/x-msvideo' 'azw' 'application/vnd.amazon.ebook' 'bin' 'application/octet-stream' 'bmp' 'image/bmp' 'bz' 'application/x-bzip' 'bz2' 'application/x-bzip2' 'cda' 'application/x-cdf' 'csh' 'application/x-csh' 'css' 'text/css' 'csv' 'text/csv' 'doc' 'application/msword' 'docx' 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' 'eot' 'application/vnd.ms-fontobject' 'epub' 'application/epub+zip' 'gz' 'application/gzip' 'gz' 'application/x-gzip' 'gif' 'image/gif' 'htm' 'text/html' 'html' 'text/html' 'ico' 'image/vnd.microsoft.icon' 'ics' 'text/calendar' 'jar' 'application/java-archive' 'jpeg' 'image/jpeg' 'jpg' 'image/jpeg' 'js' 'text/javascript' 'json' 'application/json' 'jsonld' 'application/ld+json' 'mid ' 'audio/midi' 'midi' 'audio/midi' 'mjs' 'text/javascript' 'mp3' 'audio/mpeg' 'mp4' 'video/mp4' 'mpeg' 'video/mpeg' 'mpkg' 'application/vnd.apple.installer+xml' 'odp' 'application/vnd.oasis.opendocument.presentation' 'ods' 'application/vnd.oasis.opendocument.spreadsheet' 'odt' 'application/vnd.oasis.opendocument.text' 'oga' 'audio/ogg' 'ogv' 'video/ogg' 'ogx' 'application/ogg' 'opus' 'audio/ogg' 'otf' 'font/otf' 'png' 'image/png' 'pdf' 'application/pdf' 'php' 'application/x-httpd-php' 'ppt' 'application/vnd.ms-powerpoint' 'pptx' 'application/vnd.openxmlformats-officedocument.presentationml.presentation' 'rar' 'application/vnd.rar' 'rtf' 'application/rtf' 'sh' 'application/x-sh' 'svg' 'image/svg+xml' 'tar' 'application/x-tar' 'tif ' 'image/tiff' 'tiff' 'image/tiff' 'ts' 'video/mp2t' 'ttf' 'font/ttf' 'txt' 'text/plain' 'vsd' 'application/vnd.visio' 'wav' 'audio/wav' 'weba' 'audio/webm' 'webm' 'video/webm' 'webp' 'image/webp' 'woff' 'font/woff' 'woff2' 'font/woff2' 'xhtml' 'application/xhtml+xml' 'xls' 'application/vnd.ms-excel' 'xlsx' 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 'xml' 'application/xml' 'xul' 'application/vnd.mozilla.xul+xml' 'zip' 'application/zip' 'zip' 'application/x-zip-compressed' '3gp' 'video/3gpp' '3g2' 'video/3gpp2' '7z' 'application/x-7z-compressed'
+        :Field Public Shared ContentTypes←78 2⍴'aac' 'audio/aac' 'abw' 'application/x-abiword' 'apng' 'image/apng' 'arc' 'application/x-freearc' 'avif' 'image/avif' 'avi' 'video/x-msvideo' 'azw' 'application/vnd.amazon.ebook' 'bin' 'application/octet-stream' 'bmp' 'image/bmp' 'bz' 'application/x-bzip' 'bz2' 'application/x-bzip2' 'cda' 'application/x-cdf' 'csh' 'application/x-csh' 'css' 'text/css' 'csv' 'text/csv' 'doc' 'application/msword' 'docx' 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' 'eot' 'application/vnd.ms-fontobject' 'epub' 'application/epub+zip' 'gz' 'application/gzip' 'gif' 'image/gif' 'htm' 'text/html' 'html' 'text/html' 'ico' 'image/vnd.microsoft.icon' 'ics' 'text/calendar' 'jar' 'application/java-archive' 'jpeg' 'image/jpeg' 'jpg' 'image/jpeg' 'js' 'text/javascript' 'json' 'application/json' 'jsonld' 'application/ld+json' 'json5' 'application/json' 'mid' 'audio/midi' 'midi' 'audio/midi' 'mjs' 'text/javascript' 'mp3' 'audio/mpeg' 'mp4' 'video/mp4' 'mpeg' 'video/mpeg' 'mpkg' 'application/vnd.apple.installer+xml' 'odp' 'application/vnd.oasis.opendocument.presentation' 'ods' 'application/vnd.oasis.opendocument.spreadsheet' 'odt' 'application/vnd.oasis.opendocument.text' 'oga' 'audio/ogg' 'ogv' 'video/ogg' 'ogx' 'application/ogg' 'opus' 'audio/ogg' 'otf' 'font/otf' 'png' 'image/png' 'pdf' 'application/pdf' 'php' 'application/x-httpd-php' 'ppt' 'application/vnd.ms-powerpoint' 'pptx' 'application/vnd.openxmlformats-officedocument.presentationml.presentation' 'rar' 'application/vnd.rar' 'rtf' 'application/rtf' 'sh' 'application/x-sh' 'svg' 'image/svg+xml' 'tar' 'application/x-tar' 'tif' 'image/tiff' 'tiff' 'image/tiff' 'ts' 'video/mp2t' 'ttf' 'font/ttf' 'txt' 'text/plain' 'vsd' 'application/vnd.visio' 'wav' 'audio/wav' 'weba' 'audio/webm' 'webm' 'video/webm' 'webp' 'image/webp' 'woff' 'font/woff' 'woff2' 'font/woff2' 'xhtml' 'application/xhtml+xml' 'xls' 'application/vnd.ms-excel' 'xlsx' 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 'xml' 'application/xml' 'xul' 'application/vnd.mozilla.xul+xml' 'zip' 'application/zip' '3gp' 'video/3gpp' '3g2' 'video/3gpp2' '7z' 'application/x-7z-compressed'
 
         GetFromTable←{(⍵[;1]⍳⊂,⍺)⊃⍵[;2],⊂''}
         split←{p←(⍺⍷⍵)⍳1 ⋄ ((p-1)↑⍵)(p↓⍵)} ⍝ Split ⍵ on first occurrence of ⍺
@@ -1830,11 +2071,12 @@
         ∇
 
         ∇ params←ParseQueryString query
+          :Access public shared
           params←0 2⍴⊂''
           →0⍴⍨0∊⍴query
           query←'UTF-8'⎕UCS ⎕UCS query
           :If ∨/'=&'∊query ⍝ contains name/value or parameter separator?
-              params←URLDecode¨↑{2↑1↓¨'='(=⊂⊢)1⌽'==',⍵}¨'&'(≠⊆⊢)query
+              params←URLDecode¨↑'='∘split¨'&'(≠⊆⊢)query ⍝ split each on the FIRST '=' only, so '=' can appear in the value
           :Else
               params←URLDecode query
           :EndIf
@@ -1941,8 +2183,20 @@
           :EndTrap
         ∇
 
+        ∇ {(name value)}←name AddHeader value;i
+          :Access public instance
+        ⍝ Add header if it doesn't already exist
+          i←Response.Headers[;1]⍳⍥⎕C⊂name
+          :If i>≢Response.Headers
+              name SetHeader value
+          :Else
+              value←2⊃Response.Headers[i;]
+          :EndIf
+        ∇
+
         ∇ {(name value)}←name SetHeader value
-          :Access Public Instance
+          :Access public instance
+        ⍝ set a header value
           Response.Headers⍪←name(∊⍕value)
         ∇
 
@@ -1976,8 +2230,8 @@
         ∇
 
         ∇ r←ContentTypeForFile filename;ext
-          :Access public instance
-          ext←1↓3⊃⎕NPARTS'..',filename
+          :Access public shared
+          ext←lc 1↓3⊃⎕NPARTS'..',filename
           r←(ContentTypes[;1]⍳⊂ext)⊃ContentTypes[;2],⊂'application/octet-stream'
           r,←('text/html'≡r)/'; charset=utf-8'
         ∇
@@ -2113,7 +2367,7 @@
     ⍝ we have a valid session, refresh the cookie or set the header
           :If SessionUseCookie
               SessionIdHeader req.SetCookie id,(SessionTimeout>0)/'; Max-Age=',⍕⌈60×SessionTimeout
-          :ElseIf
+          :Else
               SessionIdHeader req.SetHeader id
           :EndIf
           _sessionsInfo[ind;4]←Now
@@ -2147,6 +2401,15 @@
     fromutf8←{0::(⎕AV,'?')[⎕AVU⍳⍵] ⋄ 'UTF-8'⎕UCS ⍵} ⍝ Turn raw UTF-8 input into text
     sint←{⎕IO←0 ⋄ 83=⎕DR ⍵:⍵ ⋄ 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95 96 97 98 99 100 101 102 103 104 105 106 107 108 109 110 111 112 113 114 115 116 117 118 119 120 121 122 123 124 125 126 127 ¯128 ¯127 ¯126 ¯125 ¯124 ¯123 ¯122 ¯121 ¯120 ¯119 ¯118 ¯117 ¯116 ¯115 ¯114 ¯113 ¯112 ¯111 ¯110 ¯109 ¯108 ¯107 ¯106 ¯105 ¯104 ¯103 ¯102 ¯101 ¯100 ¯99 ¯98 ¯97 ¯96 ¯95 ¯94 ¯93 ¯92 ¯91 ¯90 ¯89 ¯88 ¯87 ¯86 ¯85 ¯84 ¯83 ¯82 ¯81 ¯80 ¯79 ¯78 ¯77 ¯76 ¯75 ¯74 ¯73 ¯72 ¯71 ¯70 ¯69 ¯68 ¯67 ¯66 ¯65 ¯64 ¯63 ¯62 ¯61 ¯60 ¯59 ¯58 ¯57 ¯56 ¯55 ¯54 ¯53 ¯52 ¯51 ¯50 ¯49 ¯48 ¯47 ¯46 ¯45 ¯44 ¯43 ¯42 ¯41 ¯40 ¯39 ¯38 ¯37 ¯36 ¯35 ¯34 ¯33 ¯32 ¯31 ¯30 ¯29 ¯28 ¯27 ¯26 ¯25 ¯24 ¯23 ¯22 ¯21 ¯20 ¯19 ¯18 ¯17 ¯16 ¯15 ¯14 ¯13 ¯12 ¯11 ¯10 ¯9 ¯8 ¯7 ¯6 ¯5 ¯4 ¯3 ¯2 ¯1[utf8 ⍵]}
     Zipper←219⌶
+    fmtHeaders←{0∊⍴⍵:'' ⋄ ∊(firstCaps¨⍵[;1]){⍺,': ',⍵,⎕UCS 13 10}¨,∘⍕¨⍵[;2]} ⍝ formatted HTTP headers
+    firstCaps←{1↓uc@(¯1↓0,'-'∘=)lc '-',⍵} ⍝ capitalize first letters e.g. Content-Encoding
+
+      accepts←{
+      ⍝ check if accept header (⍺), accepts content-types (⍵)
+      ⍝ e.g. '*/*' accepts 'text/event-stream' → 1
+          a←,⊆{lc deb⊃⍵ splitOnFirst';'}¨(,⍺)splitOn','
+          (0∊⍴⍺)∨⊃∨/a∊⊆⍵
+      }
 
     ∇ r←DyalogRoot
       r←{⍵,('/\'∊⍨⊢/⍵)↓'/'}{0∊⍴t←2 ⎕NQ'.' 'GetEnvironment' 'DYALOG':⊃1 ⎕NPARTS⊃2 ⎕NQ'.' 'GetCommandLineArgs' ⋄ t}''
@@ -2177,6 +2440,14 @@
     ∇ r←fmtCongaEvent evt
     ⍝ formats the result of LDRC.Wait
       r←(⍕3↑evt),' ',{500≥≢⍵:⍵ ⋄ (⍕≢⍵),'⍴ ',(250↑⍵),' ... ',(¯250↑⍵)}4⊃evt,'' '' ⍝ ensure evt has a 4th element
+    ∇
+
+    ∇ init_connections;c
+    ⍝ initialize _connections namespace
+      c←⎕NS''
+      c.index←4 0⍴'' 0 0 0 ⍝ conx, last activity time, websocket?, SSE?
+      c.lastCheck←0
+      _connections←c
     ∇
 
     ∇ r←InTerm;system
@@ -2246,6 +2517,17 @@
           filename←1⌽'''''',''''⎕R'''\\'''''⊢filename ⍝ enclose in quotes, escaping existing quotes
           r←{0::'' ⋄ ⊃⎕SH'realpath ',filename,' 2>/dev/null'}filename
       :EndIf
+    ∇
+
+    ∇ r←normalizeEndpoint names
+    ⍝ normalize endpoint name(s) to the form HandleRequest derives from a request's Endpoint
+    ⍝ names - character vector of one or more names separated by commas and/or spaces,
+    ⍝         or a vector of character vectors (e.g. from a JSON configuration file)
+    ⍝ r     - vector of unique names with leading '/'s removed and remaining '/'s changed to '.'
+    ⍝ e.g. normalizeEndpoint '/events, a/b'  →  'events' 'a.b'
+      r←⊃,/{⍵((~∊)⊆⊣)', '}¨,¨,⊆names  ⍝ split each item on commas and spaces
+      r←{'.'@('/'∘=)⍵↓⍨+/∧\'/'=⍵}¨r   ⍝ drop leading '/'s, then '/' → '.'
+      r←∪r~⊂''                          ⍝ drop empty names (e.g. from a lone '/') and duplicates
     ∇
 
     ∇ r←makeRegEx w
@@ -2564,7 +2846,7 @@
 ⍝<head>
 ⍝<meta content="text/html; charset=utf-8" http-equiv="Content-Type">
 ⍝<link rel="icon" href="data:,">
-⍝<title>JAWS</title>
+⍝<title>Jarvis</title>
 ⍝ <style>
 ⍝   body {color:#000000;background-color:white;font-family:Verdana;margin-left:0px;margin-top:0px;}
 ⍝   button {display:inline-block;font-size:1.1em;}
