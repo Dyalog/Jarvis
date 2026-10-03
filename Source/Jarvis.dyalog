@@ -2845,7 +2845,7 @@
 ⍝<head>
 ⍝<meta content="text/html; charset=utf-8" http-equiv="Content-Type">
 ⍝<link rel="icon" href="data:,">
-⍝<title>JAWS</title>
+⍝<title>Jarvis</title>
 ⍝ <style>
 ⍝   body {color:#000000;background-color:white;font-family:Verdana;margin-left:0px;margin-top:0px;}
 ⍝   button {display:inline-block;font-size:1.1em;}
