@@ -6,7 +6,7 @@
 
     ∇ r←Version
       :Access public shared
-      r←'Jarvis' '1.23.0' '2026-09-25'
+      r←'Jarvis' '1.23.1' '2026-10-03'
     ∇
 
     ∇ Documentation
@@ -914,7 +914,13 @@
                       :EndIf
      
                   :Case 'Closed'
-                      RemoveConnection conx
+                      :If _connections.index[3;_connections.index[1;]⍳⊂conx] ⍝ WebSocket?
+                          ref←_connections⍎conx   ⍝ get its reference
+                          wres ⎕TPUT conn
+                          _taskThreads←⎕TNUMS∩_taskThreads,ref{⍺ HandleWsRequest ⍵}&(obj conn)
+                      :Else
+                          RemoveConnection conx
+                      :EndIf
      
                   :Case 'Timeout'
      
@@ -1294,7 +1300,7 @@
                   :EndIf
                   ns.⎕EX reqID
      
-              :Case 'WSClose'
+              :CaseList 'WSClose' 'Closed'
                   :If ~0∊⍴OnWsCloseFn
                       stopIf DebugLevel 2
                       {}(CodeLocation⍎OnWsCloseFn)ns
