@@ -1,0 +1,1903 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../sse/">
+      
+      
+        <link rel="next" href="../docker/">
+      
+      
+      <link rel="icon" href="../img/favicon-32.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.15">
+    
+    
+      
+        <title>Using WebSockets - Jarvis</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.342714a4.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../css/print-site.css">
+    
+      <link rel="stylesheet" href="../css/print-site-material.css">
+    
+      <link rel="stylesheet" href="../css/main.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#a-first-example" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Jarvis" class="md-header__button md-logo" aria-label="Jarvis" data-md-component="logo">
+      
+  <img src="../img/dyalog-white.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Jarvis
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Using WebSockets
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/dyalog/Jarvis" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Dyalog/Jarvis
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Jarvis" class="md-nav__button md-logo" aria-label="Jarvis" data-md-component="logo">
+      
+  <img src="../img/dyalog-white.svg" alt="logo">
+
+    </a>
+    Jarvis
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/dyalog/Jarvis" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Dyalog/Jarvis
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    Usage
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            Usage
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Concepts
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../using/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Using Jarvis
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../json/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    JSON Paradigm
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../rest/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    REST Paradigm
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../using-request/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Using the Request Object
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    Reference
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            Reference
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_1" id="__nav_3_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Settings
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_1">
+            <span class="md-nav__icon md-icon"></span>
+            Settings
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../settings-overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Settings Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../settings-operational/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Operational Settings
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../settings-session/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Session Settings
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../settings-json/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    JSON Settings
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../settings-rest/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    REST Settings
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../settings-hooks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    User Hooks Settings
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../settings-conga/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Conga-Related Settings
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../settings-cors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    CORS Settings
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../settings-sse/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    SSE Settings
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../settings-websockets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    WebSocket Settings
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../settings-container/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Container Settings
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../settings-shared/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Shared Settings
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Methods
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2">
+            <span class="md-nav__icon md-icon"></span>
+            Methods
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../methods-shared/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Shared Methods
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../methods-instance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Instance Methods
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Request Object
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_3">
+            <span class="md-nav__icon md-icon"></span>
+            Request Object
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../request/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Request Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../request-fields/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Request Fields
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../request-methods/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Request Methods
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../response/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Response Namespace
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    Advanced Topics
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            Advanced Topics
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../conga/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Jarvis and Conga
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../security/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Security
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sessions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Using Sessions
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sse/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Server-Sent Events
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    Using WebSockets
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    Using WebSockets
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+  
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#a-first-example" class="md-nav__link">
+    <span class="md-ellipsis">
+      A first example
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-connection-lifecycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      The connection lifecycle
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The connection lifecycle">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#upgrade" class="md-nav__link">
+    <span class="md-ellipsis">
+      Upgrade
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#messages" class="md-nav__link">
+    <span class="md-ellipsis">
+      Messages
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#close-and-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      Close and error
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-connection-namespace" class="md-nav__link">
+    <span class="md-ellipsis">
+      The connection namespace
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#receiving-messages" class="md-nav__link">
+    <span class="md-ellipsis">
+      Receiving messages
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sending-messages" class="md-nav__link">
+    <span class="md-ellipsis">
+      Sending messages
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-built-in-message-handler" class="md-nav__link">
+    <span class="md-ellipsis">
+      The built-in message handler
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#authentication" class="md-nav__link">
+    <span class="md-ellipsis">
+      Authentication
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#things-to-bear-in-mind" class="md-nav__link">
+    <span class="md-ellipsis">
+      Things to bear in mind
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docker/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Docker Integration
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    About
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            About
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../LICENSE/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    License
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../release-notes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Release Notes
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../print_page/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Print
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+  
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#a-first-example" class="md-nav__link">
+    <span class="md-ellipsis">
+      A first example
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-connection-lifecycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      The connection lifecycle
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The connection lifecycle">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#upgrade" class="md-nav__link">
+    <span class="md-ellipsis">
+      Upgrade
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#messages" class="md-nav__link">
+    <span class="md-ellipsis">
+      Messages
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#close-and-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      Close and error
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-connection-namespace" class="md-nav__link">
+    <span class="md-ellipsis">
+      The connection namespace
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#receiving-messages" class="md-nav__link">
+    <span class="md-ellipsis">
+      Receiving messages
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sending-messages" class="md-nav__link">
+    <span class="md-ellipsis">
+      Sending messages
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-built-in-message-handler" class="md-nav__link">
+    <span class="md-ellipsis">
+      The built-in message handler
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#authentication" class="md-nav__link">
+    <span class="md-ellipsis">
+      Authentication
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#things-to-bear-in-mind" class="md-nav__link">
+    <span class="md-ellipsis">
+      Things to bear in mind
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+  <h1>Using WebSockets</h1>
+
+<p><a href="https://developer.mozilla.org/docs/Web/API/WebSockets_API">WebSockets</a> give a <code>Jarvis</code> application a two-way, persistent connection to a client. Unlike an ordinary HTTP request, where the client asks and the server answers once, a WebSocket stays open: either side can send a message at any time, until the connection is closed. This suits interactive, low-latency exchanges — live updates in both directions, chat, collaborative editing, streaming commands and results.</p>
+<p>If you only need the server to push a stream of events to the client, and the client never sends anything back over that channel, <a href="../sse/">Server-Sent Events</a> are simpler, work over plain HTTP, and reconnect automatically.</p>
+<p>WebSocket support works in both the <a href="../json/">JSON</a> and <a href="../rest/">REST</a> paradigms. It is off by default; see <a href="../settings-websockets/">WebSocket Settings</a>.</p>
+<h2 id="a-first-example">A first example</h2>
+<div class="highlight"><pre><span></span><code>      ⍝ in CodeLocation
+      ∇ r←WsReceive req                 ⍝ OnWsReceiveFn
+        {}(req.##.conx)req.##.Server.WsSend &#39;You said: &#39;,req.Payload
+        r←0                              ⍝ 0 keeps the connection open
+      ∇
+
+      j←Jarvis.New &#39;&#39;
+      j.CodeLocation←#
+      j.EnableWebSockets←1
+      j.OnWsReceiveFn←&#39;WsReceive&#39;
+      j.Start
+</code></pre></div>
+<p>In a page served from the same <code>Jarvis</code>:</p>
+<div class="highlight"><pre><span></span><code>const ws = new WebSocket(&quot;ws://localhost:8080/&quot;);
+ws.onmessage = e =&gt; console.log(e.data);   // &quot;You said: hello&quot;
+ws.onopen    = () =&gt; ws.send(&quot;hello&quot;);
+</code></pre></div>
+<h2 id="the-connection-lifecycle">The connection lifecycle</h2>
+<p>A WebSocket connection goes through three stages, each with its own hook.</p>
+<h3 id="upgrade">Upgrade</h3>
+<p>A client opens an HTTP connection and sends an <code>Upgrade: websocket</code> request. How <code>Jarvis</code> handles it depends on <a href="../settings-websockets/#wsautoupgrade"><code>WsAutoUpgrade</code></a>:</p>
+<ul>
+<li><strong><code>WsAutoUpgrade←1</code> (the default):</strong> <code>Jarvis</code> accepts the upgrade automatically, then calls <a href="../settings-websockets/#onwsupgradefn"><code>OnWsUpgradeFn</code></a> with the <a href="#the-connection-namespace">connection namespace</a>. Returning a non-zero result closes the connection.</li>
+<li><strong><code>WsAutoUpgrade←0</code>:</strong> <code>Jarvis</code> calls <a href="../settings-websockets/#onwsupgradereqfn"><code>OnWsUpgradeReqFn</code></a> with the connection namespace <em>before</em> accepting. Return <code>0</code> to accept the upgrade, or a non-zero value to reject it. If <code>OnWsUpgradeReqFn</code> is not defined, the upgrade is accepted. Your function can inspect the request (<code>Headers</code>, <code>Path</code>, <code>PeerAddr</code>) and can add headers to the acceptance by setting the connection namespace's <code>AcceptHeaders</code>.</li>
+</ul>
+<h3 id="messages">Messages</h3>
+<p>Once upgraded, each message the client sends arrives as a call to <a href="../settings-websockets/#onwsreceivefn"><code>OnWsReceiveFn</code></a> (see <a href="#receiving-messages">Receiving messages</a>). Your application sends messages to a client with <a href="#sending-messages"><code>WsSend</code></a>. A message can be sent from inside <code>OnWsReceiveFn</code> (a reply) or from any other code that has the connection, such as a background thread broadcasting to many clients.</p>
+<h3 id="close-and-error">Close and error</h3>
+<p>When the client closes the connection, <code>Jarvis</code> calls <a href="../settings-websockets/#onwsclosefn"><code>OnWsCloseFn</code></a> with the connection namespace, then removes the connection. If an error occurs on the connection, <code>Jarvis</code> logs it, calls <a href="../settings-websockets/#onwserrorfn"><code>OnWsErrorFn</code></a>, and removes the connection. Use these hooks to release any per-connection state your application is holding.</p>
+<h2 id="the-connection-namespace">The connection namespace</h2>
+<p>The upgrade, close and error hooks are each passed a <strong>connection namespace</strong>: a namespace <code>Jarvis</code> keeps for the life of the connection. Useful fields are:</p>
+<table>
+<tbody>
+<tr>
+<td>--</td>
+<td>--</td>
+</tr>
+<tr>
+<td><code>conx</code></td>
+<td>The Conga connection name. Pass it (or the namespace) to <a href="#sending-messages"><code>WsSend</code></a>.</td>
+</tr>
+<tr>
+<td><code>Server</code></td>
+<td>The <code>Jarvis</code> instance, for calling <code>WsSend</code>.</td>
+</tr>
+<tr>
+<td><code>Headers</code></td>
+<td>The upgrade request's headers, as a 2-column matrix of lower-case name and value.</td>
+</tr>
+<tr>
+<td><code>Path</code></td>
+<td>The path from the upgrade request's URL.</td>
+</tr>
+<tr>
+<td><code>PeerAddr</code></td>
+<td>The client's IP address.</td>
+</tr>
+<tr>
+<td><code>IsWebSocket</code></td>
+<td><code>1</code>.</td>
+</tr>
+<tr>
+<td><code>IsAuthenticated</code></td>
+<td><code>1</code> once <a href="../settings-websockets/#wsauthenticatefn"><code>WsAuthenticateFn</code></a> has accepted the connection.</td>
+</tr>
+</tbody>
+</table>
+<p>Keep a reference to the connection (its <code>conx</code>, or the namespace) if you want to send to it later, for example from a broadcast thread.</p>
+<h2 id="receiving-messages">Receiving messages</h2>
+<p>When <code>OnWsReceiveFn</code> is defined, <code>Jarvis</code> calls it for each message with a <strong>message namespace</strong>, which we'll call <code>req</code>. Its fields are:</p>
+<table>
+<tbody>
+<tr>
+<td>--</td>
+<td>--</td>
+</tr>
+<tr>
+<td><code>Payload</code></td>
+<td>The message content.</td>
+</tr>
+<tr>
+<td><code>DataType</code></td>
+<td>The WebSocket data type.</td>
+</tr>
+<tr>
+<td><code>Complete</code></td>
+<td>Whether the message is complete.</td>
+</tr>
+<tr>
+<td><code>req.##</code></td>
+<td>The <a href="#the-connection-namespace">connection namespace</a> (the message namespace's parent).</td>
+</tr>
+</tbody>
+</table>
+<p>So <code>req.##.conx</code> is the connection, <code>req.##.Server</code> is the <code>Jarvis</code> instance, and <code>req.##.Headers</code> is the upgrade request's headers.</p>
+<p><code>OnWsReceiveFn</code>'s result controls the connection: <code>0</code> keeps it open, and any non-zero value closes it.</p>
+<h2 id="sending-messages">Sending messages</h2>
+<div class="highlight"><pre><span></span><code>{r}←where j.WsSend what
+</code></pre></div>
+<p><code>where</code> is one or more connections to send to. Each can be:</p>
+<ul>
+<li>a connection name (a <code>conx</code>, as found in the connection namespace), or</li>
+<li>a connection namespace</li>
+</ul>
+<p><code>what</code> is the message:</p>
+<ul>
+<li>a namespace is sent as JSON</li>
+<li>any other array is sent as it is</li>
+</ul>
+<p><code>r</code> is one Conga return code per connection: <code>0</code> for success, non-zero for a send failure (which is also logged). A reply from inside <code>OnWsReceiveFn</code>:</p>
+<div class="highlight"><pre><span></span><code>      ∇ r←WsReceive req;ns
+        ns←req.##                              ⍝ the connection namespace
+        {}(ns.conx)ns.Server.WsSend &#39;ack: &#39;,req.Payload
+        r←0
+      ∇
+</code></pre></div>
+<p>To send to several connections, collect their <code>conx</code> names (for example in <code>OnWsUpgradeFn</code>) and pass them all to <code>WsSend</code>. A background thread started by <a href="../settings-hooks/#appinitfn"><code>AppInitFn</code></a> can broadcast this way; keep a reference to the <code>Jarvis</code> instance, which a monadic <code>AppInitFn</code> receives as its argument.</p>
+<h2 id="the-built-in-message-handler">The built-in message handler</h2>
+<p>If <code>OnWsReceiveFn</code> is <strong>not</strong> defined, and the <a href="../settings-json/#htmlinterface">HTML interface</a> is enabled (which it is by default in JSON mode), <code>Jarvis</code> uses a built-in message handler. It treats each WebSocket message as a JSON request for an endpoint:</p>
+<div class="highlight"><pre><span></span><code>{&quot;Endpoint&quot;:&quot;/myEndpoint&quot;,&quot;Payload&quot;:&lt;argument&gt;}
+</code></pre></div>
+<p><code>Jarvis</code> runs the named function in <code>CodeLocation</code> with <code>Payload</code> as its argument and sends the result back as JSON. This is what the built-in HTML test page's "Send via WebSocket" button uses, and it's a quick way to try an endpoint over a WebSocket.</p>
+<p>The built-in handler applies the same restrictions as the HTTP interface: a function is run only if it passes <a href="../settings-operational/#includefns"><code>IncludeFns</code></a> / <a href="../settings-operational/#excludefns"><code>ExcludeFns</code></a> and is not a hook function. A message naming any other function gets <code>Invalid Endpoint</code>, and a message that isn't valid JSON gets a <code>WSReceive Error</code> whose detail follows <a href="../settings-operational/#errorinfolevel"><code>ErrorInfoLevel</code></a>.</p>
+<p>Because the built-in handler is active whenever WebSockets are enabled without an <code>OnWsReceiveFn</code>, define <code>OnWsReceiveFn</code> for any application that has its own WebSocket protocol, so messages go to your code instead.</p>
+<h2 id="authentication">Authentication</h2>
+<p>Set <a href="../settings-websockets/#wsauthenticatefn"><code>WsAuthenticateFn</code></a> to authenticate a connection. When <code>OnWsReceiveFn</code> is defined, <code>Jarvis</code> calls <code>WsAuthenticateFn</code> with the connection namespace before dispatching the first message. Return <code>0</code> to accept (the connection is then marked authenticated and the function isn't called again for it), or a non-zero value to reject, in which case <code>Jarvis</code> closes the connection without dispatching the message.</p>
+<p>The browser's <code>WebSocket</code> API can't add headers to its request, so a token is usually carried another way:</p>
+<ul>
+<li>in a cookie, which the browser sends with the upgrade request (available in the connection namespace's <code>Headers</code>)</li>
+<li>in the upgrade request's query string (<code>new WebSocket("ws://host/path?token=…")</code>), available in <code>Path</code></li>
+</ul>
+<p>A non-browser client (for example an APL HTTP client) can send any headers on the upgrade request.</p>
+<h2 id="things-to-bear-in-mind">Things to bear in mind</h2>
+<ul>
+<li>Each open WebSocket is a connection that stays open. WebSocket connections are not subject to <a href="../settings-operational/#connectiontimeout"><code>ConnectionTimeout</code></a>.</li>
+<li><code>Jarvis</code> uses Conga, which supports HTTP/1.x and its WebSocket upgrade; it does not implement WebSocket extensions such as per-message compression.</li>
+<li>Each message is handled on its own thread, so a slow handler for one message doesn't block others; conversely, don't assume replies to rapid successive messages arrive in a fixed order relative to later sends.</li>
+<li><code>OnWsCloseFn</code> is called on a WebSocket <strong>close handshake</strong> (what a browser's <code>ws.close()</code> performs). A connection that simply drops is reported as a close and cleaned up, but may not invoke <code>OnWsCloseFn</code>.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      <div class="left">Made with <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener"><strong>Material for MkDocs</strong></a>.&nbsp;</div><div class="right">Contents copyright &copy;2015-2024 <strong><a href="https://dyalog.com" target="_blank" rel="noopener">Dyalog, LTD</a></strong></div>
+    </div>
+  
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "..", "features": ["navigation.sections", "navigation.instant", "content.footnote.tooltips", "navigation.path", "navigation.indexes"], "search": "../assets/javascripts/workers/search.d50fe291.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.56ea9cef.min.js"></script>
+      
+        <script src="../js/print-site.js"></script>
+      
+    
+  </body>
+</html>

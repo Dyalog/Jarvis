@@ -1,0 +1,2074 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../sessions/">
+      
+      
+        <link rel="next" href="../websockets/">
+      
+      
+      <link rel="icon" href="../img/favicon-32.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.15">
+    
+    
+      
+        <title>Server-Sent Events - Jarvis</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.342714a4.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../css/print-site.css">
+    
+      <link rel="stylesheet" href="../css/print-site-material.css">
+    
+      <link rel="stylesheet" href="../css/main.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#a-first-example" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Jarvis" class="md-header__button md-logo" aria-label="Jarvis" data-md-component="logo">
+      
+  <img src="../img/dyalog-white.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Jarvis
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Server-Sent Events
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/dyalog/Jarvis" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Dyalog/Jarvis
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Jarvis" class="md-nav__button md-logo" aria-label="Jarvis" data-md-component="logo">
+      
+  <img src="../img/dyalog-white.svg" alt="logo">
+
+    </a>
+    Jarvis
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/dyalog/Jarvis" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Dyalog/Jarvis
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    Usage
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            Usage
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Concepts
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../using/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Using Jarvis
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../json/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    JSON Paradigm
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../rest/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    REST Paradigm
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../using-request/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Using the Request Object
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    Reference
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            Reference
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_1" id="__nav_3_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Settings
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_1">
+            <span class="md-nav__icon md-icon"></span>
+            Settings
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../settings-overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Settings Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../settings-operational/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Operational Settings
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../settings-session/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Session Settings
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../settings-json/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    JSON Settings
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../settings-rest/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    REST Settings
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../settings-hooks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    User Hooks Settings
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../settings-conga/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Conga-Related Settings
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../settings-cors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    CORS Settings
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../settings-sse/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    SSE Settings
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../settings-websockets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    WebSocket Settings
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../settings-container/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Container Settings
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../settings-shared/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Shared Settings
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Methods
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2">
+            <span class="md-nav__icon md-icon"></span>
+            Methods
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../methods-shared/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Shared Methods
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../methods-instance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Instance Methods
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Request Object
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_3">
+            <span class="md-nav__icon md-icon"></span>
+            Request Object
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../request/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Request Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../request-fields/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Request Fields
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../request-methods/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Request Methods
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../response/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Response Namespace
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    Advanced Topics
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            Advanced Topics
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../conga/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Jarvis and Conga
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../security/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Security
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sessions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Using Sessions
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    Server-Sent Events
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    Server-Sent Events
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+  
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#a-first-example" class="md-nav__link">
+    <span class="md-ellipsis">
+      A first example
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-an-sse-request-is-handled" class="md-nav__link">
+    <span class="md-ellipsis">
+      How an SSE request is handled
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-endpoint-function" class="md-nav__link">
+    <span class="md-ellipsis">
+      The endpoint function
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sending-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      Sending events
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Sending events">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#sendsse" class="md-nav__link">
+    <span class="md-ellipsis">
+      SendSSE
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sseconnections" class="md-nav__link">
+    <span class="md-ellipsis">
+      SSEConnections
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#formatsse" class="md-nav__link">
+    <span class="md-ellipsis">
+      FormatSSE
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#isssetext" class="md-nav__link">
+    <span class="md-ellipsis">
+      IsSSEText
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#heartbeats" class="md-nav__link">
+    <span class="md-ellipsis">
+      Heartbeats
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reconnecting-and-last-event-id" class="md-nav__link">
+    <span class="md-ellipsis">
+      Reconnecting and Last-Event-ID
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#authentication-and-sessions" class="md-nav__link">
+    <span class="md-ellipsis">
+      Authentication and sessions
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#things-to-bear-in-mind" class="md-nav__link">
+    <span class="md-ellipsis">
+      Things to bear in mind
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sample" class="md-nav__link">
+    <span class="md-ellipsis">
+      Sample
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../websockets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Using WebSockets
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docker/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Docker Integration
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    About
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            About
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../LICENSE/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    License
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../release-notes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Release Notes
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../print_page/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Print
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+  
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#a-first-example" class="md-nav__link">
+    <span class="md-ellipsis">
+      A first example
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-an-sse-request-is-handled" class="md-nav__link">
+    <span class="md-ellipsis">
+      How an SSE request is handled
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-endpoint-function" class="md-nav__link">
+    <span class="md-ellipsis">
+      The endpoint function
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sending-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      Sending events
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Sending events">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#sendsse" class="md-nav__link">
+    <span class="md-ellipsis">
+      SendSSE
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sseconnections" class="md-nav__link">
+    <span class="md-ellipsis">
+      SSEConnections
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#formatsse" class="md-nav__link">
+    <span class="md-ellipsis">
+      FormatSSE
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#isssetext" class="md-nav__link">
+    <span class="md-ellipsis">
+      IsSSEText
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#heartbeats" class="md-nav__link">
+    <span class="md-ellipsis">
+      Heartbeats
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reconnecting-and-last-event-id" class="md-nav__link">
+    <span class="md-ellipsis">
+      Reconnecting and Last-Event-ID
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#authentication-and-sessions" class="md-nav__link">
+    <span class="md-ellipsis">
+      Authentication and sessions
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#things-to-bear-in-mind" class="md-nav__link">
+    <span class="md-ellipsis">
+      Things to bear in mind
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sample" class="md-nav__link">
+    <span class="md-ellipsis">
+      Sample
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+  <h1>Server-Sent Events</h1>
+
+<p><a href="https://html.spec.whatwg.org/multipage/server-sent-events.html">Server-Sent Events</a> (SSE) let a <code>Jarvis</code> service push a stream of events to a client over one long-lived HTTP response. In the browser, the <a href="https://developer.mozilla.org/docs/Web/API/EventSource"><code>EventSource</code></a> API reads the stream, hands each event to your JavaScript, and reconnects by itself if the connection drops.</p>
+<p>SSE suits one-way, server-to-client updates such as live dashboards, progress reports, notifications and feeds. The client sends requests to your service in the usual way. Compared with WebSockets, SSE is plain HTTP: it needs no protocol upgrade, works through most proxies, and uses <code>Jarvis</code>'s existing validation, CORS, authentication and session handling.</p>
+<p>SSE works in both the <a href="../json/">JSON</a> and <a href="../rest/">REST</a> paradigms.</p>
+<h2 id="a-first-example">A first example</h2>
+<p>Name the endpoint in <a href="../settings-sse/#sseendpoints"><code>SSEEndpoints</code></a>. An endpoint function is optional; here it sends a greeting to each new client:</p>
+<div class="highlight"><pre><span></span><code>      ⍝ in CodeLocation
+      ∇ r←events req
+        {}req req.Server.SendSSE &#39;Hello!&#39;   ⍝ send to this client only
+        r←0                                 ⍝ 0 keeps the stream open
+      ∇
+
+      j←Jarvis.New &#39;&#39;
+      j.CodeLocation←#
+      j.SSEEndpoints←&#39;events&#39;
+      j.Start
+</code></pre></div>
+<p>In a page served from the same <code>Jarvis</code> (for example with <a href="../settings-json/#htmlinterface"><code>HTMLInterface</code></a>):</p>
+<div class="highlight"><pre><span></span><code>const source = new EventSource(&quot;events&quot;);
+source.onmessage = e =&gt; console.log(e.data);   // &quot;Hello!&quot;
+</code></pre></div>
+<p>From then on, any APL code with a reference to the <code>Jarvis</code> instance can push events to the open streams:</p>
+<div class="highlight"><pre><span></span><code>      (j.SSEConnections &#39;events&#39;) j.SendSSE &#39;Something happened&#39;
+</code></pre></div>
+<p>To watch a raw stream, use <code>curl -N http://localhost:8080/events</code>.</p>
+<h2 id="how-an-sse-request-is-handled">How an SSE request is handled</h2>
+<p>A request whose endpoint is listed in <code>SSEEndpoints</code> goes through the same early steps as any other request:</p>
+<ol>
+<li>The request is received and its body decoded.</li>
+<li>Your <a href="../settings-hooks/#validaterequestfn"><code>ValidateRequestFn</code></a>, if any, is called. A non-zero result fails the request with 400 (Bad Request).</li>
+</ol>
+<p>Then, instead of calling a JSON or REST handler, <code>Jarvis</code> checks the request:</p>
+<ol>
+<li>CORS. A CORS preflight (<code>OPTIONS</code>) request gets its usual 204 (No Content) response. For a cross-origin <code>GET</code>, the <code>Access-Control-Allow-Origin</code> header is added. See <a href="../settings-cors/">CORS Settings</a>.</li>
+<li>The method must be <code>GET</code>. Otherwise the request fails with 405 (Method Not Allowed).</li>
+<li>The <code>Accept</code> header, if present, must allow <code>text/event-stream</code> (<code>text/event-stream</code>, <code>text/*</code> or <code>*/*</code>). Otherwise the request fails with 406 (Not Acceptable). <code>EventSource</code> always sends <code>Accept: text/event-stream</code>.</li>
+<li>Authentication. Your <a href="../settings-hooks/#authenticatefn"><code>AuthenticateFn</code></a>, if any, is called; a non-zero result fails the request with 401 (Unauthorized). If you use <a href="../settings-session/">sessions</a>, the session is checked or created here.</li>
+</ol>
+<p>If any of these steps fails, the client gets an ordinary error response and no stream is opened. With <a href="../settings-json/#htmlinterface"><code>HTMLInterface</code></a> enabled, that response has the usual short HTML error body.</p>
+<p>If all the steps succeed, <code>Jarvis</code> starts the stream:</p>
+<ul>
+<li>It sends a <code>200 OK</code> response header with <code>Content-Type: text/event-stream; charset=utf-8</code>, <code>Cache-Control: no-cache</code>, <code>Connection: close</code> and <code>X-Accel-Buffering: no</code> (which tells nginx not to buffer the stream). Any headers that your hook functions set on the request's response (for example a session header) are sent too.</li>
+<li>It sends a <code>: connected</code> comment, so the client knows at once that the stream is open.</li>
+<li>It calls the endpoint function, if there is one (see below).</li>
+</ul>
+<p>The stream has no length. It stays open until the client disconnects, your code closes it, or the server stops. It works with both HTTP/1.0 and HTTP/1.1 clients.</p>
+<p>Some features for ordinary requests don't apply to SSE streams:</p>
+<ul>
+<li><a href="../settings-hooks/#postprocessfn"><code>PostProcessFn</code></a> isn't called.</li>
+<li>The stream isn't compressed, even if <a href="../settings-operational/#usezip"><code>UseZip</code></a> is set.</li>
+<li><a href="../settings-operational/#connectiontimeout"><code>ConnectionTimeout</code></a> doesn't apply: an idle stream isn't closed. Use <a href="../settings-sse/#sseheartbeatinterval"><code>SSEHeartbeatInterval</code></a> to find clients that have gone away.</li>
+</ul>
+<p>The <a href="../request/"><code>Request</code></a> object's <a href="../request-fields/#issse"><code>IsSSE</code></a> field is <code>1</code> for a request to an SSE endpoint, so an <code>AuthenticateFn</code> can treat streams differently from other requests. <code>IsSSE</code> is set after <code>ValidateRequestFn</code> is called, so it's still <code>0</code> there; a <code>ValidateRequestFn</code> can check <code>req.Endpoint</code> instead.</p>
+<h2 id="the-endpoint-function">The endpoint function</h2>
+<p>An SSE endpoint doesn't need a function. Without one, the stream simply opens, and your application sends events to it later.</p>
+<p>If <code>CodeLocation</code> has a function with the endpoint's name, <code>Jarvis</code> calls it once, after the stream has started. The function must be monadic or ambivalent. Its right argument is the <a href="../request/"><code>Request</code></a> object, which we'll call <code>req</code>. Useful parts of <code>req</code> are:</p>
+<table>
+<tbody>
+<tr>
+<td>--</td>
+<td>--</td>
+</tr>
+<tr>
+<td><code>req.Server</code></td>
+<td>The <code>Jarvis</code> instance, for calling <code>SendSSE</code>, <code>SSEConnections</code> and <code>FormatSSE</code>.</td>
+</tr>
+<tr>
+<td><code>req.Connection</code></td>
+<td>The name of this client's connection. You can keep it and send to this client later.</td>
+</tr>
+<tr>
+<td><code>req.GetHeader 'last-event-id'</code></td>
+<td>The id of the last event the client received, if it's reconnecting (see <a href="#reconnecting-and-last-event-id">Reconnecting</a>).</td>
+</tr>
+<tr>
+<td><code>req.QueryParams</code></td>
+<td>Any query parameters, for example from <code>new EventSource("events?topic=prices")</code>.</td>
+</tr>
+<tr>
+<td><code>req.Session</code></td>
+<td>The session, if you use sessions.</td>
+</tr>
+</tbody>
+</table>
+<p>The function's result decides what happens to the stream:</p>
+<table>
+<thead>
+<tr>
+<th>Result</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0</code>, or no result</td>
+<td>The stream stays open.</td>
+</tr>
+<tr>
+<td>any other value</td>
+<td><code>Jarvis</code> closes the stream.</td>
+</tr>
+<tr>
+<td>an APL error</td>
+<td><code>Jarvis</code> logs <code>Error in SSE handler for endpoint …</code> and closes the stream.</td>
+</tr>
+</tbody>
+</table>
+<p>A shy result is treated like an explicit one.</p>
+<p>The function can return straight away, as in the example above, leaving other code to send events later. Or it can loop, sending events to its own client until it's done:</p>
+<div class="highlight"><pre><span></span><code>      ∇ r←progress req;i;rc
+        :For i :In ⍳10
+            ⎕DL 1
+            :If 0≠rc←req req.Server.SendSSE (&#39;progress&#39; i) req.Server.FormatSSE i×10
+                :Leave   ⍝ the client has gone away
+            :EndIf
+        :EndFor
+        r←1   ⍝ done: close the stream
+      ∇
+</code></pre></div>
+<p>The function runs on the thread that handled the request, so a looping function doesn't block other requests. If the client disconnects while it's running:</p>
+<ul>
+<li>By default, the function keeps running until its next <code>SendSSE</code> fails. Check <code>SendSSE</code>'s result, as above.</li>
+<li>If the function sets <code>req.KillOnDisconnect←1</code>, <code>Jarvis</code> kills its thread as soon as it sees the disconnect.</li>
+</ul>
+<p>With <a href="../settings-operational/#debug"><code>Debug</code></a> set to <code>2</code>, <code>Jarvis</code> stops just before calling the endpoint function, as it does for other endpoints.</p>
+<h2 id="sending-events">Sending events</h2>
+<h3 id="sendsse"><code>SendSSE</code></h3>
+<table>
+<tbody>
+<tr>
+<td>Description</td>
+<td><code>SendSSE</code> sends an event to one or more open SSE streams.</td>
+</tr>
+<tr>
+<td>Syntax</td>
+<td><code>{r}←targets j.SendSSE payload</code></td>
+</tr>
+<tr>
+<td><code>targets</code></td>
+<td>One or more streams to send to. Each target can be either:<ul><li>a connection name, as returned by <a href="#sseconnections"><code>SSEConnections</code></a> or found in <code>req.Connection</code></li><li>a <a href="../request/"><code>Request</code></a> object for an SSE request (<code>req</code> in the endpoint function)</li></ul>If <code>targets</code> is empty, nothing is sent and <code>r</code> is <code>⍬</code>.</td>
+</tr>
+<tr>
+<td><code>payload</code></td>
+<td>What to send:<ul><li><code>''</code> - sends a <code>:</code> comment, which the client ignores</li><li>text that is already one or more complete SSE events (see <a href="#isssetext"><code>IsSSEText</code></a>) - sent as it is. Use this when you've formatted the event with <a href="#formatsse"><code>FormatSSE</code></a>, or by hand.</li><li>anything else (plain text, numbers, namespaces, character matrices, vectors of character vectors and so on) - first formatted with <code>FormatSSE</code> as an unnamed event</li></ul>A leading byte order mark (<code>⎕UCS 65279</code>) is removed, and the text is sent as UTF-8.</td>
+</tr>
+<tr>
+<td><code>r</code></td>
+<td>One number per target, in order:<ul><li><code>0</code> - the event was sent</li><li><code>¯1</code> - the target isn't an open SSE stream (for example, it has already closed). <code>Jarvis</code> logs it.</li><li>any other non-zero value - the send failed, and this is Conga's return code. <code>Jarvis</code> logs it and closes the connection.</li></ul></td>
+</tr>
+<tr>
+<td>Examples</td>
+<td><code>req req.Server.SendSSE 'Welcome!' ⍝ to one client, from its endpoint function</code><br><code>(j.SSEConnections 'prices') j.SendSSE 'price' j.FormatSSE quote ⍝ broadcast</code><br><code>(j.SSEConnections '') j.SendSSE '' ⍝ keep-alive comment to every stream</code></td>
+</tr>
+<tr>
+<td>Notes</td>
+<td><ul><li><code>targets j.SendSSE 'hello'</code> and <code>targets j.SendSSE j.FormatSSE 'hello'</code> send the same thing.</li><li>Each call sends the event to each target in a single operation. If several threads (for example, your code and the heartbeat) send to the same stream at the same time, their events don't get mixed up.</li><li>To send events from code that runs outside any request, such as a timer thread, keep a reference to the <code>Jarvis</code> instance. A monadic <a href="../settings-hooks/#appinitfn"><code>AppInitFn</code></a> receives it as its right argument.</li></ul></td>
+</tr>
+</tbody>
+</table>
+<h3 id="sseconnections"><code>SSEConnections</code></h3>
+<table>
+<tbody>
+<tr>
+<td>Description</td>
+<td><code>SSEConnections</code> returns the names of the open SSE connections, either all of them or those for particular endpoints.</td>
+</tr>
+<tr>
+<td>Syntax</td>
+<td><code>r←j.SSEConnections endpoints</code></td>
+</tr>
+<tr>
+<td><code>endpoints</code></td>
+<td>One of:<ul><li><code>''</code> - every open SSE connection</li><li>one or more SSE endpoint names, in any of the forms that <a href="../settings-sse/#sseendpoints"><code>SSEEndpoints</code></a> accepts (for example <code>'prices'</code>, <code>'/prices'</code>, <code>'prices, alerts'</code> or <code>'prices' 'alerts'</code>) - the connections for those endpoints</li></ul></td>
+</tr>
+<tr>
+<td><code>r</code></td>
+<td>A vector of connection names, suitable as the left argument to <a href="#sendsse"><code>SendSSE</code></a>. A name that isn't an SSE endpoint matches no connections.</td>
+</tr>
+<tr>
+<td>Examples</td>
+<td><code>(j.SSEConnections 'prices') j.SendSSE 'price' j.FormatSSE quote</code><br><code>≢j.SSEConnections '' ⍝ number of open streams</code></td>
+</tr>
+<tr>
+<td>Notes</td>
+<td><ul><li>Before the server is started, and after it's stopped, <code>r</code> is empty.</li><li>A connection can close at any time, so the list may be out of date by the time you use it. That's safe: <code>SendSSE</code> checks each connection again, and returns <code>¯1</code> for any that have closed.</li></ul></td>
+</tr>
+</tbody>
+</table>
+<h3 id="formatsse"><code>FormatSSE</code></h3>
+<table>
+<tbody>
+<tr>
+<td>Description</td>
+<td><code>FormatSSE</code> formats one Server-Sent Event, ready to send with <a href="#sendsse"><code>SendSSE</code></a>. It's a shared method, so you can call it as <code>Jarvis.FormatSSE</code> or through an instance (<code>j.FormatSSE</code>, <code>req.Server.FormatSSE</code>).</td>
+</tr>
+<tr>
+<td>Syntax</td>
+<td><code>r←{fields} Jarvis.FormatSSE data</code></td>
+</tr>
+<tr>
+<td><code>data</code></td>
+<td>The event's <code>data:</code> lines. One of:<ul><li>a character vector. Any line breaks (CR, LF or CRLF) split it into several <code>data:</code> lines; the client joins them again with LF.</li><li>a character matrix - one line per row</li><li>a vector of character vectors - one line per element</li><li>any other array (for example a number, a numeric vector or a namespace) - sent as JSON, using <code>1 ⎕JSON</code> with <code>HighRank</code> set to <code>'Split'</code></li><li>empty - no <code>data:</code> lines</li></ul></td>
+</tr>
+<tr>
+<td><code>fields</code></td>
+<td>[optional] The event's other fields. One of:<ul><li>a namespace with any of the variables <code>event</code> (the event type), <code>id</code> (the event id) and <code>retry</code> (the client's reconnection delay, in milliseconds)</li><li>a character vector - the event type</li><li>a vector of up to three values - event type, id and retry</li></ul>Empty values are left out, and so is a <code>retry</code> value that isn't a non-negative integer. Line breaks are removed from field values.</td>
+</tr>
+<tr>
+<td><code>r</code></td>
+<td>One complete event: a character vector of SSE lines, ending with a blank line. If there are no fields and no data, <code>r</code> is a <code>:</code> comment, which is useful as a keep-alive.</td>
+</tr>
+<tr>
+<td>Examples</td>
+<td><pre style="font-family:APL">      Jarvis.FormatSSE 'hello'<br/>data: hello<br/><br/>      'tick' Jarvis.FormatSSE 'line 1' 'line 2'<br/>event: tick<br/>data: line 1<br/>data: line 2<br/><br/>      q←⎕NS '' ⋄ q.price←101.5<br/>      ('update' 42 3000) Jarvis.FormatSSE q<br/>event: update<br/>id: 42<br/>retry: 3000<br/>data: {"price":101.5}<br/></pre></td>
+</tr>
+<tr>
+<td>Notes</td>
+<td><ul><li>In the browser, an event without an <code>event:</code> field goes to the <code>onmessage</code> handler (event type <code>message</code>). A named event goes to a listener for that type, for example:<pre>source.addEventListener("update", e =&gt; {<br/>  const quote = JSON.parse(e.data);   // {"price":101.5}<br/>  console.log(e.lastEventId);         // "42"<br/>});</pre></li><li>Browsers don't deliver an event that has no <code>data:</code> lines. So if you send an event with only fields, give it some data.</li></ul></td>
+</tr>
+</tbody>
+</table>
+<h3 id="isssetext"><code>IsSSEText</code></h3>
+<table>
+<tbody>
+<tr>
+<td>Description</td>
+<td><code>IsSSEText</code> reports whether text is made up of one or more complete SSE events. <a href="#sendsse"><code>SendSSE</code></a> uses it to decide whether a payload needs formatting. It's a shared method.</td>
+</tr>
+<tr>
+<td>Syntax</td>
+<td><code>r←Jarvis.IsSSEText text</code></td>
+</tr>
+<tr>
+<td><code>text</code></td>
+<td>The text to check.</td>
+</tr>
+<tr>
+<td><code>r</code></td>
+<td><code>1</code> if <code>text</code> is a simple character vector made up of one or more complete SSE events, otherwise <code>0</code>. To count as complete events:<ul><li>Every line must be a comment (starting with <code>:</code>) or a <code>data</code>, <code>event</code>, <code>id</code> or <code>retry</code> field. A <code>retry</code> value must be an integer.</li><li>The text must end with a blank line. That is, the last event ends with two line breaks.</li></ul>CR, LF and CRLF line breaks are all accepted.</td>
+</tr>
+<tr>
+<td>Examples</td>
+<td><code>Jarvis.IsSSEText 'data: hello',⎕UCS 10 10 ⍝ 1</code><br><code>Jarvis.IsSSEText 'data: hello' ⍝ 0: no blank line at the end</code><br><code>Jarvis.IsSSEText 'foo: bar',⎕UCS 10 10 ⍝ 0: unknown field</code></td>
+</tr>
+<tr>
+<td>Notes</td>
+<td><ul><li><code>IsSSEText ''</code> is <code>1</code>.</li><li>A line with any other field name (for example <code>foo: bar</code>) is valid SSE, and browsers ignore it, but <code>IsSSEText</code> returns <code>0</code>. As a result, <code>SendSSE</code> would wrap the whole text in <code>data:</code> lines.</li><li>Similarly, text that looks like an event but doesn't end with a blank line, such as <code>'data: hello'</code>, is sent as the data <code>data: hello</code>.</li><li>To be sure an event is sent as you intend, build it with <code>FormatSSE</code>.</li></ul></td>
+</tr>
+</tbody>
+</table>
+<h2 id="heartbeats">Heartbeats</h2>
+<p>Every <a href="../settings-sse/#sseheartbeatinterval"><code>SSEHeartbeatInterval</code></a> seconds (30 by default), <code>Jarvis</code> sends a <code>:</code> comment to every open SSE stream. Heartbeats keep proxies from closing streams that are idle, and they find clients that have disconnected without <code>Jarvis</code> noticing: if a heartbeat can't be sent, that connection is closed. Browsers don't pass comments to the page.</p>
+<p>Set <code>SSEHeartbeatInterval←0</code> to turn heartbeats off. You can still send your own keep-alives with <code>targets j.SendSSE ''</code>.</p>
+<h2 id="reconnecting-and-last-event-id">Reconnecting and <code>Last-Event-ID</code></h2>
+<p>If a stream drops, for example because the network fails or the server restarts, <code>EventSource</code> reconnects by itself after a few seconds. You can set the delay, in milliseconds, with an event's <code>retry</code> field.</p>
+<p>When it reconnects, the browser sends a <code>Last-Event-ID</code> header with the <code>id</code> of the last event it received, if any. Your endpoint function can read it with <code>req.GetHeader 'last-event-id'</code> and send the events the client missed. <code>Jarvis</code> doesn't keep past events: what to replay, and where to keep the events and ids, is up to your application. If the ids must stay valid across server restarts, keep them somewhere outside the workspace.</p>
+<p><code>EventSource</code> doesn't reconnect after a response that isn't <code>200</code> with <code>Content-Type: text/event-stream</code>. For example, a rejected request (401, 405 and so on) stops it for good. Closing the stream from the server (with a non-zero result from the endpoint function) is not an error, so the browser reconnects. To stop a client from reconnecting, call <code>source.close()</code> in the page, for example when it receives an event you've named for this purpose.</p>
+<h2 id="authentication-and-sessions">Authentication and sessions</h2>
+<p><code>EventSource</code> can't add headers to its request. So a browser client can't send an <code>Authorization</code> header or a session id header such as the one named by <a href="../settings-session/#sessionidheader"><code>SessionIdHeader</code></a>. Options include:</p>
+<ul>
+<li>Cookies, which the browser sends automatically. For sessions, set <a href="../settings-session/#sessionusecookie"><code>SessionUseCookie←1</code></a>. For a cross-origin stream, create the <code>EventSource</code> with <code>{withCredentials: true}</code>, and set <a href="../settings-cors/#cors_origin"><code>CORS_Origin</code></a> to the page's origin (or <code>1</code>) rather than <code>'*'</code>.</li>
+<li>A token in the query string (<code>events?token=…</code>), checked in your <code>AuthenticateFn</code> with <code>req.QueryParams</code>. Remember that URLs tend to be logged.</li>
+</ul>
+<p>Clients other than browsers (for example <code>curl</code> or an APL HTTP client) can send any headers.</p>
+<h2 id="things-to-bear-in-mind">Things to bear in mind</h2>
+<ul>
+<li>Each open stream is a connection that stays open. Over HTTP/1.1, browsers allow only about six connections to the same server, shared by every tab. If a user opens many tabs, each with its own stream, other requests to your service can stall. Use one stream per page, with named events for different kinds of updates.</li>
+<li>Conga supports HTTP/1.x only, so the HTTP/2 multiplexing that avoids this limit isn't available.</li>
+<li>Some proxies buffer responses, which delays events. <code>Jarvis</code> sends <code>X-Accel-Buffering: no</code> for nginx; other proxies may need their own configuration.</li>
+<li><code>Jarvis</code> doesn't queue events for slow clients. Each <code>SendSSE</code> hands the event to Conga at once.</li>
+</ul>
+<h2 id="sample">Sample</h2>
+<p><code>Samples/SSE</code> in the <code>Jarvis</code> repository is a complete example: a page showing a live server clock and a shared chat. It shows:</p>
+<ul>
+<li>an endpoint function that greets each client and reads <code>Last-Event-ID</code></li>
+<li>a thread started by <code>AppInitFn</code> that broadcasts a named <code>tick</code> event every second</li>
+<li>an ordinary JSON endpoint that broadcasts <code>chat</code> events to every stream</li>
+</ul>
+<p>See the sample's <code>README.md</code> for how to run it.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      <div class="left">Made with <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener"><strong>Material for MkDocs</strong></a>.&nbsp;</div><div class="right">Contents copyright &copy;2015-2024 <strong><a href="https://dyalog.com" target="_blank" rel="noopener">Dyalog, LTD</a></strong></div>
+    </div>
+  
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "..", "features": ["navigation.sections", "navigation.instant", "content.footnote.tooltips", "navigation.path", "navigation.indexes"], "search": "../assets/javascripts/workers/search.d50fe291.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.56ea9cef.min.js"></script>
+      
+        <script src="../js/print-site.js"></script>
+      
+    
+  </body>
+</html>
