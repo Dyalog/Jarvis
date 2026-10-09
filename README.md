@@ -7,12 +7,12 @@ The name is a pseudo-acronym for **J**SON **a**nd **R**EST Ser**vice**.
 ## Features
 
 - **Two paradigms**
-  - In the **[JSON paradigm](https://dyalog.github.io/Jarvis/json/)**, each APL function is an endpoint. `Jarvis` converts JSON to and from APL arrays for you.
-  - In the **[REST paradigm](https://dyalog.github.io/Jarvis/rest/)**, you write one function per HTTP method (`Get`, `Post` and so on) and decide how to handle each resource.
+  - In the **[JSON paradigm](https://dyalog.github.io/Jarvis/latest/json/)**, each APL function is an endpoint. `Jarvis` converts JSON to and from APL arrays for you.
+  - In the **[REST paradigm](https://dyalog.github.io/Jarvis/latest/rest/)**, you write one function per HTTP method (`Get`, `Post` and so on) and decide how to handle each resource.
 - **A built-in HTML interface** lets you try your endpoints from a browser, with no client code.
-- **[Hooks](https://dyalog.github.io/Jarvis/settings-hooks/)** for validation, authentication, session start-up and post-processing.
-- **[Sessions](https://dyalog.github.io/Jarvis/sessions/)**, **[HTTPS and client certificates](https://dyalog.github.io/Jarvis/security/)**, **[CORS](https://dyalog.github.io/Jarvis/settings-cors/)** and gzip/deflate compression.
-- **[Server-Sent Events](https://dyalog.github.io/Jarvis/sse/)** and **[WebSockets](https://dyalog.github.io/Jarvis/websockets/)** for pushing data to clients.
+- **[Hooks](https://dyalog.github.io/Jarvis/latest/settings-hooks/)** for validation, authentication, session start-up and post-processing.
+- **[Sessions](https://dyalog.github.io/Jarvis/latest/sessions/)**, **[HTTPS and client certificates](https://dyalog.github.io/Jarvis/latest/security/)**, **[CORS](https://dyalog.github.io/Jarvis/latest/settings-cors/)** and gzip/deflate compression.
+- **[Server-Sent Events](docs/sse.md)** and **[WebSockets](docs/websockets.md)** for pushing data to clients.
 - **[Docker](https://hub.docker.com/r/dyalog/jarvis)** support through the public `dyalog/jarvis` container.
 
 Jarvis runs on Windows, Linux and macOS. It needs Dyalog APL 18.0 or later.
@@ -53,7 +53,7 @@ You can also open http://localhost:8080 in a browser to use the HTML interface. 
 
 ## Documentation
 
-The full documentation is at **https://dyalog.github.io/Jarvis**. It covers [concepts](https://dyalog.github.io/Jarvis/concepts/), [settings](https://dyalog.github.io/Jarvis/settings-overview/), the [`Request` object](https://dyalog.github.io/Jarvis/request/) and [release notes](https://dyalog.github.io/Jarvis/release-notes/).
+The full documentation is at **https://dyalog.github.io/Jarvis**. It covers [concepts](https://dyalog.github.io/Jarvis/latest/concepts/), [settings](https://dyalog.github.io/Jarvis/latest/settings-overview/), the [`Request` object](https://dyalog.github.io/Jarvis/latest/request/) and [release notes](https://dyalog.github.io/Jarvis/latest/release-notes/).
 
 The source for the documentation is in [`docs`](docs). To preview it locally, run `mkdocs serve`.
 

@@ -14,5 +14,7 @@
   "OnWsCloseFn": "WsClose",
 
   "AppInitFn": "Initialize",
-  "AppCloseFn": "Shutdown"
+  "AppCloseFn": "Shutdown",
+
+  "DYALOG_JARVIS_THREAD": 0
 }
