@@ -1,0 +1,21 @@
+/* Jarvis CITA
+   Every suite in Tests/<suite>/run.apls is a dyalogscript: it loads Source/Jarvis.dyalog, runs its tests and
+   ends with ⎕OFF 0 (all passed) or ⎕OFF 1 (failures). CITA runs it with the scripting engine of the
+   interpreter under test and takes the exit code as verdict; stdout/stderr become the session log.
+   Scripts need Unicode interpreters (Classic has no -script), so CITA excludes Classic interpreters.
+*/
+{
+    defaults: {
+        dyalogversions: "19.0-22.0",
+        editions: "U",
+        secondstimeout: 300,
+        email: "cita-support@dyalog.com",
+    },
+    tests: [
+        { id: "core",       test: "Tests/Core/run.apls" },
+        { id: "sessions",   test: "Tests/sessions/run.apls" },
+        { id: "secure",     test: "Tests/Secure/run.apls" },
+        { id: "sse",        test: "Tests/SSE/run.apls" },
+        { id: "websockets", test: "Tests/WebSockets/run.apls" },
+    ]
+}
